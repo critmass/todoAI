@@ -83,4 +83,15 @@ describe('recurrenceRepository', () => {
         .run(taskId),
     ).toThrow(/CHECK constraint failed/);
   });
+
+  it('the same CHECK also fires the other direction: count without a target_count', () => {
+    expect(() =>
+      conn.raw
+        .prepare(
+          `INSERT INTO task_recurrence (task_id, recurrence_type, recurrence_pattern, target_count)
+           VALUES (?, 'count', '{}', NULL)`, // 'count' type but target_count missing - violates the CHECK
+        )
+        .run(taskId),
+    ).toThrow(/CHECK constraint failed/);
+  });
 });

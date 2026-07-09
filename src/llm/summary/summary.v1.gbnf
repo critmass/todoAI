@@ -1,0 +1,21 @@
+# summary.v1.gbnf
+# Generated from summary.v1.json (schema version: v1), then hand-tightened per D3. Fully
+# static - no dynamic slots (D7): task ids and ratings are attached by code from flow state,
+# never emitted by the model.
+#
+# {m,n} support is unverified on-device (eval Q1) - see task_extraction.v1.gbnf's header for
+# the fallback plan (src/llm/grammar/boundedRepetition.ts).
+
+root ::= "{\"summary_schema_version\":\"1\",\"kind\":" kind ",\"key_points\":" key_points ",\"disposition\":" disposition ",\"energy_note\":" energy_note "}"
+
+kind ::= "\"work_session\"" | "\"coaching_conversation\"" | "\"task_input\"" | "\"energy_checkin\"" | "\"pattern_recognition\"" | "\"task_completion\"" | "\"task_skip\""
+
+# 1-3 key points: one mandatory + 0-2 more, each comma-prefixed.
+key_points ::= "[" key_point ("," key_point){0,2} "]"
+key_point ::= "\"" jchar{1,120} "\""
+
+disposition ::= "null" | "\"" jchar{1,120} "\""
+energy_note ::= "null" | "\"" jchar{1,80} "\""
+
+# --- shared primitives ---
+jchar ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})

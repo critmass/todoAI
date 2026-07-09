@@ -1,0 +1,25 @@
+# task_breakdown.v1.gbnf
+# Generated from task_breakdown.v1.json (schema version: v1), then hand-tightened per D3.
+# This is a TEMPLATE (D7): {{parent_task_id}} must be substituted via
+# src/llm/grammar/buildGrammar.ts before use (a single-value slot - the one task being broken
+# down, known exactly at call time; not an alternation among candidates).
+#
+# {m,n} support is unverified on-device (eval Q1) - see task_extraction.v1.gbnf's header for
+# the fallback plan (src/llm/grammar/boundedRepetition.ts).
+
+root ::= "{\"parent_task_id\":" {{parent_task_id}} ",\"ordered\":" ordered ",\"subtasks\":" subtasks "}"
+
+ordered ::= "true" | "false"
+
+# 2-8 subtasks: one mandatory + 1-7 more, each comma-prefixed.
+subtasks ::= "[" subtask ("," subtask){1,7} "]"
+subtask ::= "{\"title\":" title ",\"estimated_duration_minutes\":" estimated_duration_minutes ",\"duration_from_user\":" duration_from_user "}"
+
+title ::= "\"" jchar{1,80} "\""
+# Digit-count bounded, not exact-range (see task_extraction.v1.gbnf's note) - the zod
+# validator enforces the exact [1,1440] range.
+estimated_duration_minutes ::= [1-9] [0-9]{0,3}
+duration_from_user ::= "true" | "false"
+
+# --- shared primitives ---
+jchar ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})

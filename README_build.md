@@ -124,6 +124,24 @@ validated `ADHD_Task_Management_App_Database_Schema_v2.2.sql`, per
 
 ---
 
+## Structured output (task 4 — strategy + eval design)
+
+The structured-output reliability strategy and eval methodology (spec §3.3) are settled in
+`docs/briefs/structured_output_strategy_task_4.md`. It binds the grammar work (task 5), the
+system prompts (task 7), and parts of the provider runtime (task 6): recap-as-draft, JSON
+Schema as single source of truth, rigid grammars, user-scale-only model output, a relative-date
+union, the recurrence ask-don't-guess policy, runtime-generated grammars for ids/tags, a union
+grammar (not native tool calling) for coaching resolutions, greedy decoding on constrained
+calls, and a validate → retry-once → salvage fallback ladder. Seed eval fixtures live in
+`docs/eval/extraction_fixtures_seed.jsonl` (16 synthetic trap cases; format in the doc §6.2).
+
+**⚠ Needs the human before the loop closes (doc §8):** the 20–30 real example tasks as
+fixtures, and the on-device grammar smoke test (does GBNF work at all via `llama.rn` on the
+S23 FE, and at what tok/s cost) once task 5 produces the first grammar. No dependencies were
+added — this task is design-only.
+
+---
+
 ## Deferred (conscious not-yet)
 
 - **iOS build** — until public deployment with a profit model.

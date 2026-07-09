@@ -28,6 +28,7 @@ import type {
   InteractionType,
   ModelTier,
   PatternType,
+  RecentSessionPerformanceRow,
   RetentionPolicy,
   SessionRow,
   SessionStatus,
@@ -403,12 +404,13 @@ export function interactionRowToDomain(row: InteractionRow): Interaction {
   };
 }
 
-export type InteractionWriteInput = Partial<Omit<Interaction, 'id' | 'timestamp'>> & {
-  interactionType: InteractionType;
-};
+/** Fully partial - the interactions repository's create() adds the interactionType-required
+ *  constraint at its own boundary so this one mapper serves both create and update. */
+export type InteractionWriteInput = Partial<Omit<Interaction, 'id' | 'timestamp'>>;
 
 export function interactionDomainToRow(input: InteractionWriteInput): Partial<InteractionRow> {
-  const row: Partial<InteractionRow> = { interaction_type: input.interactionType };
+  const row: Partial<InteractionRow> = {};
+  if (input.interactionType !== undefined) row.interaction_type = input.interactionType;
   if (input.sessionId !== undefined) row.session_id = input.sessionId;
   if (input.userEnergyLevelStart !== undefined) {
     row.user_energy_level_start = input.userEnergyLevelStart;
@@ -470,20 +472,17 @@ export function sessionRowToDomain(row: SessionRow): Session {
   };
 }
 
-export type SessionWriteInput = Partial<Omit<Session, 'startedAt' | 'completedAt'>> & {
-  id: string;
-  sessionType: SessionType;
-  plannedDuration: number;
-  status: SessionStatus;
-};
+/** Fully partial and excludes id - sessions.id is caller-supplied (not autoincrement) but is
+ *  always passed as its own parameter to create()/update(), never inside the patch body, so
+ *  this one mapper serves both. The sessions repository's create() adds the
+ *  sessionType/plannedDuration/status-required constraint at its own boundary. */
+export type SessionWriteInput = Partial<Omit<Session, 'id' | 'startedAt' | 'completedAt'>>;
 
 export function sessionDomainToRow(input: SessionWriteInput): Partial<SessionRow> {
-  const row: Partial<SessionRow> = {
-    id: input.id,
-    session_type: input.sessionType,
-    planned_duration: input.plannedDuration,
-    status: input.status,
-  };
+  const row: Partial<SessionRow> = {};
+  if (input.sessionType !== undefined) row.session_type = input.sessionType;
+  if (input.plannedDuration !== undefined) row.planned_duration = input.plannedDuration;
+  if (input.status !== undefined) row.status = input.status;
   if (input.actualDuration !== undefined) row.actual_duration = input.actualDuration;
   if (input.userEnergyStart !== undefined) row.user_energy_start = input.userEnergyStart;
   if (input.userEnergyEnd !== undefined) row.user_energy_end = input.userEnergyEnd;
@@ -493,6 +492,34 @@ export function sessionDomainToRow(input: SessionWriteInput): Partial<SessionRow
   if (input.extended !== undefined) row.extended = boolToRow(input.extended);
   if (input.modelTier !== undefined) row.model_tier = input.modelTier;
   return row;
+}
+
+/** Aggregated stats from the recent_session_performance view (last 30 days, grouped by
+ *  session_type). */
+export interface SessionPerformanceStats {
+  sessionType: SessionType;
+  sessionCount: number;
+  avgDuration: number | null;
+  completionRate: number | null;
+  avgEnergyStart: number | null;
+  avgEnergyEnd: number | null;
+  avgTasksCompleted: number | null;
+  avgTasksSkipped: number | null;
+}
+
+export function recentSessionPerformanceRowToDomain(
+  row: RecentSessionPerformanceRow,
+): SessionPerformanceStats {
+  return {
+    sessionType: row.session_type,
+    sessionCount: row.session_count,
+    avgDuration: row.avg_duration,
+    completionRate: row.completion_rate,
+    avgEnergyStart: row.avg_energy_start,
+    avgEnergyEnd: row.avg_energy_end,
+    avgTasksCompleted: row.avg_tasks_completed,
+    avgTasksSkipped: row.avg_tasks_skipped,
+  };
 }
 
 // =====================================================================

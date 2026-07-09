@@ -23,6 +23,7 @@ import type {
   EvidenceType,
   ExternalDependencyRow,
   ExternalDependencyStatus,
+  FireableSkillsRow,
   InteractionExternalDependencyRow,
   InteractionRow,
   InteractionTaskRow,
@@ -551,6 +552,26 @@ export function algorithmWeightRowToDomain(row: AlgorithmWeightRow): AlgorithmWe
   };
 }
 
+/** Fully partial - the learning repository's create() adds the factorName/weightPercentage-
+ *  required constraint at its own boundary so this one mapper serves both create and update.
+ *  In practice migration 001 seeds all five rows already; update() is the common path. */
+export type AlgorithmWeightWriteInput = Partial<Omit<AlgorithmWeight, 'id' | 'createdAt'>>;
+
+export function algorithmWeightDomainToRow(
+  input: AlgorithmWeightWriteInput,
+): Partial<AlgorithmWeightRow> {
+  const row: Partial<AlgorithmWeightRow> = {};
+  if (input.factorName !== undefined) row.factor_name = input.factorName;
+  if (input.weightPercentage !== undefined) row.weight_percentage = input.weightPercentage;
+  if (input.contextSpecificWeights !== undefined) {
+    row.context_specific_weights =
+      input.contextSpecificWeights == null ? null : JSON.stringify(input.contextSpecificWeights);
+  }
+  if (input.confidenceLevel !== undefined) row.confidence_level = input.confidenceLevel;
+  if (input.dataPointsCount !== undefined) row.data_points_count = input.dataPointsCount;
+  return row;
+}
+
 export interface EnergyPattern {
   id: number;
   patternType: PatternType;
@@ -575,6 +596,21 @@ export function energyPatternRowToDomain(row: EnergyPatternRow): EnergyPattern {
     confidenceScore: row.confidence_score ?? 0,
     createdAt: row.created_at,
   };
+}
+
+/** Fully partial - the learning repository's create() adds the patternType/patternKey-required
+ *  constraint at its own boundary so this one mapper serves both create and update. */
+export type EnergyPatternWriteInput = Partial<Omit<EnergyPattern, 'id' | 'createdAt'>>;
+
+export function energyPatternDomainToRow(input: EnergyPatternWriteInput): Partial<EnergyPatternRow> {
+  const row: Partial<EnergyPatternRow> = {};
+  if (input.patternType !== undefined) row.pattern_type = input.patternType;
+  if (input.patternKey !== undefined) row.pattern_key = input.patternKey;
+  if (input.averageEnergy !== undefined) row.average_energy = input.averageEnergy;
+  if (input.energyVariance !== undefined) row.energy_variance = input.energyVariance;
+  if (input.sampleCount !== undefined) row.sample_count = input.sampleCount;
+  if (input.confidenceScore !== undefined) row.confidence_score = input.confidenceScore;
+  return row;
 }
 
 export interface ContextEffectiveness {
@@ -605,6 +641,27 @@ export function contextEffectivenessRowToDomain(row: ContextEffectivenessRow): C
     confidenceLevel: row.confidence_level ?? 0,
     createdAt: row.created_at,
   };
+}
+
+/** Fully partial - the learning repository's create() adds the contextName-required
+ *  constraint at its own boundary so this one mapper serves both create and update. */
+export type ContextEffectivenessWriteInput = Partial<Omit<ContextEffectiveness, 'id' | 'createdAt'>>;
+
+export function contextEffectivenessDomainToRow(
+  input: ContextEffectivenessWriteInput,
+): Partial<ContextEffectivenessRow> {
+  const row: Partial<ContextEffectivenessRow> = {};
+  if (input.contextName !== undefined) row.context_name = input.contextName;
+  if (input.taskType !== undefined) row.task_type = input.taskType;
+  if (input.completionRate !== undefined) row.completion_rate = input.completionRate;
+  if (input.averageDurationAccuracy !== undefined) {
+    row.average_duration_accuracy = input.averageDurationAccuracy;
+  }
+  if (input.userSatisfactionAvg !== undefined) row.user_satisfaction_avg = input.userSatisfactionAvg;
+  if (input.sampleCount !== undefined) row.sample_count = input.sampleCount;
+  if (input.effectivenessScore !== undefined) row.effectiveness_score = input.effectivenessScore;
+  if (input.confidenceLevel !== undefined) row.confidence_level = input.confidenceLevel;
+  return row;
 }
 
 // =====================================================================
@@ -643,6 +700,24 @@ export function skillRowToDomain(row: SkillRow): Skill {
   };
 }
 
+/** Fully partial - the skills repository's create() adds the instruction-required constraint
+ *  at its own boundary so this one mapper serves both create and update. */
+export type SkillWriteInput = Partial<Omit<Skill, 'id' | 'createdAt' | 'lastUpdated'>>;
+
+export function skillDomainToRow(input: SkillWriteInput): Partial<SkillRow> {
+  const row: Partial<SkillRow> = {};
+  if (input.instruction !== undefined) row.instruction = input.instruction;
+  if (input.scope !== undefined) row.scope = input.scope;
+  if (input.schemaVersion !== undefined) row.schema_version = input.schemaVersion;
+  if (input.confidence !== undefined) row.confidence = input.confidence;
+  if (input.isActive !== undefined) row.is_active = boolToRow(input.isActive);
+  if (input.timesFired !== undefined) row.times_fired = input.timesFired;
+  if (input.timesCorroborated !== undefined) row.times_corroborated = input.timesCorroborated;
+  if (input.timesContradicted !== undefined) row.times_contradicted = input.timesContradicted;
+  if (input.lastFiredAt !== undefined) row.last_fired_at = input.lastFiredAt;
+  return row;
+}
+
 export interface SkillCondition {
   id: number;
   skillId: number;
@@ -676,6 +751,23 @@ export function skillEvidenceRowToDomain(row: SkillEvidenceRow): SkillEvidence {
     interactionId: row.interaction_id,
     evidenceType: row.evidence_type,
     createdAt: row.created_at,
+  };
+}
+
+/** From the fireable_skills view: active skills with their conditions parsed out of the view's
+ *  GROUP_CONCAT(condition_key || condition_op || condition_value) column. Note the view's
+ *  concatenation is lossy - if a condition_value itself contains an 'eq'/'neq'/'in'/'gte'/'lte'
+ *  substring adjacent to the key, splitting can't perfectly disambiguate. This is a schema view
+ *  characteristic (constraint #8: don't alter it), so conditions are exposed as the raw joined
+ *  strings here; use skillsRepository.listConditions() for an unambiguous read. */
+export interface FireableSkill extends Skill {
+  conditions: string[];
+}
+
+export function fireableSkillRowToDomain(row: FireableSkillsRow): FireableSkill {
+  return {
+    ...skillRowToDomain(row),
+    conditions: row.conditions == null || row.conditions === '' ? [] : row.conditions.split(','),
   };
 }
 

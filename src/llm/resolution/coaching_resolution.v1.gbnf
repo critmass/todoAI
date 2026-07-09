@@ -1,0 +1,62 @@
+# coaching_resolution.v1.gbnf
+# Generated from coaching_resolution.v1.json (schema version: v1), then hand-tightened per D3.
+# A union grammar, not native tool-calling (D8). This is a TEMPLATE (D7): {{task_id}},
+# {{depends_on_task_id}}, and {{context_tags_known}} must be substituted via
+# src/llm/grammar/buildGrammar.ts before use. task_id/depends_on_task_id are NEVER a bare
+# [0-9]+ rule - a 4B will eventually fabricate an id if given one; the app injects the exact
+# 1-5 candidate ids in play as a literal alternation instead.
+#
+# {m,n} support is unverified on-device (eval Q1) - see task_extraction.v1.gbnf's header for
+# the fallback plan (src/llm/grammar/boundedRepetition.ts).
+
+root ::= modify_task | break_down_task | eliminate_task | defer_task | add_dependency | add_missing_task | no_change
+
+# --- modify_task ---
+modify_task ::= "{\"action\":\"modify_task\",\"task_id\":" task_id ",\"changes\":" changes "}"
+changes ::= "{\"duration_minutes\":" changes_duration ",\"context_tags\":" changes_context_tags ",\"energy\":" changes_energy ",\"approach_notes\":" changes_notes "}"
+changes_duration ::= "null" | duration_int
+duration_int ::= [1-9] [0-9]{0,3}
+changes_context_tags ::= "null" | context_tags
+context_tags ::= "[]" | "[" tag ("," tag){0,4} "]"
+tag ::= tag_known | new_tag
+tag_known ::= "\"" {{context_tags_known}} "\""
+new_tag ::= "\"" jchar{1,20} "\""
+changes_energy ::= "null" | "\"low\"" | "\"med\"" | "\"high\""
+changes_notes ::= "null" | "\"" jchar{1,200} "\""
+
+# --- break_down_task (stub: id only, D8 - triggers task_breakdown.v1 as its own staged call) ---
+break_down_task ::= "{\"action\":\"break_down_task\",\"task_id\":" task_id "}"
+
+# --- eliminate_task ---
+eliminate_task ::= "{\"action\":\"eliminate_task\",\"task_id\":" task_id ",\"reason\":" reason120 "}"
+reason120 ::= "\"" jchar{1,120} "\""
+
+# --- defer_task ---
+defer_task ::= "{\"action\":\"defer_task\",\"task_id\":" task_id ",\"until\":" until "}"
+until ::= "null" | until_on_date | until_in_days | until_weekday | until_condition
+until_on_date ::= "{\"kind\":\"on_date\",\"date\":\"" date_str "\"}"
+date_str ::= [0-9] [0-9] [0-9] [0-9] "-" [0-9] [0-9] "-" [0-9] [0-9]
+until_in_days ::= "{\"kind\":\"in_days\",\"days\":" days_int "}"
+days_int ::= [1-9] [0-9]{0,2}
+until_weekday ::= "{\"kind\":\"weekday\",\"day\":" weekday ",\"which\":" which "}"
+weekday ::= "\"monday\"" | "\"tuesday\"" | "\"wednesday\"" | "\"thursday\"" | "\"friday\"" | "\"saturday\"" | "\"sunday\""
+which ::= "\"this\"" | "\"next\""
+until_condition ::= "{\"condition\":" condition120 "}"
+condition120 ::= "\"" jchar{1,120} "\""
+
+# --- add_dependency ---
+add_dependency ::= "{\"action\":\"add_dependency\",\"task_id\":" task_id ",\"depends_on_task_id\":" depends_on_task_id "}"
+depends_on_task_id ::= {{depends_on_task_id}}
+
+# --- add_missing_task (stub: title only, D8 - triggers task_extraction.v1 as its own staged call) ---
+add_missing_task ::= "{\"action\":\"add_missing_task\",\"title\":" title "}"
+title ::= "\"" jchar{1,80} "\""
+
+# --- no_change (first-class action, D8 - without it the grammar corners the model into inventing an intervention) ---
+no_change ::= "{\"action\":\"no_change\",\"reason\":" reason120 "}"
+
+# --- shared: dynamic task_id slot (D7 - never a bare [0-9]+ rule) ---
+task_id ::= {{task_id}}
+
+# --- shared primitives ---
+jchar ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})

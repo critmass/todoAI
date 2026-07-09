@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "coaching_resolution.v1",
+  "title": "coaching_resolution.v1",
+  "description": "Source of truth (D2) for the coaching-resolution surface (strategy §3.7/§4.3). A union grammar, not native tool-calling (D8). `no_change` is first-class - without it the grammar corners the model into inventing an intervention. `break_down_task`/`add_missing_task` are stubs that carry only ids/title; they trigger a later staged call rather than inlining a second schema. task_id/depends_on_task_id are dynamic slots at the GBNF layer (D7 - the app injects the 1-5 candidate ids in play; a bare unbounded integer rule is forbidden there) - this JSON Schema only bounds them structurally (positive integers), the same way task_extraction.v1.json doesn't encode context_tags' dynamic vocabulary as a closed set either.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "task_id", "changes"],
+      "properties": {
+        "action": { "const": "modify_task" },
+        "task_id": { "type": "integer", "minimum": 1 },
+        "changes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["duration_minutes", "context_tags", "energy", "approach_notes"],
+          "properties": {
+            "duration_minutes": { "type": ["integer", "null"], "minimum": 1, "maximum": 1440 },
+            "context_tags": {
+              "type": ["array", "null"],
+              "minItems": 0,
+              "maxItems": 5,
+              "items": { "type": "string", "minLength": 1, "maxLength": 20 }
+            },
+            "energy": { "enum": ["low", "med", "high", null] },
+            "approach_notes": { "type": ["string", "null"], "minLength": 1, "maxLength": 200 }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "task_id"],
+      "properties": {
+        "action": { "const": "break_down_task" },
+        "task_id": { "type": "integer", "minimum": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "task_id", "reason"],
+      "properties": {
+        "action": { "const": "eliminate_task" },
+        "task_id": { "type": "integer", "minimum": 1 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "task_id", "until"],
+      "properties": {
+        "action": { "const": "defer_task" },
+        "task_id": { "type": "integer", "minimum": 1 },
+        "until": { "$ref": "#/$defs/UntilSpec" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "task_id", "depends_on_task_id"],
+      "properties": {
+        "action": { "const": "add_dependency" },
+        "task_id": { "type": "integer", "minimum": 1 },
+        "depends_on_task_id": { "type": "integer", "minimum": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "title"],
+      "properties": {
+        "action": { "const": "add_missing_task" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "reason"],
+      "properties": {
+        "action": { "const": "no_change" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    }
+  ],
+  "$defs": {
+    "Weekday": {
+      "enum": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    },
+    "UntilSpec": {
+      "description": "DueSpec | {condition: str120} (strategy §3.7). Reuses the DueSpec branches from task_extraction.v1.json's due/dueSpec.ts semantics, plus a free-text condition escape for non-date deferrals ('until the estimate is redone', etc.).",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "date"],
+          "properties": {
+            "kind": { "const": "on_date" },
+            "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "days"],
+          "properties": {
+            "kind": { "const": "in_days" },
+            "days": { "type": "integer", "minimum": 1, "maximum": 365 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "day", "which"],
+          "properties": {
+            "kind": { "const": "weekday" },
+            "day": { "$ref": "#/$defs/Weekday" },
+            "which": { "enum": ["this", "next"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["condition"],
+          "properties": {
+            "condition": { "type": "string", "minLength": 1, "maxLength": 120 }
+          }
+        }
+      ]
+    }
+  }
+}

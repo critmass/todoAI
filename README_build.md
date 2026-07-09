@@ -105,6 +105,25 @@ The base build runs; the disposable spike screen (`BonsaiSpikeScreen.tsx`) is no
 
 ---
 
+## Data layer (tasks 2 & 3 — persistence + types)
+
+`src/db/` and `src/types/` implement the persistence layer and TypeScript types against the
+validated `ADHD_Task_Management_App_Database_Schema_v2.2.sql`, per
+`docs/briefs/data_layer_tasks_2_3.md`. Both the spec and schema are also copied into
+`docs/reference/` so they're in-repo alongside the code that implements them.
+
+**Dependencies added:**
+- `@op-engineering/op-sqlite` (^17.1.2) — the SQLite driver, per the brief's recommended stack. Not yet confirmed on-device (see flag below).
+- `better-sqlite3`, `@types/better-sqlite3` (dev) — backs a test-only `SqliteConnection` double (`src/db/testUtils/sqliteTestConnection.ts`) so repository/migration tests run real SQL under Jest without the native RN module. Never imported by app code.
+- `@types/node` (dev) — tsconfig's explicit `"types"` array needed `"node"` added for `fs`/`path`/`__dirname` in test-only files.
+- `@react-native/jest-preset` (dev) — `jest.config.js` already referenced this preset but it was never installed as a dependency, so `npm test` couldn't run at all before this. Pinned to `0.86.0` to match the rest of the `@react-native/*` set.
+
+**⚠ Flag to the human — `POWER()` / on-device verification still pending:**
+1. **The `active_tasks_with_neglect` view's `neglect_multiplier` column (uses `POWER()`) is expected to fail on op-sqlite's Android build.** `node_modules/@op-engineering/op-sqlite/android/build.gradle` explicitly lists SQLite compile flags (`SQLITE_ENABLE_FTS5`, `SQLITE_ENABLE_RTREE`, etc.) with no `SQLITE_ENABLE_MATH_FUNCTIONS` — SQLite omits math functions like `POWER()` unless that flag is set. This is static analysis of the build config, **not an on-device test** (no Android device was available this session). Per the brief's constraint on this exact scenario, `tasksRepository.listActiveByNeglect()` (`src/db/repositories/tasks.ts`) doesn't query the view at all: it computes `weeks_neglected` with the same POWER()-free arithmetic the view uses, then squares it in TypeScript for an identical, still-uncapped `neglectMultiplier`. **Please confirm on the S23 FE** whether the view's `POWER()` column actually fails — if a future op-sqlite build does compile in math functions, the view could be used directly again.
+2. **op-sqlite itself has not been installed/loaded on a physical device.** All schema/migration/repository verification this session ran against `better-sqlite3` (desktop SQLite 3.53.2) via Jest, which confirmed the DDL and all repository SQL are correct against a real SQLite engine — but that's a proxy, not the on-device op-sqlite JSI binding on Android. Before relying on this layer: run `npm run android`, confirm the app opens the DB and `runMigrations()` (`src/db/migrations/index.ts`) applies cleanly (all 25 tables, 5 views, 2 triggers), and re-check point 1 above.
+
+---
+
 ## Deferred (conscious not-yet)
 
 - **iOS build** — until public deployment with a profit model.

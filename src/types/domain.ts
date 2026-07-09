@@ -256,10 +256,12 @@ export function taskRowToDomain(row: TaskRow): Task {
 }
 
 /** Partial row for inserts/updates — only fields that came from the domain object. Timestamps
- *  and computed columns (id, created_at, updated_at) are left to the DB. */
+ *  and computed columns (id, created_at, updated_at) are left to the DB. Fully partial: the
+ *  tasks repository's create() adds the title/estimatedDuration-required constraint at its own
+ *  boundary so this one mapper serves both create (INSERT) and update (partial UPDATE). */
 export type TaskWriteInput = Partial<
   Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'completionCount' | 'skipCount' | 'successRate'>
-> & { title: string; estimatedDuration: number };
+>;
 
 export function taskDomainToRow(
   task: TaskWriteInput,

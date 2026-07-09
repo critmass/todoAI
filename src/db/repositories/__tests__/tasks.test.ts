@@ -65,6 +65,15 @@ describe('tasksRepository', () => {
     expect(created.durationSource).toBe('user');
   });
 
+  it('recordUnscheduledCompletion sets last_completed_at but leaves status active', async () => {
+    const created = await repo.create({ title: 'Ongoing project', estimatedDuration: 60 });
+    expect(created.lastCompletedAt).toBeNull();
+
+    const completed = await repo.recordUnscheduledCompletion(created.id);
+    expect(completed.status).toBe('active');
+    expect(completed.lastCompletedAt).not.toBeNull();
+  });
+
   it('listActive only returns active tasks', async () => {
     const a = await repo.create({ title: 'A', estimatedDuration: 10 });
     const b = await repo.create({ title: 'B', estimatedDuration: 10 });

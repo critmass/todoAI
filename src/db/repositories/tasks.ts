@@ -74,6 +74,21 @@ export function createTasksRepository(db: SqliteConnection) {
     await db.execute("UPDATE tasks SET status = 'deleted' WHERE id = ?", [id]);
   }
 
+  /** Primitive for 'unscheduled'-recurrence completion (spec §4.2): resets the neglect clock
+   *  via last_completed_at WITHOUT setting status='completed' - the task stays active and
+   *  resurfaces via neglect only (constraint #5). This is a primitive, not the policy: whether
+   *  a given task IS unscheduled-recurrence is a service-layer decision (task 9+) made by
+   *  checking recurrenceRepository.getByTaskId() first. A true one-off (no recurrence row)
+   *  must use update({ status: 'completed' }) instead - the two are not interchangeable. */
+  async function recordUnscheduledCompletion(id: number): Promise<Task> {
+    await db.execute('UPDATE tasks SET last_completed_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    const updated = await getById(id);
+    if (!updated) {
+      throw new NotFoundError('task', id);
+    }
+    return updated;
+  }
+
   async function listActive(): Promise<Task[]> {
     const result = await db.execute("SELECT * FROM tasks WHERE status = 'active' ORDER BY id");
     return (result.rows as unknown as TaskRow[]).map(taskRowToDomain);
@@ -102,7 +117,15 @@ export function createTasksRepository(db: SqliteConnection) {
     return withNeglect.sort((a, b) => b.neglectMultiplier - a.neglectMultiplier);
   }
 
-  return { getById, create, update, softDelete, listActive, listActiveByNeglect };
+  return {
+    getById,
+    create,
+    update,
+    softDelete,
+    recordUnscheduledCompletion,
+    listActive,
+    listActiveByNeglect,
+  };
 }
 
 export type TasksRepository = ReturnType<typeof createTasksRepository>;

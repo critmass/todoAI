@@ -142,6 +142,27 @@ added — this task is design-only.
 
 ---
 
+## Schemas, grammars, validators, mappers (task 5)
+
+`src/llm/` implements the four structured-output surfaces named in
+`docs/briefs/grammars_task_5.md` against the task 4 strategy above: `task_extraction.v1`,
+`task_breakdown.v1`, `coaching_resolution.v1`, `summary.v1`. Static artifacts and pure
+functions only — no model calls, no device, no DB. See `src/llm/README.md` for the surface
+list, how to regenerate a `.gbnf`, and (important) the `{m,n}`-support caveat: nothing in this
+layer has been validated against a real model yet, pending eval Q1 on-device.
+
+**Dependencies added:**
+- `zod` — hand-mirrored runtime validators per surface (D2/D10), derived from each surface's JSON Schema by hand rather than codegen.
+- `ajv` (dev) — validates fixtures against each surface's `.json` Schema directly in `schemaDrift.test.ts`, so the drift test is a real zod↔JSON-Schema agreement check, not a declared one. Dev-only: never imported by production code.
+
+**⚠ Flag to the human — this needs the same on-device confirmation task 4 already asked for:**
+Q1 (does a GBNF-constrained call even work via `llama.rn` on the S23 FE, and does it support
+`{m,n}`?) is still open — no device this session. Everything here is proven correct as *pure
+TypeScript* (237 tests, `tsc` strict, `eslint` clean) but unproven as *grammar text a real
+llama.cpp build actually accepts*. Treat this layer as design-complete, not device-validated.
+
+---
+
 ## Deferred (conscious not-yet)
 
 - **iOS build** — until public deployment with a profit model.

@@ -7,6 +7,7 @@ import type {
   BackupLogRow,
   BackupType,
   CoachingExternalDependencyRow,
+  CoachingPriorityQueueRow,
   CoachingQueueRow,
   CoachingQueueStatus,
   CoachingSessionRow,
@@ -702,6 +703,21 @@ export function coachingQueueRowToDomain(row: CoachingQueueRow): CoachingQueueEn
   };
 }
 
+/** Fully partial - the coaching repository's create() adds the triggerType-required
+ *  constraint at its own boundary so this one mapper serves both create and update. */
+export type CoachingQueueWriteInput = Partial<Omit<CoachingQueueEntry, 'id' | 'createdAt'>>;
+
+export function coachingQueueDomainToRow(input: CoachingQueueWriteInput): Partial<CoachingQueueRow> {
+  const row: Partial<CoachingQueueRow> = {};
+  if (input.triggerType !== undefined) row.trigger_type = input.triggerType;
+  if (input.urgency !== undefined) row.urgency = input.urgency;
+  if (input.triggerData !== undefined) {
+    row.trigger_data = input.triggerData == null ? null : JSON.stringify(input.triggerData);
+  }
+  if (input.status !== undefined) row.status = input.status;
+  return row;
+}
+
 export interface CoachingTaskLink {
   id: number;
   coachingId: number;
@@ -735,6 +751,35 @@ export function coachingExternalDependencyRowToDomain(
     id: row.id,
     coachingId: row.coaching_id,
     externalDependencyId: row.external_dependency_id,
+  };
+}
+
+/** From the coaching_priority_queue view: pending entries with their linked task/session/
+ *  external-dependency ids, ordered urgency-first then oldest-first (the view's own ORDER BY). */
+export interface CoachingPriorityQueueEntry extends CoachingQueueEntry {
+  relatedTaskIds: number[];
+  relatedSessionIds: string[];
+  relatedExternalDependencyIds: number[];
+}
+
+function parseGroupConcatIds(value: string | null): number[] {
+  if (value == null || value === '') return [];
+  return value.split(',').map(Number);
+}
+
+function parseGroupConcatStrings(value: string | null): string[] {
+  if (value == null || value === '') return [];
+  return value.split(',');
+}
+
+export function coachingPriorityQueueRowToDomain(
+  row: CoachingPriorityQueueRow,
+): CoachingPriorityQueueEntry {
+  return {
+    ...coachingQueueRowToDomain(row),
+    relatedTaskIds: parseGroupConcatIds(row.related_task_ids),
+    relatedSessionIds: parseGroupConcatStrings(row.related_session_ids),
+    relatedExternalDependencyIds: parseGroupConcatIds(row.related_external_dependency_ids),
   };
 }
 

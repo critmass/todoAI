@@ -35,6 +35,9 @@ local.properties
 !debug.keystore
 .kotlin/
 
+# llama.rn's Gradle build auto-syncs Hexagon DSP native libs here (syncRNLlamaHtpAssets task)
+android/app/src/main/assets/
+
 # node.js
 #
 node_modules/

@@ -1,0 +1,73 @@
+// AUTO-GENERATED, byte-identical copy of src/llm/extraction/task_extraction.v1.gbnf.
+// Metro cannot import a raw .gbnf file, so this Q1-spike-only companion embeds the same
+// text as a string constant. Does NOT modify task 5's files - src/llm/extraction/ is
+// untouched; this lives in src/dev/ (throwaway spike territory) and is regenerated from
+// the real .gbnf, never hand-edited. See __tests__/extractionGrammarText.test.ts for the
+// drift guard.
+export const TASK_EXTRACTION_V1_GBNF = `# task_extraction.v1.gbnf
+# Generated from task_extraction.v1.json (schema version: v1), then hand-tightened per D3
+# (compact JSON, fixed key order = generation order, closed enums, bounded everything, no
+# free-text reasoning field). This is a TEMPLATE (D7): {{context_tags_known}} must be
+# substituted via src/llm/grammar/buildGrammar.ts before use - it is not valid GBNF as-is.
+#
+# {m,n} support on llama.rn 0.12.5's bundled llama.cpp is UNVERIFIED (no device this session -
+# see eval Q1 in the strategy doc). If Q1 shows it's unsupported, every \`{m,n}\` occurrence
+# below can be mechanically expanded via src/llm/grammar/boundedRepetition.ts - a config flip,
+# not a rewrite of this file.
+
+root ::= "{\\"title\\":" title ",\\"description\\":" description ",\\"estimated_duration_minutes\\":" estimated_duration_minutes ",\\"duration_from_user\\":" duration_from_user ",\\"due\\":" due ",\\"context_tags\\":" context_tags ",\\"tool_requirements\\":" tool_requirements ",\\"energy\\":" energy ",\\"importance_user\\":" importance_user ",\\"recurrence\\":" recurrence "}"
+
+# --- title, description ---
+title ::= "\\"" jchar{1,80} "\\""
+description ::= "null" | "\\"" jchar{1,200} "\\""
+
+# --- duration ---
+# Digit-count bounded (up to 4 digits), not exact-range: GBNF can't express ">1440 forbidden"
+# without enumeration. The zod validator enforces the exact [1,1440] range (D10).
+estimated_duration_minutes ::= [1-9] [0-9]{0,3}
+duration_from_user ::= "true" | "false"
+
+# --- due (DueSpec union, D5 - model transcribes, code resolves via due/dueSpec.ts) ---
+due ::= "null" | due_on_date | due_in_days | due_weekday
+due_on_date ::= "{\\"kind\\":\\"on_date\\",\\"date\\":\\"" date_str "\\"}"
+date_str ::= [0-9] [0-9] [0-9] [0-9] "-" [0-9] [0-9] "-" [0-9] [0-9]
+due_in_days ::= "{\\"kind\\":\\"in_days\\",\\"days\\":" days_int "}"
+days_int ::= [1-9] [0-9]{0,2}
+due_weekday ::= "{\\"kind\\":\\"weekday\\",\\"day\\":" weekday ",\\"which\\":" which "}"
+which ::= "\\"this\\"" | "\\"next\\""
+
+# --- context_tags (D7 dynamic-vocabulary slot: known tags + one bounded new-tag escape) ---
+context_tags ::= "[]" | "[" tag ("," tag){0,4} "]"
+tag ::= tag_known | new_tag
+tag_known ::= "\\"" {{context_tags_known}} "\\""
+new_tag ::= "\\"" jchar{1,20} "\\""
+
+# --- tool_requirements (static, not a dynamic slot) ---
+tool_requirements ::= "[]" | "[" tool ("," tool){0,4} "]"
+tool ::= "\\"" jchar{1,20} "\\""
+
+# --- energy, importance_user (D4: user-scale only, code projects through scales.ts) ---
+energy ::= "null" | "\\"low\\"" | "\\"med\\"" | "\\"high\\""
+importance_user ::= "null" | importance_value
+importance_value ::= [1-9] | "10"
+
+# --- recurrence (RecurrenceSpec union, D6) ---
+# null (true one-off) and {"type":"unscheduled"} are separate branches with opposite
+# completion semantics and must never collapse into one another (constraint #5, data-layer
+# brief). Each variant branches after its "type" discriminator and carries only that
+# variant's keys (D3.2).
+recurrence ::= "null" | rec_scheduled_quota | rec_quota | rec_scheduled | rec_unscheduled | rec_count
+rec_scheduled_quota ::= "{\\"type\\":\\"scheduled_quota\\",\\"quota\\":" quota_int ",\\"period\\":" period ",\\"days\\":" weekday_array "}"
+rec_quota ::= "{\\"type\\":\\"quota\\",\\"quota\\":" quota_int ",\\"period\\":" period "}"
+rec_scheduled ::= "{\\"type\\":\\"scheduled\\",\\"days\\":" weekday_array "}"
+rec_unscheduled ::= "{\\"type\\":\\"unscheduled\\"}"
+rec_count ::= "{\\"type\\":\\"count\\",\\"target\\":" target_int "}"
+quota_int ::= [1-9] [0-9]{0,2}
+target_int ::= [1-9] [0-9]{0,2}
+period ::= "\\"day\\"" | "\\"week\\"" | "\\"month\\""
+weekday_array ::= "[" weekday ("," weekday){0,6} "]"
+weekday ::= "\\"monday\\"" | "\\"tuesday\\"" | "\\"wednesday\\"" | "\\"thursday\\"" | "\\"friday\\"" | "\\"saturday\\"" | "\\"sunday\\""
+
+# --- shared primitives ---
+jchar ::= [^"\\\\\\x00-\\x1F] | "\\\\" (["\\\\/bfnrt] | "u" [0-9a-fA-F]{4})
+`;

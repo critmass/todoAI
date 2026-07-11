@@ -79,6 +79,18 @@ const N_GPU_LAYERS = 0;
 // app's real learned vocabulary (there is no real vocabulary yet; nothing has run).
 const CONTEXT_TAGS_KNOWN = ['home', 'office', 'phone', 'computer'];
 
+// ---- MANIFEST FIELDS (strategy §6.6: "a number without its manifest is a rumor") ----
+// Edit these by hand before each run - this is a throwaway spike, not a device-info library.
+const LLAMA_RN_VERSION = '0.12.5'; // pinned in package.json
+const DEVICE_LABEL = 'Samsung Galaxy S23 FE';
+// Hashing a ~1GB GGUF from JS would need a filesystem-read native module, which this spike
+// deliberately doesn't add (see file header). Run this once per model file and paste the
+// result here: `certutil -hashfile <path> SHA256` (PowerShell) or `sha256sum <path>` (adb shell).
+const MODEL_SHA256 = '<paste sha256sum/certutil output here>';
+// Edit before each run per the brief's "note the thermal context" instruction (cold vs a few
+// minutes in - steady-state is the honest condition per the original spike's plateau finding).
+const RUN_NOTE = '<edit: cold start / N minutes in, warm>';
+
 // ---- SEED FIXTURES (4 of the 16 in docs/eval/extraction_fixtures_seed.jsonl) ----
 // 2 simple + the null-vs-unscheduled trap + a date case, per the brief. Copied by hand
 // (Metro can't import .jsonl) — ids match the seed file exactly for traceability.
@@ -199,6 +211,35 @@ function extractTimings(result: { timings?: Record<string, number> }): Timings {
   };
 }
 
+// ---- MANIFEST ----
+
+/** Non-cryptographic string fingerprint (FNV-1a, 32-bit) - identifies "was this the exact same
+ *  grammar text across runs", not a security hash. Cheap, dependency-free, fine for a manifest
+ *  on a throwaway spike (contrast MODEL_SHA256 above, which is a real hash but computed
+ *  out-of-band since hashing the model file in-app isn't practical here). */
+function fingerprint(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/** Shared manifest fields (§6.6) plus a fingerprint of the specific grammar text this stage
+ *  used, if any (null for the unconstrained side of Stage 3). Merged into every stage's logged
+ *  result so `q1-reassemble.js` can pull manifest + numbers from the same tag. */
+function buildManifest(grammarText: string | null): StageResult {
+  return {
+    modelFilename: MODEL_FILENAME,
+    modelSha256: MODEL_SHA256,
+    llamaRnVersion: LLAMA_RN_VERSION,
+    device: DEVICE_LABEL,
+    runNote: RUN_NOTE,
+    grammarFingerprint: grammarText === null ? null : fingerprint(grammarText),
+  };
+}
+
 export default function Q1GrammarSpikeScreen() {
   const [log, setLog] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
@@ -288,12 +329,17 @@ export default function Q1GrammarSpikeScreen() {
           rawOutput: text,
           constrains,
           timings: extractTimings(result),
+          manifest: buildManifest(grammar),
         };
         appendLog(`Stage 0: output="${text}" constrains=${constrains}`);
         logResultJson('Q1RESULT:stage0', stageResult);
       } catch (err: any) {
         appendLog(`Stage 0 ERROR: ${String(err)}`);
-        logResultJson('Q1RESULT:stage0', { error: String(err), message: err?.message });
+        logResultJson('Q1RESULT:stage0', {
+          error: String(err),
+          message: err?.message,
+          manifest: buildManifest(grammar),
+        });
       }
     } finally {
       setRunning(false);
@@ -325,6 +371,7 @@ export default function Q1GrammarSpikeScreen() {
           grammar: asAuthored,
           rawOutput: result.text,
           timings: extractTimings(result),
+          manifest: buildManifest(asAuthored),
         };
       } catch (asAuthoredErr: any) {
         appendLog(`Stage 1: as-authored FAILED: ${String(asAuthoredErr)}. Trying expander ...`);
@@ -347,6 +394,7 @@ export default function Q1GrammarSpikeScreen() {
             asAuthoredError: String(asAuthoredErr),
             rawOutput: result.text,
             timings: extractTimings(result),
+            manifest: buildManifest(expanded),
           };
         } catch (expandedErr: any) {
           branch = 'neither';
@@ -355,6 +403,7 @@ export default function Q1GrammarSpikeScreen() {
             branch,
             asAuthoredError: String(asAuthoredErr),
             expandedError: String(expandedErr),
+            manifest: buildManifest(null),
           };
         }
       }
@@ -556,6 +605,7 @@ export default function Q1GrammarSpikeScreen() {
         validCount,
         passCount,
         perFixture,
+        manifest: buildManifest(grammar),
       });
     } finally {
       setRunning(false);
@@ -580,19 +630,27 @@ export default function Q1GrammarSpikeScreen() {
       let constrained: StageResult;
       try {
         const result = await runCompletion(messages, { n_predict: 200 });
-        unconstrained = { rawOutput: result.text, timings: extractTimings(result) };
+        unconstrained = {
+          rawOutput: result.text,
+          timings: extractTimings(result),
+          manifest: buildManifest(null),
+        };
         appendLog(`Stage 3 unconstrained: ${JSON.stringify(extractTimings(result))}`);
       } catch (err: any) {
-        unconstrained = { error: String(err) };
+        unconstrained = { error: String(err), manifest: buildManifest(null) };
         appendLog(`Stage 3 unconstrained ERROR: ${String(err)}`);
       }
 
       try {
         const result = await runCompletion(messages, { grammar, n_predict: 200 });
-        constrained = { rawOutput: result.text, timings: extractTimings(result) };
+        constrained = {
+          rawOutput: result.text,
+          timings: extractTimings(result),
+          manifest: buildManifest(grammar),
+        };
         appendLog(`Stage 3 constrained: ${JSON.stringify(extractTimings(result))}`);
       } catch (err: any) {
-        constrained = { error: String(err) };
+        constrained = { error: String(err), manifest: buildManifest(grammar) };
         appendLog(`Stage 3 constrained ERROR: ${String(err)}`);
       }
 

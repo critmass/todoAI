@@ -85,8 +85,10 @@ character classes is the trigger in isolation — each was directly tested and r
 actual failure shape is a **mandatory character class immediately followed by an
 optional/repeated character-class-derived continuation**, independent of how that optionality
 is expressed. This is the exact shape of `boundedIntRule` (`src/llm/grammar/primitives.ts`),
-used for every bounded-integer field in all four of task 5's schemas — not just
-`estimated_duration_minutes`.
+used for every bounded-integer field in 3 of task 5's 4 schemas (`task_extraction.v1`,
+`task_breakdown.v1`, `coaching_resolution.v1` — `summary.v1` has no bounded-integer fields) —
+not just `estimated_duration_minutes`. Full breakdown: see the compiled report,
+`docs/eval/Q1_grammar_findings_report.md`.
 
 **This spike stops diagnosis here, per its own scope** ("any change to task 5's grammars... a
 finding to report, not a license to rewrite task 5"). No working grammar shape for bounded

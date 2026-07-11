@@ -1,0 +1,109 @@
+{
+  "manifest": {
+    "modelFilename": "Ternary-Bonsai-4B-TQ1_0.gguf",
+    "modelSha256": "da1f7ecd5aba89d920589b23e205d0212830b492dc3f8326638dc13b8c45431c",
+    "modelByteSize": 1091638048,
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE (serial R5CWC240D5H)",
+    "date": "2026-07-11",
+    "note": "Compiled by hand from live device runs across two sessions (git 7697c3c WIP session, and this session's follow-up bisection). Real Stage 2/3 numbers (fixture pass/fail counts, tok/s) were never captured because the {m,n} fix does not work - see stage2Status below. This file answers Q1's falsification question (does {m,n} / the D3.5 fallback work) rather than producing the brief's full results table."
+  },
+  "stage0_trivial_grammar": {
+    "source": "prior session (git 7697c3c), re-affirmed by this session's desktop+device work",
+    "grammar": "root ::= \"yes\" | \"no\"",
+    "pass": true,
+    "note": "Constrained output to exactly one of the two literals. Confirms llama.rn's completion() accepts and applies a grammar param at all."
+  },
+  "stage1_bounded_repetition_named_rule": {
+    "source": "prior session (git 7697c3c)",
+    "grammar": "root ::= \"\\\"\" jchar{1,20} \"\\\"\"",
+    "branch": "as-authored",
+    "pass": true,
+    "note": "{m,n} applied to a NAMED rule (jchar) worked first try. jchar's own definition contains a nested [0-9a-fA-F]{4} (exact, non-zero-min) which therefore also parsed fine."
+  },
+  "stage2_real_extraction_grammar": {
+    "status": "FAIL - root cause fully characterized, but no working fix found within this spike's scope",
+    "original_bisection": {
+      "source": "prior session (git 7697c3c)",
+      "result": "title alone: PASS. title+description: PASS. title+estimated_duration_minutes ([1-9] [0-9]{0,3}): FAIL, parse-time, <20ms.",
+      "severe_finding": "A separate bisection candidate (due/days_int, also containing [0-9]{0,2}) killed the whole app process rather than throwing a catchable JS error. Not reproduced this session (not re-tested - see fixonly below, which includes the same due field and did NOT crash)."
+    },
+    "fix_attempt_expandAllBoundedRepetitionOccurrences": {
+      "source": "this session, live on-device",
+      "full_grammar_expanded": {
+        "tag": "Q1RESULT:fixonly",
+        "pass": false,
+        "error": "Error: failed to parse grammar",
+        "note": "Full task_extraction.v1.gbnf with every {m,n} occurrence (inline classes and paren-groups) expanded to nested optionals. Still fails to parse, ~5s after tap (model-load time, not a generation timeout - fails at parse time same as unexpanded). Did NOT crash the process this time (unlike the original due/days_int bisection candidate)."
+      },
+      "small_fragment_title_plus_duration_expanded": {
+        "tag": "Q1RESULT:smallfragment",
+        "pass": false,
+        "error": "Error: failed to parse grammar",
+        "grammarLength": 1049,
+        "note": "Rules out aggregate grammar size/complexity as the cause - a 2-rule, 1049-char fragment still fails."
+      },
+      "duration_only_expanded": {
+        "tag": "Q1RESULT:durationonly",
+        "pass": false,
+        "grammar": "root ::= \"{\\\"estimated_duration_minutes\\\":\" estimated_duration_minutes \"}\"\nestimated_duration_minutes ::= [1-9] ([0-9] ([0-9] ([0-9])?)?)?",
+        "error": "Error: failed to parse grammar",
+        "note": "Rules out title's exceptional 79-level nesting depth as the cause - dropping title entirely (leaving only a 3-level-deep numeric rule) still fails."
+      }
+    },
+    "root_cause_isolation": {
+      "source": "this session, live on-device, 5 minimal confirming/refuting probes",
+      "conclusion": "The failure is NOT about {m,n} syntax specifically, NOT about nesting depth, and NOT about inline-vs-named character classes. It IS specifically: a mandatory character-class term immediately followed by an OPTIONAL/repeated character-class-derived continuation (whichever way that optionality is spelled - native {0,N}, or a manually expanded nested-optional group). This exact shape ([1-9] [0-9]{0,N} and everything downstream of it) is what task 5's boundedIntRule primitive generates for every bounded integer field across all four schemas (duration, days_int, quota_int, target_int, importance, etc.) - so this is not a task_extraction-specific bug.",
+      "probes": [
+        {
+          "tag": "Q1RESULT:nameddigit",
+          "grammar": "root ::= \"{\\\"estimated_duration_minutes\\\":\" estimated_duration_minutes \"}\"\nestimated_duration_minutes ::= [1-9] (digit (digit (digit)?)?)?\ndigit ::= [0-9]",
+          "pass": false,
+          "error": "Error: failed to parse grammar",
+          "hypothesis_tested": "does naming the repeated character class first fix it?",
+          "outcome": "REFUTED - still fails even with the class named."
+        },
+        {
+          "tag": "Q1RESULT:bareoptional",
+          "grammar": "root ::= \"a\" (\"b\")?",
+          "pass": true,
+          "rawOutput": "a",
+          "hypothesis_tested": "is the bare (...)? optional-group operator supported at all?",
+          "outcome": "CONFIRMED supported - single-level optional groups over string literals work fine."
+        },
+        {
+          "tag": "Q1RESULT:nestedliterals",
+          "grammar": "root ::= \"a\" (\"b\" (\"c\" (\"d\")?)?)?",
+          "pass": true,
+          "rawOutput": "a",
+          "hypothesis_tested": "does 3-level nesting itself break it, independent of character classes?",
+          "outcome": "REFUTED - same nesting depth as the failing duration case, pure literals, parses and generates fine."
+        },
+        {
+          "tag": "Q1RESULT:zerominhypothesis",
+          "cases": [
+            { "name": "nonzero-min-exact4", "grammar": "root ::= \"x\" [0-9]{4}", "pass": true, "rawOutput": "x1234" },
+            { "name": "zero-min-0to4", "grammar": "root ::= \"x\" [0-9]{0,4}", "pass": true, "rawOutput": "x" }
+          ],
+          "hypothesis_tested": "is zero-minimum repetition on a character class the trigger?",
+          "outcome": "REFUTED - a lone [0-9]{0,4} (zero-min) parses fine when it's the only character class in the rule."
+        },
+        {
+          "tag": "Q1RESULT:adjacentclasses",
+          "grammar": "root ::= [1-9] [0-9]",
+          "pass": true,
+          "rawOutput": "10",
+          "hypothesis_tested": "do two adjacent character classes fail even with zero repetition/optionality?",
+          "outcome": "REFUTED - fully mandatory adjacent classes (no optionality at all) parse and generate fine."
+        }
+      ]
+    }
+  },
+  "stage3_overhead": {
+    "status": "NOT RUN - blocked on stage 2 producing a working grammar; not meaningful to measure overhead against a grammar that doesn't parse"
+  },
+  "environment_notes": {
+    "process_health": "App process stayed alive (confirmed via `adb shell ps`) through all 9 probes this session except one operator error (a mistargeted tap hit the OS gesture-nav area and backgrounded the app - recovered cleanly via `adb shell am start`, no data or model-load state lost, same PID throughout).",
+    "capture_method": "logcat tag/chunk convention, adb logcat -d, reassembled by hand into this file (scripts/q1-reassemble.js exists for this but logcat was cleared between probes during live iteration, so no single dump had everything - this file was compiled from each probe's individually-captured result at the time it ran)."
+  }
+}

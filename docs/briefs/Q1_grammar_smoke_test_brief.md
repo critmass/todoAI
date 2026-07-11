@@ -2,18 +2,26 @@
 
 ---
 
-## ⚠ SESSION HANDOFF (read this first — Jason had to leave for work mid-session)
+## ⚠ SESSION HANDOFF v2 (read this first)
 
 **Everything below this box is the original brief, unchanged.** This box is a live status
-update appended by the previous session so a fresh Claude Code session can resume without
-re-deriving context. Delete this box once Q1 is fully closed out.
+update, now updated by a second session that confirmed (and overturned) the first session's
+open item. Delete this box once Q1 is fully closed out. Full machine-readable findings:
+`docs/eval/q1_results.json`.
 
-**TL;DR:** The harness is built and has run live on Jason's S23 FE. Stage 0 and Stage 1 pass
-cleanly. Stage 2 (the real extraction grammar) fails to parse — root-caused via live
-bisection to `{m,n}` bounded repetition applied directly to an inline character class
-(`[0-9]{0,3}`) rather than a named rule. A fix is written but **not yet confirmed on-device**
-— that confirmation is the very next step. Everything is committed (`git log` — latest is a
-WIP commit on `main`); nothing is lost.
+**TL;DR:** The `{m,n}`-expansion fix from the first session **does not work** — confirmed live
+on-device, at three granularities (full grammar, a 2-rule fragment, duration alone), all
+failing identically to the unfixed grammar (`Error: failed to parse grammar`, parse-time). A
+second round of live bisection then fully root-caused it: **it was never about `{m,n}`, nesting
+depth, or inline-vs-named character classes** (all three individually tested and refuted
+on-device this session). The actual trigger is narrower and stranger: **a mandatory character
+class immediately followed by an optional/repeated character-class-derived continuation**
+(`[1-9] [0-9]{0,3}` and every hand-expansion of it) fails to parse, regardless of how that
+optionality is spelled — while the same character classes with no optionality at all
+(`[1-9] [0-9]`), and optional/nested groups built purely from string literals, both parse and
+generate correctly. This is not task_extraction-specific: task 5's `boundedIntRule` primitive
+generates exactly this shape for every bounded integer field across all four schemas (duration,
+`days_int`, `quota_int`, `target_int`, etc.). Everything is committed on `main`; nothing lost.
 
 ### What's confirmed, on real hardware (not simulated)
 
@@ -47,39 +55,61 @@ WIP commit on `main`); nothing is lost.
   entire app process** (confirmed 3 times: `adb shell ps` shows the process gone entirely,
   no Java-level FATAL/AndroidRuntime crash log, no native tombstone found in the searches run
   so far — genuinely unclear yet whether this is a native crash in llama.cpp's grammar
-  parser or something else). **This is worth its own line in the eventual Q1 report** even
-  after the `{m,n}` fix is confirmed: the same underlying error class has two different
-  failure behaviors (graceful JS throw vs. full process death), and the retry/fallback ladder
-  (spec D10) can't catch the second kind.
+  parser or something else). **This is worth its own line in the eventual Q1 report.** Note:
+  this session's `fixonly` run (full grammar, fully expanded, includes the same `due` field)
+  did **not** crash — it failed with a normal catchable JS error instead. Not re-tested enough
+  to call the crash non-reproducible, just noting the one data point.
 
-### The fix (written, NOT yet confirmed on-device)
+### The fix — confirmed NOT to work, root cause fully characterized (this session)
 
-`expandAllBoundedRepetitionOccurrences()` in `Q1GrammarSpikeScreen.tsx` generalizes task 5's
-`boundedRepetition.ts` (which only rewrites `name{m,n}` for one *named* rule at a time) to also
-catch bracket-expression (`[0-9]{0,3}`) and parenthesized-group (`("," tag){0,4}`) forms via
-regex, then expands every occurrence to nested optionals. This is **diagnostic-only code that
-does not touch task 5's checked-in files** — `src/llm/` is untouched throughout this whole
-session.
+`expandAllBoundedRepetitionOccurrences()` in `Q1GrammarSpikeScreen.tsx` (task 5's
+`boundedRepetition.ts` generalized to also catch bracket-expression and parenthesized-group
+forms) was tested live on-device at three granularities — full grammar (`fixonly`), a 2-rule
+`title`+`duration` fragment (`smallfragment`), and `duration` alone (`durationonly`) — **all
+three fail identically to the unfixed grammar**, ruling out aggregate grammar size and
+`title`'s exceptional 79-level nesting as explanations.
 
-**The very next step**, in order:
-1. Relaunch the app (see "Resuming" below), tap **`[DEBUG] TEST FIX ONLY`** (bottom button —
-   it tests *only* the fully-expanded real grammar, skipping the risky bisect path that
-   crashes on candidate D). Watch `adb logcat` for `Q1RESULT:fixonly`.
-2. If it **passes**: the fix is confirmed. Apply the same expansion inline in `runStage2`
-   itself (currently `runStage2` still uses the *unfixed* grammar — the fix only exists in the
-   separate `runTestFixOnly`/`runBisect` functions so far), rerun real Stage 2 over all 4
-   fixtures for real pass/fail + validator numbers, then run Stage 3 (overhead).
-3. Once Stage 2/3 are done for real: **delete the two temporary debug tools**
-   (`runBisect`, `runTestFixOnly`, `expandAllBoundedRepetitionOccurrences`, and their two
-   buttons) — they were diagnostic scaffolding, not part of the four real stages, and the
+A second round of minimal, targeted probes then isolated the actual trigger (all in
+`Q1GrammarSpikeScreen.tsx`, all logged in `docs/eval/q1_results.json`):
+
+| Probe | Grammar | Result |
+|---|---|---|
+| `nameddigit` | `[1-9] (digit (digit (digit)?)?)?`, `digit ::= [0-9]` | **FAIL** — naming the class first doesn't help |
+| `bareoptional` | `"a" ("b")?` | **PASS** — single-level optional groups work |
+| `nestedliterals` | `"a" ("b" ("c" ("d")?)?)?` | **PASS** — same 3-level nesting as the failing duration case, but pure literals |
+| `zerominhypothesis` | `"x" [0-9]{4}` and `"x" [0-9]{0,4}` | **both PASS** — a lone character class, zero-min or not, is fine |
+| `adjacentclasses` | `[1-9] [0-9]` (no repetition at all) | **PASS** — mandatory adjacent classes are fine |
+
+**Conclusion:** none of {m,n}, nesting depth, zero-minimum repetition, or inline-vs-named
+character classes is the trigger in isolation — each was directly tested and refuted. The
+actual failure shape is a **mandatory character class immediately followed by an
+optional/repeated character-class-derived continuation**, independent of how that optionality
+is expressed. This is the exact shape of `boundedIntRule` (`src/llm/grammar/primitives.ts`),
+used for every bounded-integer field in all four of task 5's schemas — not just
+`estimated_duration_minutes`.
+
+**This spike stops diagnosis here, per its own scope** ("any change to task 5's grammars... a
+finding to report, not a license to rewrite task 5"). No working grammar shape for bounded
+integers was found within Q1's scope — that redesign, if wanted, is task 5/6 work, not this
+spike's.
+
+**Remaining open steps** (not done — need Jason + a design conversation, not more solo
+device iteration):
+1. Read `docs/eval/q1_results.json` and this box together and reach a GREEN/YELLOW/RED verdict
+   per the rubric below. Given no working bounded-integer grammar shape exists yet, this is
+   very likely **RED for §3.3 as currently designed** — not "YELLOW, flip on the expander,"
+   since the expander doesn't fix it. The fallback conversation (prompt-JSON + strict
+   validation + retry) or a redesigned integer-field grammar shape (e.g. alternation of
+   fixed-width branches instead of optional trailing digits — untested, a hypothesis only)
+   needs to happen before tasks 6/7/12 build further on the grammar path.
+2. Stage 2 (real fixture pass/fail + validator numbers) and Stage 3 (overhead) were **never
+   run for real** — there's no working grammar to run them against yet. If a redesigned
+   integer shape is found and confirmed, `runStage2`/`runStage3` (still using the *original*
+   unexpanded grammar) need updating and a real run.
+3. Once the path forward is decided: delete the diagnostic-only functions/buttons
+   (`runBisect`, `runTestFixOnly`, `expandAllBoundedRepetitionOccurrences`, and the 7 probe
+   functions added this session) — none of them are part of the four real stages, and the
    brief says to keep this harness small.
-4. Write the actual `q1_results.json` (see "Results capture" below — no filesystem-write
-   native module was added; capture happens via tagged/chunked logcat instead).
-5. Fill in the brief's own results table (§"What Jason runs & reports") and reach a
-   GREEN/YELLOW/RED verdict per its own rubric. Given the crash finding above, this is very
-   likely **YELLOW at best** even if the `{m,n}` fix works cleanly — "works with the expander,
-   but the underlying failure mode can crash the process" is a real caveat to report, not a
-   clean PASS.
 
 ### Resuming — environment state & gotchas hit this session
 
@@ -114,21 +144,28 @@ session.
   environmental kill — this session saw both, and they look identical from logcat alone.
 - **UI interaction:** no accessibility-label-based tooling was available for this native
   screen (unlike a browser), so all interaction was screenshot + `adb shell input tap x y`,
-  with exact coordinates from `adb shell uiautomator dump /sdcard/ui.xml` (via PowerShell,
-  see gotcha above) → `adb pull`. Button coordinates shift whenever the button list changes
-  (a new debug button was added mid-session) — **always re-dump before tapping**, don't reuse
-  coordinates from earlier in a session.
-- **Results capture:** no filesystem-write library was added (would've been a second
-  untested native module on top of `llama.rn` itself — flagged to Jason, he agreed to skip
-  it). Instead, `logResultJson()` in the harness logs tagged, **compact** (no pretty-print —
-  logcat splits multi-line messages and only the first line keeps the tag) JSON via
-  `console.log`, chunked at 3000 chars. Capture with:
-  `adb logcat -d | grep "Q1RESULT:<tag>"`. Once real Stage 2/3 numbers exist, assemble the
-  actual `docs/eval` results/manifest file and push it to the device path the original brief
-  specifies if that's still wanted, or just keep it as a local artifact — Jason didn't specify
-  which and it wasn't reached this session.
-- **Git state:** all code changes are committed (latest: a WIP commit on `main`). Nothing
-  uncommitted, nothing at risk.
+  with coordinates estimated from screenshots (a `~1.17×` scale factor between the displayed
+  and actual 1080×2340 image worked reliably for buttons well within the screen). Button
+  coordinates shift whenever the button list changes — **always re-screenshot before tapping**,
+  don't reuse coordinates from earlier. **New gotcha this session:** buttons near the very
+  bottom of a long list land in/near the OS gesture-navigation zone (roughly the bottom ~150px
+  of actual screen height) — a tap there can background the app via a system gesture instead
+  of hitting the button (happened once; recovered cleanly with
+  `adb shell am start -n com.todoai/.MainActivity`, same PID, no state lost). Scroll the list up
+  first (`adb shell input swipe <x> <low-y> <x> <high-y> 500`, ~500ms+ duration — short/fast
+  swipes were observed to sometimes not register as a scroll at all) so the target button sits
+  well above that zone before tapping.
+- **Results capture:** no filesystem-write library was added (deliberate — flagged to Jason,
+  he agreed to skip it). `logResultJson()` logs tagged, chunked JSON via `console.log`;
+  `scripts/q1-reassemble.js` (added this session) reconstructs a full `adb logcat -d` dump back
+  into one JSON file — but only if logcat isn't cleared between runs. This session cleared
+  logcat before each probe (needed to isolate each result), so `docs/eval/q1_results.json`
+  was compiled by hand from each probe's individually-captured output instead; the script is
+  still the right tool for an uninterrupted multi-stage run (e.g. a real Stage 2 over all 4
+  fixtures in one sitting).
+- **Git state:** all code changes are committed on `main` — manifest capture, the reassembly
+  script, and the bisection probes are each their own commit. Nothing uncommitted, nothing at
+  risk.
 
 ---
 

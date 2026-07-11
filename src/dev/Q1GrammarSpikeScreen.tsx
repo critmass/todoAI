@@ -86,7 +86,7 @@ const DEVICE_LABEL = 'Samsung Galaxy S23 FE';
 // Hashing a ~1GB GGUF from JS would need a filesystem-read native module, which this spike
 // deliberately doesn't add (see file header). Run this once per model file and paste the
 // result here: `certutil -hashfile <path> SHA256` (PowerShell) or `sha256sum <path>` (adb shell).
-const MODEL_SHA256 = '<paste sha256sum/certutil output here>';
+const MODEL_SHA256 = 'da1f7ecd5aba89d920589b23e205d0212830b492dc3f8326638dc13b8c45431c'; // adb shell sha256sum, 2026-07-11
 // Edit before each run per the brief's "note the thermal context" instruction (cold vs a few
 // minutes in - steady-state is the honest condition per the original spike's plateau finding).
 const RUN_NOTE = '<edit: cold start / N minutes in, warm>';
@@ -524,6 +524,251 @@ export default function Q1GrammarSpikeScreen() {
     }
   }, [appendLog, runCompletion]);
 
+  // ---- TEMPORARY diagnostic: does a SMALL expanded fragment parse? ----
+  // runTestFixOnly (the full expanded grammar) still fails to parse - this isolates whether
+  // that's about aggregate grammar complexity, or about a single field's nesting depth (title's
+  // jchar{1,80} expands to 79 nested optionals). Deliberately excludes `due`/`days_int` (the
+  // field that crashed the whole process in runBisect's candidate D) - this probe carries no
+  // crash risk by construction.
+
+  const runTestExpandedSmallFragment = useCallback(async () => {
+    setRunning(true);
+    try {
+      const J = JCHAR_RULE;
+      const unexpanded = `root ::= "{\\"title\\":" title ",\\"estimated_duration_minutes\\":" estimated_duration_minutes ",\\"duration_from_user\\":" duration_from_user "}"\ntitle ::= "\\"" jchar{1,80} "\\""\nestimated_duration_minutes ::= [1-9] [0-9]{0,3}\nduration_from_user ::= "true" | "false"\n${J}`;
+      const grammar = expandAllBoundedRepetitionOccurrences(unexpanded);
+      appendLog(`Small-fragment test: expanded title+duration only, ${grammar.length} chars ...`);
+      try {
+        const result = await runCompletion([{ role: 'user', content: 'Fill in JSON for: buy milk' }], {
+          grammar,
+          n_predict: 60,
+        });
+        appendLog(`Small-fragment test: PASS output=${JSON.stringify(result.text)}`);
+        logResultJson('Q1RESULT:smallfragment', {
+          pass: true,
+          rawOutput: result.text,
+          grammarLength: grammar.length,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Small-fragment test: FAIL ${String(err)}`);
+        logResultJson('Q1RESULT:smallfragment', {
+          pass: false,
+          error: String(err),
+          grammarLength: grammar.length,
+        });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // ---- TEMPORARY diagnostic: duration alone (no `title`) - isolates depth from mechanism ----
+  // Small-fragment (title+duration, expanded) still failed. `title`'s jchar{1,80} expands to
+  // 79 nested optionals - by far the deepest rule in the whole grammar. Dropping `title`
+  // entirely leaves only estimated_duration_minutes, whose [0-9]{0,3} expands to just 3 nested
+  // optionals. If THIS passes, `title`'s exceptional depth is specifically implicated. If it
+  // also fails, the nested-optional expansion pattern itself is rejected regardless of depth.
+
+  const runTestDurationOnly = useCallback(async () => {
+    setRunning(true);
+    try {
+      const unexpanded = `root ::= "{\\"estimated_duration_minutes\\":" estimated_duration_minutes "}"\nestimated_duration_minutes ::= [1-9] [0-9]{0,3}`;
+      const grammar = expandAllBoundedRepetitionOccurrences(unexpanded);
+      appendLog(`Duration-only test: ${JSON.stringify(grammar)} (${grammar.length} chars) ...`);
+      try {
+        const result = await runCompletion([{ role: 'user', content: 'Fill in JSON for: buy milk' }], {
+          grammar,
+          n_predict: 20,
+        });
+        appendLog(`Duration-only test: PASS output=${JSON.stringify(result.text)}`);
+        logResultJson('Q1RESULT:durationonly', {
+          pass: true,
+          grammar,
+          rawOutput: result.text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Duration-only test: FAIL ${String(err)}`);
+        logResultJson('Q1RESULT:durationonly', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // ---- TEMPORARY diagnostic: is `(...)?` supported AT ALL by this parser build? ----
+  // Duration-only (a 2-rule, 3-deep nested-optional fragment) still failed - this drops
+  // character classes and recursion entirely, testing the bare parenthesized-optional operator
+  // in isolation. If even this fails, boundedRepetition.ts's whole nested-optional strategy
+  // (not just this spike's regex-based generalization of it) is the wrong fallback shape for
+  // this llama.cpp build, independent of {m,n} at all.
+
+  const runTestBareOptionalGroup = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar = 'root ::= "a" ("b")?';
+      appendLog(`Bare-optional-group test: ${JSON.stringify(grammar)} ...`);
+      try {
+        const result = await runCompletion([{ role: 'user', content: 'Fill in JSON for: buy milk' }], {
+          grammar,
+          n_predict: 10,
+        });
+        appendLog(`Bare-optional-group test: PASS output=${JSON.stringify(result.text)}`);
+        logResultJson('Q1RESULT:bareoptional', {
+          pass: true,
+          grammar,
+          rawOutput: result.text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Bare-optional-group test: FAIL ${String(err)}`);
+        logResultJson('Q1RESULT:bareoptional', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // ---- TEMPORARY diagnostic: does NAMING the character class first fix it? ----
+  // bareoptional (nested optionals over string literals) passed; durationonly (nested optionals
+  // over an INLINE `[0-9]` character class) failed. This tests the refined hypothesis: repeating
+  // an inline character class directly is what's unsupported - not nesting/optionals in
+  // general - matching Stage 1's finding that jchar{1,20} (a NAMED rule) passed while
+  // [0-9]{0,3} (inline) failed. If wrapping the class in a named rule first (`digit ::= [0-9]`)
+  // and nesting THAT works, the actionable fix is "name single-char classes before repeating
+  // them" - which task 5's own boundedIntRule primitive does NOT currently do.
+
+  const runTestNamedDigitRule = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar = `root ::= "{\\"estimated_duration_minutes\\":" estimated_duration_minutes "}"\nestimated_duration_minutes ::= [1-9] (digit (digit (digit)?)?)?\ndigit ::= [0-9]`;
+      appendLog(`Named-digit-rule test: ${JSON.stringify(grammar)} ...`);
+      try {
+        const result = await runCompletion([{ role: 'user', content: 'Fill in JSON for: buy milk' }], {
+          grammar,
+          n_predict: 20,
+        });
+        appendLog(`Named-digit-rule test: PASS output=${JSON.stringify(result.text)}`);
+        logResultJson('Q1RESULT:nameddigit', {
+          pass: true,
+          grammar,
+          rawOutput: result.text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Named-digit-rule test: FAIL ${String(err)}`);
+        logResultJson('Q1RESULT:nameddigit', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // ---- TEMPORARY diagnostic: is 3-level NESTING itself the problem, independent of classes? ----
+  // bareoptional (1 level, literals) passed; nameddigit (3 levels, named char-class rule)
+  // failed. This isolates depth as the sole variable: same 3-level nesting shape as nameddigit,
+  // but pure string literals, single rule - no character classes, no multi-rule chain.
+
+  const runTestNestedLiteralsOnly = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar = 'root ::= "a" ("b" ("c" ("d")?)?)?';
+      appendLog(`Nested-literals-only test: ${JSON.stringify(grammar)} ...`);
+      try {
+        const result = await runCompletion([{ role: 'user', content: 'Fill in JSON for: buy milk' }], {
+          grammar,
+          n_predict: 10,
+        });
+        appendLog(`Nested-literals-only test: PASS output=${JSON.stringify(result.text)}`);
+        logResultJson('Q1RESULT:nestedliterals', {
+          pass: true,
+          grammar,
+          rawOutput: result.text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Nested-literals-only test: FAIL ${String(err)}`);
+        logResultJson('Q1RESULT:nestedliterals', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // ---- TEMPORARY diagnostic: is ZERO-MINIMUM repetition on a char class the real trigger? ----
+  // Refined hypothesis from the probes above: jchar{1,20} (min=1) passed, and jchar's own
+  // internal `"u" [0-9a-fA-F]{4}` (exact, non-zero) must have parsed fine too (Stage 1 couldn't
+  // have passed otherwise - the whole grammar parses upfront before any generation). Meanwhile
+  // every failing case so far ([0-9]{0,3}, the digit-rule expansion) has a zero MINIMUM - the
+  // class can be matched zero times. Literal-only zero-min constructs (bareoptional,
+  // nestedliterals) passed fine. This runs the minimal confirming pair in one probe: `[0-9]{4}`
+  // (non-zero min, predicts PASS) vs `[0-9]{0,4}` (zero min, predicts FAIL, reproducing
+  // candidate C's original failure in the smallest possible form).
+
+  const runTestZeroMinHypothesis = useCallback(async () => {
+    setRunning(true);
+    try {
+      const cases: Array<{ name: string; grammar: string }> = [
+        { name: 'nonzero-min-exact4', grammar: 'root ::= "x" [0-9]{4}' },
+        { name: 'zero-min-0to4', grammar: 'root ::= "x" [0-9]{0,4}' },
+      ];
+      const results: StageResult[] = [];
+      for (const c of cases) {
+        appendLog(`Zero-min-hypothesis [${c.name}]: ${JSON.stringify(c.grammar)} ...`);
+        try {
+          const result = await runCompletion([{ role: 'user', content: 'Fill in JSON for: buy milk' }], {
+            grammar: c.grammar,
+            n_predict: 10,
+          });
+          appendLog(`Zero-min-hypothesis [${c.name}]: PASS output=${JSON.stringify(result.text)}`);
+          results.push({ name: c.name, pass: true, grammar: c.grammar, rawOutput: result.text });
+        } catch (err: any) {
+          appendLog(`Zero-min-hypothesis [${c.name}]: FAIL ${String(err)}`);
+          results.push({ name: c.name, pass: false, grammar: c.grammar, error: String(err) });
+        }
+      }
+      logResultJson('Q1RESULT:zerominhypothesis', results);
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // ---- TEMPORARY diagnostic: is it TWO ADJACENT character classes, not {m,n}/zero-min at all? ----
+  // zerominhypothesis refuted zero-min: a lone `[0-9]{0,4}` parsed fine. Every failing case so
+  // far (candidate C originally, durationonly, nameddigit) had `[1-9]` immediately followed by
+  // a second digit-class term - every passing case had at most ONE character-class term. This
+  // strips out ALL repetition/optionality entirely: does a completely bare, mandatory,
+  // non-repeating pair of adjacent character classes fail on its own? If so, the real bug has
+  // nothing to do with {m,n} or the D3.5 fallback at all - it's about sequential character
+  // classes, which is a far more fundamental (and differently-actionable) finding.
+
+  const runTestAdjacentClassesHypothesis = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar = 'root ::= [1-9] [0-9]';
+      appendLog(`Adjacent-classes test: ${JSON.stringify(grammar)} (no repetition, no optionality) ...`);
+      try {
+        const result = await runCompletion([{ role: 'user', content: 'Fill in JSON for: buy milk' }], {
+          grammar,
+          n_predict: 10,
+        });
+        appendLog(`Adjacent-classes test: PASS output=${JSON.stringify(result.text)}`);
+        logResultJson('Q1RESULT:adjacentclasses', {
+          pass: true,
+          grammar,
+          rawOutput: result.text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Adjacent-classes test: FAIL ${String(err)}`);
+        logResultJson('Q1RESULT:adjacentclasses', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
   // ---- Stage 2 — the real extraction grammar over seed prompts ----
 
   const runStage2 = useCallback(async () => {
@@ -681,6 +926,40 @@ export default function Q1GrammarSpikeScreen() {
       <Button title="[debug] bisect grammar" onPress={runBisect} disabled={running} />
       <View style={{ height: 8 }} />
       <Button title="[debug] test fix only" onPress={runTestFixOnly} disabled={running} />
+      <View style={{ height: 8 }} />
+      <Button
+        title="[debug] test small expanded fragment"
+        onPress={runTestExpandedSmallFragment}
+        disabled={running}
+      />
+      <View style={{ height: 8 }} />
+      <Button title="[debug] test duration only" onPress={runTestDurationOnly} disabled={running} />
+      <View style={{ height: 8 }} />
+      <Button
+        title="[debug] test bare optional group"
+        onPress={runTestBareOptionalGroup}
+        disabled={running}
+      />
+      <View style={{ height: 8 }} />
+      <Button title="[debug] test named digit rule" onPress={runTestNamedDigitRule} disabled={running} />
+      <View style={{ height: 8 }} />
+      <Button
+        title="[debug] test nested literals only"
+        onPress={runTestNestedLiteralsOnly}
+        disabled={running}
+      />
+      <View style={{ height: 8 }} />
+      <Button
+        title="[debug] test zero-min hypothesis"
+        onPress={runTestZeroMinHypothesis}
+        disabled={running}
+      />
+      <View style={{ height: 8 }} />
+      <Button
+        title="[debug] test adjacent classes hypothesis"
+        onPress={runTestAdjacentClassesHypothesis}
+        disabled={running}
+      />
       <View style={{ height: 16 }} />
       {log.map((line, i) => (
         <Text key={i} style={styles.logLine}>

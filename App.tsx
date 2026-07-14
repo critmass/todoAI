@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { Button, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 // TEMPORARY swap for the Q1 grammar smoke test (docs/briefs/Q1_grammar_smoke_test_brief.md) —
 // revert to NewAppScreen once Q1 is done. See src/dev/Q1GrammarSpikeScreen.tsx.
 import Q1GrammarSpikeScreen from './src/dev/Q1GrammarSpikeScreen';
@@ -29,10 +29,15 @@ function App() {
 
 function AppContent() {
   const [screen, setScreen] = useState<'q1' | 'dateStr'>('q1');
+  // Bug fixed live (2026-07-13): this switcher was rendering under the status bar with no
+  // top inset - the "date_str Probes" button was visible on-screen but its taps were being
+  // intercepted by the status bar area instead of reaching the Button, so switching never
+  // fired. useSafeAreaInsets pushes it below the status bar/notch.
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>
-      <View style={styles.switcher}>
+      <View style={[styles.switcher, { paddingTop: insets.top + 8 }]}>
         <Button title="Q1 Harness" onPress={() => setScreen('q1')} disabled={screen === 'q1'} />
         <Button
           title="date_str Probes"

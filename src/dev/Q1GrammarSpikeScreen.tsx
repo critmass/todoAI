@@ -414,6 +414,38 @@ export default function Q1GrammarSpikeScreen() {
     }
   }, [appendLog, runCompletion]);
 
+  // ---- TEMPORARY diagnostic: context-poisoning check (live, 2026-07-13) ----
+  // Every date_str fix attempt (7 different grammar shapes across E1-E4/G/H) failed
+  // identically on DateStrProbeScreen.tsx's context, including jchar{1,10} - nearly
+  // identical to THIS screen's own Stage 1 (jchar{1,20}), which has always passed. Before
+  // trusting those results, rule out a confound: does ONE failed grammar compile poison a
+  // native context so every LATER call fails regardless of validity? Run jchar{1,10} here,
+  // right after Stage 1 succeeds on the SAME already-loaded context (no fresh reload) - if
+  // this passes, date_str's failures are real; if it also fails, something is contaminating
+  // repeated calls on one context and the whole day's negative results need re-running fresh.
+
+  const runPoisonCheck = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar = 'root ::= "\\"" jchar{1,10} "\\""\njchar ::= [^"\\\\\\x00-\\x1F] | "\\\\" (["\\\\/bfnrt] | "u" [0-9a-fA-F]{4})';
+      appendLog('Poison check: jchar{1,10}, same context that just ran Stage 1 ...');
+      try {
+        const result = await runCompletion([{ role: 'user', content: 'Say something short.' }], {
+          grammar,
+          n_predict: 30,
+        });
+        const text = (result.text ?? '').trim();
+        appendLog(`Poison check: PASS output=${JSON.stringify(text)}`);
+        logResultJson('Q1RESULT:poisoncheck', { pass: true, grammar, rawOutput: text });
+      } catch (err: any) {
+        appendLog(`Poison check: FAIL ${String(err)}`);
+        logResultJson('Q1RESULT:poisoncheck', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
   // ---- TEMPORARY diagnostic: bisect the real grammar to find what fails to parse ----
   // Not part of the four Q1 stages - deleted once Stage 2's failure is isolated.
 
@@ -1116,6 +1148,8 @@ export default function Q1GrammarSpikeScreen() {
       <Button title="Stage 0: trivial grammar" onPress={runStage0} disabled={running} />
       <View style={{ height: 8 }} />
       <Button title="Stage 1: {m,n} support" onPress={runStage1} disabled={running} />
+      <View style={{ height: 8 }} />
+      <Button title="[debug] poison check: jchar{1,10} same context" onPress={runPoisonCheck} disabled={running} />
       <View style={{ height: 8 }} />
       <Button title="Stage 2: real extraction grammar" onPress={runStage2} disabled={running} />
       <View style={{ height: 8 }} />

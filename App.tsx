@@ -15,6 +15,10 @@ import Q1GrammarSpikeScreen from './src/dev/Q1GrammarSpikeScreen';
 // split into its own screen to keep Q1GrammarSpikeScreen navigable. See
 // src/dev/DateStrProbeScreen.tsx.
 import DateStrProbeScreen from './src/dev/DateStrProbeScreen';
+// Q1c: reopens Q1b's "rule name must match its JSON key" conclusion - the underscore-vs-
+// key-matching confound (docs/briefs/Q1c_rule_name_disambiguation_brief.md). See
+// src/dev/RuleNameProbeScreen.tsx.
+import RuleNameProbeScreen from './src/dev/RuleNameProbeScreen';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -28,7 +32,7 @@ function App() {
 }
 
 function AppContent() {
-  const [screen, setScreen] = useState<'q1' | 'dateStr'>('q1');
+  const [screen, setScreen] = useState<'q1' | 'dateStr' | 'ruleName'>('q1');
   // Bug fixed live (2026-07-13): this switcher was rendering under the status bar with no
   // top inset - the "date_str Probes" button was visible on-screen but its taps were being
   // intercepted by the status bar area instead of reaching the Button, so switching never
@@ -44,8 +48,15 @@ function AppContent() {
           onPress={() => setScreen('dateStr')}
           disabled={screen === 'dateStr'}
         />
+        <Button
+          title="Rule Name Probes"
+          onPress={() => setScreen('ruleName')}
+          disabled={screen === 'ruleName'}
+        />
       </View>
-      {screen === 'q1' ? <Q1GrammarSpikeScreen /> : <DateStrProbeScreen />}
+      {screen === 'q1' && <Q1GrammarSpikeScreen />}
+      {screen === 'dateStr' && <DateStrProbeScreen />}
+      {screen === 'ruleName' && <RuleNameProbeScreen />}
     </View>
   );
 }

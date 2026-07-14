@@ -769,6 +769,204 @@ export default function Q1GrammarSpikeScreen() {
     }
   }, [appendLog, runCompletion]);
 
+  // ---- Q1b probes (docs/briefs/Q1b_bounded_integer_probe_brief.md) ----
+  // Responds to the Q1 findings report's isolated trigger: a mandatory character class
+  // immediately followed by an optional/repeated character-class-derived continuation.
+  // These test a proposed repair (digit-width alternation) BEFORE it's applied to
+  // src/llm/grammar/primitives.ts - do not apply the fix until Jason reports these results.
+
+  // Probe A - the money probe: express a bounded integer as alternation over fixed
+  // digit-widths, where every branch is entirely mandatory classes, so the vulnerable
+  // "mandatory class then optional class-derived tail" position never occurs. Longest-first
+  // branch order (GBNF alternation is first-match) so the model isn't tempted to commit to a
+  // single digit and close early. Pass requires BOTH a parse success and an actually-generated
+  // multi-digit value - a single digit would also come from a broken-but-parsing grammar.
+
+  const runProbeA = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar = [
+        'root ::= "{\\"n\\":" intval "}"',
+        'intval ::= i4 | i3 | i2 | i1',
+        'i4 ::= [1-9] [0-9] [0-9] [0-9]',
+        'i3 ::= [1-9] [0-9] [0-9]',
+        'i2 ::= [1-9] [0-9]',
+        'i1 ::= [1-9]',
+      ].join('\n');
+      // NOTE (live run, 2026-07-13): the original prompt ("How many minutes does a 2-hour
+      // task take?") let the model answer "2" (a single digit) - a prompting artifact, not a
+      // grammar failure. Tightened to force a specific multi-digit target so the probe
+      // actually exercises the i2/i3/i4 branches instead of the model's arithmetic.
+      const prompt = 'A task takes exactly 245 minutes. Reply with exactly {"n":245} and nothing else.';
+      appendLog('Probe A: digit-width alternation for bounded integers ...');
+      try {
+        const result = await runCompletion([{ role: 'user', content: prompt }], {
+          grammar,
+          n_predict: 20,
+        });
+        const text = (result.text ?? '').trim();
+        let parsesAsJson = false;
+        let nValue: unknown;
+        let digitCount = 0;
+        try {
+          const parsed = JSON.parse(text);
+          parsesAsJson = true;
+          nValue = (parsed as { n?: unknown })?.n;
+          digitCount = typeof nValue === 'number' ? String(Math.trunc(nValue)).length : 0;
+        } catch {
+          parsesAsJson = false;
+        }
+        const multiDigit = digitCount >= 2;
+        appendLog(
+          `Probe A: parses=${parsesAsJson} output=${JSON.stringify(text)} n=${JSON.stringify(
+            nValue,
+          )} multiDigit=${multiDigit}`,
+        );
+        logResultJson('Q1RESULT:probeA', {
+          grammar,
+          rawOutput: text,
+          parsesAsJson,
+          nValue,
+          multiDigit,
+          timings: extractTimings(result),
+          manifest: buildManifest(grammar),
+        });
+      } catch (err: any) {
+        appendLog(`Probe A ERROR (grammar failed to parse or generate): ${String(err)}`);
+        logResultJson('Q1RESULT:probeA', {
+          error: String(err),
+          message: err?.message,
+          manifest: buildManifest(grammar),
+        });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // Probe B - confirms (rather than assumes) the Q1 report's inference that array fields
+  // (`("," rule){0,N}` over a NAMED alternation rule, like context_tags/weekday_array) are
+  // structurally safe, unlike the failing bare-character-class shape. If this fails, the
+  // blast radius is wider than integers alone and primitives.ts should not be touched yet.
+
+  const runProbeB = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar = [
+        'root ::= "[" (day ("," day){0,2})? "]"',
+        'day ::= "\\"monday\\"" | "\\"tuesday\\"" | "\\"friday\\""',
+      ].join('\n');
+      const prompt =
+        'List two or three weekdays as a JSON array of quoted day names, e.g. ["monday","friday"].';
+      appendLog('Probe B: array-of-named-alternation shape (context_tags/weekday_array analog) ...');
+      try {
+        const result = await runCompletion([{ role: 'user', content: prompt }], {
+          grammar,
+          n_predict: 20,
+        });
+        const text = (result.text ?? '').trim();
+        let parsesAsJson = false;
+        let isValidArray = false;
+        let elementCount = 0;
+        try {
+          const parsed = JSON.parse(text);
+          parsesAsJson = true;
+          elementCount = Array.isArray(parsed) ? parsed.length : 0;
+          isValidArray =
+            Array.isArray(parsed) &&
+            parsed.length >= 1 &&
+            parsed.length <= 3 &&
+            parsed.every((d) => ['monday', 'tuesday', 'friday'].includes(d));
+        } catch {
+          parsesAsJson = false;
+        }
+        appendLog(
+          `Probe B: parses=${parsesAsJson} output=${JSON.stringify(
+            text,
+          )} validArray=${isValidArray} elements=${elementCount}`,
+        );
+        logResultJson('Q1RESULT:probeB', {
+          grammar,
+          rawOutput: text,
+          parsesAsJson,
+          isValidArray,
+          elementCount,
+          timings: extractTimings(result),
+          manifest: buildManifest(grammar),
+        });
+      } catch (err: any) {
+        appendLog(`Probe B ERROR (grammar failed to parse or generate): ${String(err)}`);
+        logResultJson('Q1RESULT:probeB', {
+          error: String(err),
+          message: err?.message,
+          manifest: buildManifest(grammar),
+        });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // Probe C - the process-death case, under the fix. Rebuilds runBisect's candidate D (the
+  // `due` sub-grammar that killed the app process outright in Q1, no catchable JS error, no
+  // tombstone) with days_int swapped to Probe A's digit-width alternation. A repeat process
+  // death here is uncatchable in JS by construction - no try/catch can report it, so if the
+  // app disappears instead of logging a Q1RESULT:probeC line, THAT silence is the result:
+  // check `adb shell ps` / logcat afterward rather than assuming the run just hung.
+
+  const runProbeC = useCallback(async () => {
+    setRunning(true);
+    try {
+      const J = JCHAR_RULE;
+      const grammar = [
+        'root ::= "{\\"title\\":" title ",\\"due\\":" due "}"',
+        'title ::= "\\"" jchar{1,80} "\\""',
+        'due ::= "null" | due_on_date | due_in_days | due_weekday',
+        'due_on_date ::= "{\\"kind\\":\\"on_date\\",\\"date\\":\\"" date_str "\\"}"',
+        'date_str ::= [0-9] [0-9] [0-9] [0-9] "-" [0-9] [0-9] "-" [0-9] [0-9]',
+        'due_in_days ::= "{\\"kind\\":\\"in_days\\",\\"days\\":" days_int "}"',
+        'days_int ::= d3 | d2 | d1',
+        'd3 ::= [1-9] [0-9] [0-9]',
+        'd2 ::= [1-9] [0-9]',
+        'd1 ::= [1-9]',
+        'due_weekday ::= "{\\"kind\\":\\"weekday\\",\\"day\\":" weekday ",\\"which\\":" which "}"',
+        'which ::= "\\"this\\"" | "\\"next\\""',
+        'weekday ::= "\\"monday\\"" | "\\"tuesday\\"" | "\\"wednesday\\"" | "\\"thursday\\"" | "\\"friday\\"" | "\\"saturday\\"" | "\\"sunday\\""',
+        J,
+      ].join('\n');
+      appendLog(
+        'Probe C: due sub-grammar (Q1 candidate D, the one that killed the process) with ' +
+          'days_int fixed via digit-width alternation. If the app vanishes instead of logging ' +
+          'a result, check `adb shell ps` / logcat - that silence IS the finding ...',
+      );
+      try {
+        const result = await runCompletion(
+          [{ role: 'user', content: 'I have to call the insurance company in 45 days' }],
+          { grammar, n_predict: 60 },
+        );
+        const text = (result.text ?? '').trim();
+        appendLog(`Probe C: process survived, call returned. output=${JSON.stringify(text)}`);
+        logResultJson('Q1RESULT:probeC', {
+          pass: true,
+          grammar,
+          rawOutput: text,
+          timings: extractTimings(result),
+          manifest: buildManifest(grammar),
+        });
+      } catch (err: any) {
+        appendLog(`Probe C: process survived, but a catchable error was thrown: ${String(err)}`);
+        logResultJson('Q1RESULT:probeC', {
+          pass: false,
+          grammar,
+          error: String(err),
+          manifest: buildManifest(grammar),
+        });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
   // ---- Stage 2 — the real extraction grammar over seed prompts ----
 
   const runStage2 = useCallback(async () => {
@@ -960,6 +1158,13 @@ export default function Q1GrammarSpikeScreen() {
         onPress={runTestAdjacentClassesHypothesis}
         disabled={running}
       />
+      <View style={{ height: 16 }} />
+      <Text style={styles.title}>Q1b: bounded-integer repair probes</Text>
+      <Button title="Probe A: digit-width int alternation" onPress={runProbeA} disabled={running} />
+      <View style={{ height: 8 }} />
+      <Button title="Probe B: array-of-named-alternation shape" onPress={runProbeB} disabled={running} />
+      <View style={{ height: 8 }} />
+      <Button title="Probe C: due sub-grammar under the fix (crash case)" onPress={runProbeC} disabled={running} />
       <View style={{ height: 16 }} />
       {log.map((line, i) => (
         <Text key={i} style={styles.logLine}>

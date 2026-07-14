@@ -1,0 +1,150 @@
+{
+  "manifest": {
+    "modelFilename": "Ternary-Bonsai-4B-TQ1_0.gguf",
+    "modelSha256": "da1f7ecd5aba89d920589b23e205d0212830b492dc3f8326638dc13b8c45431c",
+    "modelByteSize": 1091638048,
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE (serial R5CWC240D5H)",
+    "date": "2026-07-13",
+    "note": "Compiled by hand from live device runs across one long session (logcat cleared before each probe, and the app force-stopped/relaunched before every probe from L onward to guarantee a fresh, never-before-used native context - see the poisoning-confound note below). Harnesses: src/dev/Q1GrammarSpikeScreen.tsx (Q1b probes A/B/C, poison-check) and src/dev/DateStrProbeScreen.tsx (all date_str probes, C1 through P)."
+  },
+
+  "q1b_probes": {
+    "probeA_digit_width_int_alternation": {
+      "harness": "Q1GrammarSpikeScreen.tsx",
+      "grammar": "root ::= \"{\\\"n\\\":\" intval \"}\"\nintval ::= i4 | i3 | i2 | i1\ni4 ::= [1-9] [0-9] [0-9] [0-9]\ni3 ::= [1-9] [0-9] [0-9]\ni2 ::= [1-9] [0-9]\ni1 ::= [1-9]",
+      "pass": true,
+      "note": "First run used a weak prompt and the model answered a single digit ('2') - parsed fine but didn't exercise the multi-digit branches. Prompt tightened to force a specific 3-digit number; second run produced {\"n\":245} - parses AND generates multi-digit. Validates the digit-width-alternation shape for boundedIntRule's eventual fix."
+    },
+    "probeB_array_of_named_alternation": {
+      "harness": "Q1GrammarSpikeScreen.tsx",
+      "grammar": "root ::= \"[\" (day (\",\" day){0,2})? \"]\"\nday ::= \"\\\"monday\\\"\" | \"\\\"tuesday\\\"\" | \"\\\"friday\\\"\"",
+      "pass": true,
+      "rawOutput": "[\"monday\",\"tuesday\",\"friday\"]",
+      "note": "Confirms (rather than assumes, per the Q1 report's own caveat) that array fields built from a named alternation rule (context_tags, weekday_array) are safe."
+    },
+    "probeC_due_union_with_days_int_fixed": {
+      "harness": "Q1GrammarSpikeScreen.tsx",
+      "grammar_summary": "Full due union (due_on_date | due_in_days | due_weekday) with days_int rebuilt via Probe A's digit-width alternation (d3|d2|d1), everything else unchanged from the original Q1 candidate D.",
+      "pass": false,
+      "processDied": false,
+      "error": "Error: failed to parse grammar",
+      "note": "Did NOT crash the process this run (Q1's original crash on this exact due shape did not reproduce - consistent with Q1's own note that the crash was not reliably reproducible). Still fails to parse, which is what motivated isolating date_str."
+    }
+  },
+
+  "date_str_investigation": {
+    "harness": "src/dev/DateStrProbeScreen.tsx unless noted",
+    "note_on_poisoning_confound": "C1 through K ran on ONE native context that was never reloaded (Fast Refresh preserved DateStrProbeScreen's contextRef across all those edits) - after C1's genuine first failure, every later result on that context is potentially confounded by context poisoning (one failed grammar compile corrupting the native sampler state for all subsequent calls). This was discovered mid-investigation (see poisonCheck) and every finding from L onward was re-verified on a freshly force-stopped/relaunched app (a brand-new native context, first call only) specifically to rule this out. C1's original failure and every L-P result are poisoning-safe; D1-K's results, while individually re-confirmed fresh where it mattered (G, H), should be read as directionally consistent with the fresh re-tests rather than independently authoritative.",
+
+    "C1_original_date_str_full_shape": {
+      "grammar": "root ::= \"{\\\"date\\\":\\\"\" date_str \"\\\"}\"\ndate_str ::= [0-9] [0-9] [0-9] [0-9] \"-\" [0-9] [0-9] \"-\" [0-9] [0-9]",
+      "pass": false,
+      "error": "Error: failed to parse grammar",
+      "runs": ["first call on Q1GrammarSpikeScreen's context (after Stage0/1/A/B/C all passed) - FAIL", "re-run as first call on a fresh relaunch - FAIL"],
+      "note": "Confirmed genuine (fresh-context re-run), not a poisoning artifact. This is the Q1b brief's core premise: date_str has no optionality at all, contradicting the Q1 report's characterized trigger."
+    },
+    "D1_one_separator_2_2_groups": {
+      "grammar": "root ::= \"{\\\"md\\\":\\\"\" md_str \"\\\"}\"\nmd_str ::= [0-9] [0-9] \"-\" [0-9] [0-9]",
+      "pass": false, "error": "Error: failed to parse grammar"
+    },
+    "D2_two_separators_1_1_1_groups": {
+      "grammar": "root ::= \"{\\\"x\\\":\\\"\" x_str \"\\\"}\"\nx_str ::= [0-9] \"-\" [0-9] \"-\" [0-9]",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "note": "Minimal reproduction: one class, one literal, one class. Refutes 'needs 2+ separators'."
+    },
+    "D3_one_separator_different_literal": {
+      "grammar": "root ::= \"{\\\"t\\\":\\\"\" t_str \"\\\"}\"\nt_str ::= [0-9] [0-9] \":\" [0-9] [0-9]",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "note": "Rules out the literal being specifically '-'."
+    },
+    "E1_named_digit_rule": {
+      "grammar": "date_str ::= digit digit digit digit \"-\" digit digit \"-\" digit digit\ndigit ::= [0-9]",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "note": "Naming the class doesn't help - refutes the 'raw bracket-class touching a literal' hypothesis."
+    },
+    "E2_literal_digit_alternation": {
+      "grammar": "date_str ::= digit digit digit digit \"-\" digit digit \"-\" digit digit\ndigit ::= \"0\"|\"1\"|\"2\"|\"3\"|\"4\"|\"5\"|\"6\"|\"7\"|\"8\"|\"9\"",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "note": "Zero bracket-classes anywhere in this grammar and it still fails - rules out character classes as the trigger entirely."
+    },
+    "E3_operator_distinct_group_rules": {
+      "grammar": "date_str ::= year \"-\" month \"-\" day\nyear ::= digit{4,4}\nmonth ::= digit{2,2}\nday ::= digit{2,2}\ndigit ::= [0-9]",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "note": "Distinct symbols (year/month/day) interleaved with literals, using the {m,n} operator on a named rule (Stage1-proven pattern) - still fails."
+    },
+    "E4_fold_literal_into_branches": {
+      "grammar": "date_str ::= year month_dash day_dash\nyear ::= [1-9] [0-9] [0-9] [0-9]\nmonth_dash ::= \"-01\"|...|\"-12\"\nday_dash ::= \"-01\"|...|\"-31\"",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "note": "Zero standalone literal tokens between symbols (the dash is folded into each branch) - still fails. Three distinct symbols back-to-back with nothing between them is also broken."
+    },
+    "G_bounded_jchar_exact_count": {
+      "grammar": "root ::= \"{\\\"date\\\":\\\"\" date_str \"\\\"}\"\ndate_str ::= jchar{10,10}",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "reran_fresh": true,
+      "note": "The exact-count {10,10} on jchar (the same rule Stage1 proved safe at {1,20}) fails, fresh-confirmed."
+    },
+    "H_exact_count_vs_range": {
+      "grammar": "root ::= \"{\\\"date\\\":\\\"\" date_str \"\\\"}\"\ndate_str ::= jchar{1,10}",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "reran_fresh": true,
+      "note": "A real range (min<max), not exact-count, and it STILL fails fresh - rules out exact-count as the variable."
+    },
+    "I_date_str_owns_its_own_quotes": {
+      "grammar": "root ::= \"{\\\"date\\\":\" date_str \"}\"\ndate_str ::= \"\\\"\" jchar{1,10} \"\\\"\"",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "reran_fresh": true,
+      "note": "Mirrors title/description's exact self-quoting shape - still fails fresh."
+    },
+    "J_bound_value_isolation": {
+      "grammar": "root ::= \"{\\\"date\\\":\" date_str \"}\"\ndate_str ::= \"\\\"\" jchar{1,20} \"\\\"\"",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "reran_fresh": true,
+      "note": "Probe I's exact grammar with the bound changed to the already-proven {1,20} - still fails. Rules out bound value."
+    },
+    "K_control_rename_to_foo": {
+      "grammar": "root ::= \"{\\\"foo\\\":\" foo_str \"}\"\nfoo_str ::= \"\\\"\" jchar{1,20} \"\\\"\"",
+      "pass": false, "error": "Error: failed to parse grammar",
+      "reran_fresh": true,
+      "note": "Rules out 'date'/'date_str' being a special/reserved string - a totally unrelated name (foo/foo_str) fails identically."
+    },
+    "L_reproduce_q1_candidate_A": {
+      "grammar": "root ::= \"{\\\"title\\\":\" title \"}\"\ntitle ::= \"\\\"\" jchar{1,80} \"\\\"\"",
+      "pass": true,
+      "runs": ["fresh run 1: PASS, output {\"title\":\", buy milk\"}", "fresh run 2: PASS, identical shape"],
+      "note": "Byte-for-byte Q1's original candidate A. PASSES reliably (2/2 fresh runs) in today's environment - rules out environment drift as the sole explanation."
+    },
+    "M_neutral_name_proven_bound": {
+      "grammar": "root ::= \"{\\\"foo\\\":\" foo_str \"}\"\nfoo_str ::= \"\\\"\" jchar{1,80} \"\\\"\"",
+      "pass": false,
+      "error": "Error: failed to parse grammar",
+      "runs": ["fresh run 1: FAIL", "fresh run 2: FAIL"],
+      "note": "Same proven bound (80) as L, only naming differs (foo/foo_str, key != rule name) - fails reliably (2/2 fresh runs). Isolates the variable to naming, not bound value."
+    },
+    "N_rule_name_matches_own_key": {
+      "grammar": "root ::= \"{\\\"foo\\\":\" foo \"}\"\nfoo ::= \"\\\"\" jchar{1,80} \"\\\"\"",
+      "pass": true,
+      "rawOutput": "{\"foo\":\"hello there\"}",
+      "note": "BREAKTHROUGH. Identical to M except the rule is named 'foo' (matching its own JSON key) instead of 'foo_str'. PASSES. This isolates the actual variable: for a jchar{m,n}-based rule, the rule name referenced from its parent must exactly match its own JSON key text, or the grammar fails to parse."
+    },
+    "O_diagnostic_jinja_false": {
+      "grammar": "same as M (foo_str, {1,80})",
+      "pass": false,
+      "error": "Error: failed to parse grammar",
+      "note": "DIAGNOSTIC: found in node_modules/llama.rn/src/index.ts:408 that `jinja` defaults to true and can silently overwrite the grammar param with a chat-template-generated one. Forced jinja:false on this call (bypassing the shared completion helper) to rule this out as an explanation - still fails identically. The grammar text itself really is what's evaluated; jinja override is not the mechanism."
+    },
+    "P_the_fix_in_real_due_on_date_shape": {
+      "grammar": "root ::= \"{\\\"kind\\\":\\\"on_date\\\",\\\"date\\\":\" date \"}\"\ndate ::= \"\\\"\" jchar{1,10} \"\\\"\"",
+      "pass": true,
+      "rawOutput": "{\"kind\":\"on_date\",\"date\":\"2026-07-13\"}",
+      "note": "THE FIX, validated in the actual due_on_date structure (not a toy example) - date_str renamed to 'date' (matching the JSON key), self-quoting, jchar{1,10}. Model even generated a real, correctly-formatted date. This is what was applied to task_extraction.v1.gbnf and coaching_resolution.v1.gbnf."
+    }
+  },
+
+  "verdict": {
+    "root_cause": "For a jchar{m,n}-based rule (the alternation+repetition primitive backing every bounded string field), the rule name referenced from its parent must exactly match its own JSON key text, or llama.cpp's GBNF parser on this build rejects the whole grammar at parse time. Mechanism not further isolated within this session's scope - empirically characterized and reproducibly confirmed (N=2 fresh runs each for the two decisive contrasts: title/{1,80} passes, foo_str/{1,80} with mismatched naming fails), but why a context-free grammar parser would exhibit this is unexplained. Ruled out as explanations: bound value (10 through 80 all fail with mismatched naming; 80 passes with matched naming), exact-count vs range repetition, indirection depth, character classes vs literal alternation, the specific string 'date'/'date_str', context poisoning, and llama.rn's jinja auto-grammar override.",
+    "fix_applied": "Renamed date_str to date in both task_extraction.v1.gbnf (due_on_date) and coaching_resolution.v1.gbnf (until_on_date), matching each rule's own \"date\" JSON key, and gave it its own quote literals (title/description shape) instead of relying on the parent rule's literal to supply them. Bound loosened from a structural [0-9]{4}\"-\"[0-9]{2}\"-\"[0-9]{2} to jchar{1,10} - digit/dash format enforcement moves entirely to the zod validator, which already independently regex-checks ^\\d{4}-\\d{2}-\\d{2}$ in both validator.ts files (confirmed before applying the fix - this was not a new gap opened by relaxing the grammar).",
+    "not_fixed_flagged_for_followup": "coaching_resolution.v1.gbnf has three more jchar-based fields whose rule name does not match their own JSON key: changes_notes (key \"approach_notes\"), reason120 (key \"reason\", used twice), condition120 (key \"condition\"). These were discovered via this session's root-cause finding but NOT tested or fixed - same bug pattern, same fix (rename to match key), needs its own confirmation pass before applying.",
+    "boundedIntRule_fix_status": "Probe A (digit-width alternation) is validated but NOT applied to src/llm/grammar/primitives.ts - out of scope for this session's specific ask (fix date_str), and the original brief's instruction was to report back before applying it. Still pending a decision."
+  }
+}

@@ -34,8 +34,12 @@ reason120 ::= "\"" jchar{1,120} "\""
 # --- defer_task ---
 defer_task ::= "{\"action\":\"defer_task\",\"task_id\":" task_id ",\"until\":" until "}"
 until ::= "null" | until_on_date | until_in_days | until_weekday | until_condition
-until_on_date ::= "{\"kind\":\"on_date\",\"date\":\"" date_str "\"}"
-date_str ::= [0-9] [0-9] [0-9] [0-9] "-" [0-9] [0-9] "-" [0-9] [0-9]
+# `date` (was `date_str`) - see task_extraction.v1.gbnf's header note and
+# docs/eval/Q1b_findings_report.md: a jchar{m,n}-based rule must be named to match its own
+# JSON key or it fails to parse on this build. Digit/dash structure is no longer
+# grammar-enforced - validator.ts's date regex (D10) is the sole enforcer now.
+until_on_date ::= "{\"kind\":\"on_date\",\"date\":" date "}"
+date ::= "\"" jchar{1,10} "\""
 until_in_days ::= "{\"kind\":\"in_days\",\"days\":" days_int "}"
 days_int ::= [1-9] [0-9]{0,2}
 until_weekday ::= "{\"kind\":\"weekday\",\"day\":" weekday ",\"which\":" which "}"

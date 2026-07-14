@@ -29,8 +29,14 @@ duration_from_user ::= "true" | "false"
 
 # --- due (DueSpec union, D5 - model transcribes, code resolves via due/dueSpec.ts) ---
 due ::= "null" | due_on_date | due_in_days | due_weekday
-due_on_date ::= "{\\"kind\\":\\"on_date\\",\\"date\\":\\"" date_str "\\"}"
-date_str ::= [0-9] [0-9] [0-9] [0-9] "-" [0-9] [0-9] "-" [0-9] [0-9]
+# \`date\` (was \`date_str\`, wrapped inline in due_on_date's own literal) - eval Q1b found live
+# on-device (2026-07-13) that a jchar{m,n}-based rule fails to parse when referenced under a
+# DIFFERENT name than its own JSON key, regardless of bound value; renaming to match the key
+# fixes it (root cause not further isolated - see docs/eval/Q1b_findings_report.md). Digit/dash
+# structure is no longer grammar-enforced - validator.ts's date regex (D10) is the sole
+# enforcer of the real YYYY-MM-DD shape now.
+due_on_date ::= "{\\"kind\\":\\"on_date\\",\\"date\\":" date "}"
+date ::= "\\"" jchar{1,10} "\\""
 due_in_days ::= "{\\"kind\\":\\"in_days\\",\\"days\\":" days_int "}"
 days_int ::= [1-9] [0-9]{0,2}
 due_weekday ::= "{\\"kind\\":\\"weekday\\",\\"day\\":" weekday ",\\"which\\":" which "}"

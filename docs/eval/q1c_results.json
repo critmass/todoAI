@@ -1,0 +1,69 @@
+{
+  "manifest": {
+    "modelFilename": "Ternary-Bonsai-4B-TQ1_0.gguf",
+    "modelSha256": "da1f7ecd5aba89d920589b23e205d0212830b492dc3f8326638dc13b8c45431c",
+    "modelByteSize": 1091638048,
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE (serial R5CWC240D5H)",
+    "date": "2026-07-14",
+    "note": "Compiled by hand from live device runs. Each probe run as the first call on a freshly force-stopped/relaunched app (a brand-new native context), per Q1b's own discipline. Harness: src/dev/RuleNameProbeScreen.tsx. All four probes hold body ('\"' jchar{1,80} '\"'), 2-level indirection, self-owned quotes, and bound constant - the ONLY variable across probes is the rule name."
+  },
+
+  "probes": {
+    "Q1_underscore_matches_key": {
+      "key": "foo_bar",
+      "ruleName": "foo_bar",
+      "underscore": true,
+      "matchesKey": true,
+      "keyMatchingPredicts": "PASS",
+      "underscorePredicts": "FAIL",
+      "grammar": "root ::= \"{\\\"foo_bar\\\":\" foo_bar \"}\"\nfoo_bar ::= \"\\\"\" jchar{1,80} \"\\\"\"\njchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F]{4})",
+      "pass": false,
+      "error": "Error: failed to parse grammar",
+      "note": "Fresh context, first call. Matches underscore theory's prediction (FAIL), contradicts key-matching's prediction (PASS)."
+    },
+    "Q2_no_underscore_no_match": {
+      "key": "foo",
+      "ruleName": "xyzzy",
+      "underscore": false,
+      "matchesKey": false,
+      "keyMatchingPredicts": "FAIL",
+      "underscorePredicts": "PASS",
+      "grammar": "root ::= \"{\\\"foo\\\":\" xyzzy \"}\"\nxyzzy ::= \"\\\"\" jchar{1,80} \"\\\"\"\njchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F]{4})",
+      "pass": true,
+      "rawOutput": "{\"foo\":\"hello there\"}",
+      "note": "Fresh context, first call (re-run after the original attempt was lost to a physical device disconnect mid-session). Matches underscore theory's prediction (PASS), contradicts key-matching's prediction (FAIL). Combined with Q1, this is the decisive pair - both point the same direction."
+    },
+    "Q3_dash_not_underscore": {
+      "key": "foo",
+      "ruleName": "foo-bar",
+      "underscore": false,
+      "matchesKey": false,
+      "keyMatchingPredicts": "FAIL",
+      "underscorePredicts": "PASS",
+      "grammar": "root ::= \"{\\\"foo\\\":\" foo-bar \"}\"\nfoo-bar ::= \"\\\"\" jchar{1,80} \"\\\"\"\njchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F]{4})",
+      "pass": true,
+      "rawOutput": "{\"foo\":\"hello there\"}",
+      "note": "Fresh context, first call. PASSES - confirms '-' is a safe character in GBNF rule names on this build (is_word_char accepts it), unlike '_'."
+    },
+    "Q4_known_fail_control": {
+      "key": "foo",
+      "ruleName": "foo_str",
+      "underscore": true,
+      "matchesKey": false,
+      "keyMatchingPredicts": "FAIL",
+      "underscorePredicts": "FAIL",
+      "grammar": "root ::= \"{\\\"foo\\\":\" foo_str \"}\"\nfoo_str ::= \"\\\"\" jchar{1,80} \"\\\"\"\njchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F]{4})",
+      "pass": false,
+      "error": "Error: failed to parse grammar",
+      "note": "Fresh context, first call. Byte-for-byte Q1b's Probe M. FAILS as expected by both theories - confirms this harness reproduces the known bug before trusting Q1/Q2/Q3 against it."
+    }
+  },
+
+  "verdict": {
+    "outcome": "Q1 FAILS and Q2 PASSES - underscore theory confirmed, key-matching is dead, exactly as the brief's §1 predicted for this outcome.",
+    "the_actual_rule": "No '_' (underscore) may appear anywhere in a GBNF rule name on this llama.cpp build. Names are otherwise free - digits, letters, and '-' (dash) are all safe (Q3). The rule name has no relationship to its own JSON key; Q1b's 'must match the key' conclusion is refuted by this session's own Q1/Q2 results, not just by the brief's a-priori argument.",
+    "mechanism": "Per the brief: llama.cpp's GBNF parser lexes rule names with an is_word_char predicate that accepts letters, digits, and '-', not '_'. An underscore terminates the identifier early and the parser chokes on the stray '_'. Not independently verified against llama.cpp source in this session - taken on the brief's own citation - but it is consistent with every data point across both Q1b and Q1c, with no exceptions found.",
+    "status": "Per the explicit instruction accompanying this brief, STOPPING HERE to report before touching any grammar file or primitives.ts. Sections 2-4 of the brief (global rename + lint, bounded-integer re-test, firing every affected grammar, Stage 2/3) are NOT started."
+  }
+}

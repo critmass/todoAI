@@ -14,8 +14,16 @@ export const TASK_EXTRACTION_V1_GBNF = `# task_extraction.v1.gbnf
 # see eval Q1 in the strategy doc). If Q1 shows it's unsupported, every \`{m,n}\` occurrence
 # below can be mechanically expanded via src/llm/grammar/boundedRepetition.ts - a config flip,
 # not a rewrite of this file.
+#
+# RULE-NAME CONSTRAINT (Q1c, docs/eval/Q1c_findings_report.md): no rule name below may contain
+# \`_\` - llama.cpp's GBNF parser on this build lexes rule names with an \`is_word_char\` predicate
+# that excludes \`_\`, so an underscore silently truncates the identifier and the parser then
+# fails on the malformed remainder. JSON keys and string literal values (e.g. the
+# "estimated_duration_minutes" key) are UNAFFECTED and keep their underscores - only bare rule
+# identifiers are renamed to camelCase. (Q1b's earlier "rule name must match its own JSON key"
+# theory is retracted - it was a confound; see the Q1c report.)
 
-root ::= "{\\"title\\":" title ",\\"description\\":" description ",\\"estimated_duration_minutes\\":" estimated_duration_minutes ",\\"duration_from_user\\":" duration_from_user ",\\"due\\":" due ",\\"context_tags\\":" context_tags ",\\"tool_requirements\\":" tool_requirements ",\\"energy\\":" energy ",\\"importance_user\\":" importance_user ",\\"recurrence\\":" recurrence "}"
+root ::= "{\\"title\\":" title ",\\"description\\":" description ",\\"estimated_duration_minutes\\":" estimatedDurationMinutes ",\\"duration_from_user\\":" durationFromUser ",\\"due\\":" due ",\\"context_tags\\":" contextTags ",\\"tool_requirements\\":" toolRequirements ",\\"energy\\":" energy ",\\"importance_user\\":" importanceUser ",\\"recurrence\\":" recurrence "}"
 
 # --- title, description ---
 title ::= "\\"" jchar{1,80} "\\""
@@ -24,54 +32,53 @@ description ::= "null" | "\\"" jchar{1,200} "\\""
 # --- duration ---
 # Digit-count bounded (up to 4 digits), not exact-range: GBNF can't express ">1440 forbidden"
 # without enumeration. The zod validator enforces the exact [1,1440] range (D10).
-estimated_duration_minutes ::= [1-9] [0-9]{0,3}
-duration_from_user ::= "true" | "false"
+estimatedDurationMinutes ::= [1-9] [0-9]{0,3}
+durationFromUser ::= "true" | "false"
 
 # --- due (DueSpec union, D5 - model transcribes, code resolves via due/dueSpec.ts) ---
-due ::= "null" | due_on_date | due_in_days | due_weekday
-# \`date\` (was \`date_str\`, wrapped inline in due_on_date's own literal) - eval Q1b found live
-# on-device (2026-07-13) that a jchar{m,n}-based rule fails to parse when referenced under a
-# DIFFERENT name than its own JSON key, regardless of bound value; renaming to match the key
-# fixes it (root cause not further isolated - see docs/eval/Q1b_findings_report.md). Digit/dash
-# structure is no longer grammar-enforced - validator.ts's date regex (D10) is the sole
-# enforcer of the real YYYY-MM-DD shape now.
-due_on_date ::= "{\\"kind\\":\\"on_date\\",\\"date\\":" date "}"
+due ::= "null" | dueOnDate | dueInDays | dueWeekday
+# \`date\` (was \`date_str\`) - Q1c (docs/eval/Q1c_findings_report.md) found the real trigger was
+# the underscore in \`date_str\`'s own name, not a key-mismatch as Q1b concluded. Kept as \`date\`
+# here since it already satisfies the no-underscore rule and is a clean, principled name.
+# Digit/dash structure is no longer grammar-enforced - validator.ts's date regex (D10) is the
+# sole enforcer of the real YYYY-MM-DD shape now.
+dueOnDate ::= "{\\"kind\\":\\"on_date\\",\\"date\\":" date "}"
 date ::= "\\"" jchar{1,10} "\\""
-due_in_days ::= "{\\"kind\\":\\"in_days\\",\\"days\\":" days_int "}"
-days_int ::= [1-9] [0-9]{0,2}
-due_weekday ::= "{\\"kind\\":\\"weekday\\",\\"day\\":" weekday ",\\"which\\":" which "}"
+dueInDays ::= "{\\"kind\\":\\"in_days\\",\\"days\\":" daysInt "}"
+daysInt ::= [1-9] [0-9]{0,2}
+dueWeekday ::= "{\\"kind\\":\\"weekday\\",\\"day\\":" weekday ",\\"which\\":" which "}"
 which ::= "\\"this\\"" | "\\"next\\""
 
 # --- context_tags (D7 dynamic-vocabulary slot: known tags + one bounded new-tag escape) ---
-context_tags ::= "[]" | "[" tag ("," tag){0,4} "]"
-tag ::= tag_known | new_tag
-tag_known ::= "\\"" {{context_tags_known}} "\\""
-new_tag ::= "\\"" jchar{1,20} "\\""
+contextTags ::= "[]" | "[" tag ("," tag){0,4} "]"
+tag ::= tagKnown | newTag
+tagKnown ::= "\\"" {{context_tags_known}} "\\""
+newTag ::= "\\"" jchar{1,20} "\\""
 
 # --- tool_requirements (static, not a dynamic slot) ---
-tool_requirements ::= "[]" | "[" tool ("," tool){0,4} "]"
+toolRequirements ::= "[]" | "[" tool ("," tool){0,4} "]"
 tool ::= "\\"" jchar{1,20} "\\""
 
 # --- energy, importance_user (D4: user-scale only, code projects through scales.ts) ---
 energy ::= "null" | "\\"low\\"" | "\\"med\\"" | "\\"high\\""
-importance_user ::= "null" | importance_value
-importance_value ::= [1-9] | "10"
+importanceUser ::= "null" | importanceValue
+importanceValue ::= [1-9] | "10"
 
 # --- recurrence (RecurrenceSpec union, D6) ---
 # null (true one-off) and {"type":"unscheduled"} are separate branches with opposite
 # completion semantics and must never collapse into one another (constraint #5, data-layer
 # brief). Each variant branches after its "type" discriminator and carries only that
 # variant's keys (D3.2).
-recurrence ::= "null" | rec_scheduled_quota | rec_quota | rec_scheduled | rec_unscheduled | rec_count
-rec_scheduled_quota ::= "{\\"type\\":\\"scheduled_quota\\",\\"quota\\":" quota_int ",\\"period\\":" period ",\\"days\\":" weekday_array "}"
-rec_quota ::= "{\\"type\\":\\"quota\\",\\"quota\\":" quota_int ",\\"period\\":" period "}"
-rec_scheduled ::= "{\\"type\\":\\"scheduled\\",\\"days\\":" weekday_array "}"
-rec_unscheduled ::= "{\\"type\\":\\"unscheduled\\"}"
-rec_count ::= "{\\"type\\":\\"count\\",\\"target\\":" target_int "}"
-quota_int ::= [1-9] [0-9]{0,2}
-target_int ::= [1-9] [0-9]{0,2}
+recurrence ::= "null" | recScheduledQuota | recQuota | recScheduled | recUnscheduled | recCount
+recScheduledQuota ::= "{\\"type\\":\\"scheduled_quota\\",\\"quota\\":" quotaInt ",\\"period\\":" period ",\\"days\\":" weekdayArray "}"
+recQuota ::= "{\\"type\\":\\"quota\\",\\"quota\\":" quotaInt ",\\"period\\":" period "}"
+recScheduled ::= "{\\"type\\":\\"scheduled\\",\\"days\\":" weekdayArray "}"
+recUnscheduled ::= "{\\"type\\":\\"unscheduled\\"}"
+recCount ::= "{\\"type\\":\\"count\\",\\"target\\":" targetInt "}"
+quotaInt ::= [1-9] [0-9]{0,2}
+targetInt ::= [1-9] [0-9]{0,2}
 period ::= "\\"day\\"" | "\\"week\\"" | "\\"month\\""
-weekday_array ::= "[" weekday ("," weekday){0,6} "]"
+weekdayArray ::= "[" weekday ("," weekday){0,6} "]"
 weekday ::= "\\"monday\\"" | "\\"tuesday\\"" | "\\"wednesday\\"" | "\\"thursday\\"" | "\\"friday\\"" | "\\"saturday\\"" | "\\"sunday\\""
 
 # --- shared primitives ---

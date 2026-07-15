@@ -8,59 +8,68 @@
 #
 # {m,n} support is unverified on-device (eval Q1) - see task_extraction.v1.gbnf's header for
 # the fallback plan (src/llm/grammar/boundedRepetition.ts).
+#
+# RULE-NAME CONSTRAINT (Q1c, docs/eval/Q1c_findings_report.md): no rule name below may contain
+# `_` - llama.cpp's GBNF parser on this build lexes rule names with an `is_word_char` predicate
+# that excludes `_`, so an underscore silently truncates the identifier and the parser then
+# fails on the malformed remainder. JSON keys and string literal values (e.g. the
+# "duration_minutes" key, the "modify_task" action value) are UNAFFECTED - only bare rule
+# identifiers are renamed to camelCase. (Q1b's earlier "rule name must match its own JSON key"
+# theory is retracted - it was a confound; see the Q1c report.)
 
-root ::= modify_task | break_down_task | eliminate_task | defer_task | add_dependency | add_missing_task | no_change
+root ::= modifyTask | breakDownTask | eliminateTask | deferTask | addDependency | addMissingTask | noChange
 
 # --- modify_task ---
-modify_task ::= "{\"action\":\"modify_task\",\"task_id\":" task_id ",\"changes\":" changes "}"
-changes ::= "{\"duration_minutes\":" changes_duration ",\"context_tags\":" changes_context_tags ",\"energy\":" changes_energy ",\"approach_notes\":" changes_notes "}"
-changes_duration ::= "null" | duration_int
-duration_int ::= [1-9] [0-9]{0,3}
-changes_context_tags ::= "null" | context_tags
-context_tags ::= "[]" | "[" tag ("," tag){0,4} "]"
-tag ::= tag_known | new_tag
-tag_known ::= "\"" {{context_tags_known}} "\""
-new_tag ::= "\"" jchar{1,20} "\""
-changes_energy ::= "null" | "\"low\"" | "\"med\"" | "\"high\""
-changes_notes ::= "null" | "\"" jchar{1,200} "\""
+modifyTask ::= "{\"action\":\"modify_task\",\"task_id\":" taskId ",\"changes\":" changes "}"
+changes ::= "{\"duration_minutes\":" changesDuration ",\"context_tags\":" changesContextTags ",\"energy\":" changesEnergy ",\"approach_notes\":" changesNotes "}"
+changesDuration ::= "null" | durationInt
+durationInt ::= [1-9] [0-9]{0,3}
+changesContextTags ::= "null" | contextTags
+contextTags ::= "[]" | "[" tag ("," tag){0,4} "]"
+tag ::= tagKnown | newTag
+tagKnown ::= "\"" {{context_tags_known}} "\""
+newTag ::= "\"" jchar{1,20} "\""
+changesEnergy ::= "null" | "\"low\"" | "\"med\"" | "\"high\""
+changesNotes ::= "null" | "\"" jchar{1,200} "\""
 
 # --- break_down_task (stub: id only, D8 - triggers task_breakdown.v1 as its own staged call) ---
-break_down_task ::= "{\"action\":\"break_down_task\",\"task_id\":" task_id "}"
+breakDownTask ::= "{\"action\":\"break_down_task\",\"task_id\":" taskId "}"
 
 # --- eliminate_task ---
-eliminate_task ::= "{\"action\":\"eliminate_task\",\"task_id\":" task_id ",\"reason\":" reason120 "}"
+eliminateTask ::= "{\"action\":\"eliminate_task\",\"task_id\":" taskId ",\"reason\":" reason120 "}"
 reason120 ::= "\"" jchar{1,120} "\""
 
 # --- defer_task ---
-defer_task ::= "{\"action\":\"defer_task\",\"task_id\":" task_id ",\"until\":" until "}"
-until ::= "null" | until_on_date | until_in_days | until_weekday | until_condition
-# `date` (was `date_str`) - see task_extraction.v1.gbnf's header note and
-# docs/eval/Q1b_findings_report.md: a jchar{m,n}-based rule must be named to match its own
-# JSON key or it fails to parse on this build. Digit/dash structure is no longer
-# grammar-enforced - validator.ts's date regex (D10) is the sole enforcer now.
-until_on_date ::= "{\"kind\":\"on_date\",\"date\":" date "}"
+deferTask ::= "{\"action\":\"defer_task\",\"task_id\":" taskId ",\"until\":" until "}"
+until ::= "null" | untilOnDate | untilInDays | untilWeekday | untilCondition
+# `date` (was `date_str`) - Q1c (docs/eval/Q1c_findings_report.md) found the real trigger was
+# the underscore in `date_str`'s own name, not a key-mismatch as Q1b concluded. Kept as `date`
+# here since it already satisfies the no-underscore rule and is a clean, principled name.
+# Digit/dash structure is no longer grammar-enforced - validator.ts's date regex (D10) is the
+# sole enforcer now.
+untilOnDate ::= "{\"kind\":\"on_date\",\"date\":" date "}"
 date ::= "\"" jchar{1,10} "\""
-until_in_days ::= "{\"kind\":\"in_days\",\"days\":" days_int "}"
-days_int ::= [1-9] [0-9]{0,2}
-until_weekday ::= "{\"kind\":\"weekday\",\"day\":" weekday ",\"which\":" which "}"
+untilInDays ::= "{\"kind\":\"in_days\",\"days\":" daysInt "}"
+daysInt ::= [1-9] [0-9]{0,2}
+untilWeekday ::= "{\"kind\":\"weekday\",\"day\":" weekday ",\"which\":" which "}"
 weekday ::= "\"monday\"" | "\"tuesday\"" | "\"wednesday\"" | "\"thursday\"" | "\"friday\"" | "\"saturday\"" | "\"sunday\""
 which ::= "\"this\"" | "\"next\""
-until_condition ::= "{\"condition\":" condition120 "}"
+untilCondition ::= "{\"condition\":" condition120 "}"
 condition120 ::= "\"" jchar{1,120} "\""
 
 # --- add_dependency ---
-add_dependency ::= "{\"action\":\"add_dependency\",\"task_id\":" task_id ",\"depends_on_task_id\":" depends_on_task_id "}"
-depends_on_task_id ::= {{depends_on_task_id}}
+addDependency ::= "{\"action\":\"add_dependency\",\"task_id\":" taskId ",\"depends_on_task_id\":" dependsOnTaskId "}"
+dependsOnTaskId ::= {{depends_on_task_id}}
 
 # --- add_missing_task (stub: title only, D8 - triggers task_extraction.v1 as its own staged call) ---
-add_missing_task ::= "{\"action\":\"add_missing_task\",\"title\":" title "}"
+addMissingTask ::= "{\"action\":\"add_missing_task\",\"title\":" title "}"
 title ::= "\"" jchar{1,80} "\""
 
 # --- no_change (first-class action, D8 - without it the grammar corners the model into inventing an intervention) ---
-no_change ::= "{\"action\":\"no_change\",\"reason\":" reason120 "}"
+noChange ::= "{\"action\":\"no_change\",\"reason\":" reason120 "}"
 
 # --- shared: dynamic task_id slot (D7 - never a bare [0-9]+ rule) ---
-task_id ::= {{task_id}}
+taskId ::= {{task_id}}
 
 # --- shared primitives ---
 jchar ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})

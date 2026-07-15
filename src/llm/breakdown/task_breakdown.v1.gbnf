@@ -6,6 +6,9 @@
 #
 # {m,n} support is unverified on-device (eval Q1) - see task_extraction.v1.gbnf's header for
 # the fallback plan (src/llm/grammar/boundedRepetition.ts).
+#
+# RULE-NAME CONSTRAINT (Q1c, docs/eval/Q1c_findings_report.md): no rule name below may contain
+# `_` - see task_extraction.v1.gbnf's header for the full explanation.
 
 root ::= "{\"parent_task_id\":" {{parent_task_id}} ",\"ordered\":" ordered ",\"subtasks\":" subtasks "}"
 
@@ -13,13 +16,13 @@ ordered ::= "true" | "false"
 
 # 2-8 subtasks: one mandatory + 1-7 more, each comma-prefixed.
 subtasks ::= "[" subtask ("," subtask){1,7} "]"
-subtask ::= "{\"title\":" title ",\"estimated_duration_minutes\":" estimated_duration_minutes ",\"duration_from_user\":" duration_from_user "}"
+subtask ::= "{\"title\":" title ",\"estimated_duration_minutes\":" estimatedDurationMinutes ",\"duration_from_user\":" durationFromUser "}"
 
 title ::= "\"" jchar{1,80} "\""
 # Digit-count bounded, not exact-range (see task_extraction.v1.gbnf's note) - the zod
 # validator enforces the exact [1,1440] range.
-estimated_duration_minutes ::= [1-9] [0-9]{0,3}
-duration_from_user ::= "true" | "false"
+estimatedDurationMinutes ::= [1-9] [0-9]{0,3}
+durationFromUser ::= "true" | "false"
 
 # --- shared primitives ---
 jchar ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})

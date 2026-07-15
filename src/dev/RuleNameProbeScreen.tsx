@@ -16,10 +16,18 @@
  * key-matching has none. The underscore theory also explains every single Q1b data point:
  * every failing probe had an underscored rule name in play; every passing probe didn't.
  *
- * §1 of the brief is four probes that hold everything else constant (body, indirection depth,
- * self-owned quotes, {1,80} bound - all proven-safe) and vary ONLY the rule name, so the two
- * theories predict opposite results for Q1/Q2. Report the table before touching any grammar
- * file or primitives.ts - §2-§4 of the brief depend on which theory this confirms.
+ * §1 of the brief is four probes (Q1-Q4) that hold everything else constant (body, indirection
+ * depth, self-owned quotes, {1,80} bound - all proven-safe) and vary ONLY the rule name, so the
+ * two theories predict opposite results for Q1/Q2. §1 landed on the underscore theory
+ * (docs/eval/Q1c_findings_report.md) - the global rename this unblocked (§2, every checked-in
+ * .gbnf) has already been applied and is NOT re-tested by this screen's probes.
+ *
+ * §3 (Probe R) and §4 (Probes S1-S3, T) below are LIVE, NOT-YET-RUN probes for the renamed
+ * grammar: §3 asks whether `boundedIntRule`'s original `[1-9] [0-9]{0,3}` shape parses under a
+ * clean name (if so, no structural change is needed - see primitives.ts, still the plain
+ * form); §4 fires the three previously-untested coaching fields and the full `due` union under
+ * their real post-rename names, on-device, so a rename never gets shipped without actually
+ * being parsed once.
  *
  * Split into its own screen (not more buttons on Q1GrammarSpikeScreen or DateStrProbeScreen)
  * per the same precedent DateStrProbeScreen itself set: a distinct investigative thread,
@@ -248,6 +256,208 @@ export default function RuleNameProbeScreen() {
     }
   }, [appendLog, runCompletion]);
 
+  // Probe R — §3: re-test the ORIGINAL bounded-integer shape (`[1-9] [0-9]{0,3}`, no
+  // digit-width alternation) under a clean, underscore-free name. This is the exact shape
+  // `boundedIntRule`/`estimatedDurationMinutes` already use in the real .gbnf files (the
+  // digit-width alternation from Q1b Probe A was validated but never applied to
+  // primitives.ts). If Q1/Q2 confirmed the underscore theory, this should PASS - Q1's
+  // original "bounded-integer shape is broken" verdict was itself naming collateral, and
+  // `boundedIntRule` needs no structural change. If this FAILS, the alternation needs to be
+  // implemented after all.
+  const runProbeR = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar =
+        'root ::= "{\\"minutes\\":" durationMinutes "}"\n' +
+        'durationMinutes ::= [1-9] [0-9]{0,3}';
+      appendLog('Probe R (§3): plain [1-9] [0-9]{0,3} under a clean name (durationMinutes) ...');
+      try {
+        const result = await runCompletion(
+          [{ role: 'user', content: 'Reply with exactly {"minutes":245}' }],
+          { grammar, n_predict: 20 },
+        );
+        const text = (result.text ?? '').trim();
+        appendLog(`Probe R: PASS output=${JSON.stringify(text)}`);
+        logResultJson('Q1CRESULT:probeR', {
+          pass: true,
+          grammar,
+          rawOutput: text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Probe R: FAIL ${String(err)}`);
+        logResultJson('Q1CRESULT:probeR', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // Probe S1 — §4: fire `changesNotes` (was `changes_notes`) for real, in its actual
+  // `modify_task`/`changes` context, renamed per §2. One of the three coaching fields Q1b
+  // flagged but never tested; `coaching_resolution` is what task 12 fires at users mid-skip-
+  // conversation, so a rename that was never actually parsed is exactly the silent-crash risk
+  // the brief calls out.
+  const runProbeS1 = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar =
+        'root ::= "{\\"action\\":\\"modify_task\\",\\"task_id\\":\\"1\\",\\"changes\\":" changes "}"\n' +
+        'changes ::= "{\\"duration_minutes\\":null,\\"context_tags\\":null,\\"energy\\":null,\\"approach_notes\\":" changesNotes "}"\n' +
+        'changesNotes ::= "null" | "\\"" jchar{1,200} "\\""\n' +
+        JCHAR_LINE;
+      appendLog('Probe S1 (§4): changesNotes (was changes_notes) in real modify_task/changes shape ...');
+      try {
+        const result = await runCompletion(
+          [
+            {
+              role: 'user',
+              content: 'Reply with exactly {"action":"modify_task","task_id":"1","changes":{"duration_minutes":null,"context_tags":null,"energy":null,"approach_notes":"try mornings instead"}}',
+            },
+          ],
+          { grammar, n_predict: 80 },
+        );
+        const text = (result.text ?? '').trim();
+        appendLog(`Probe S1: PASS output=${JSON.stringify(text)}`);
+        logResultJson('Q1CRESULT:probeS1', {
+          pass: true,
+          grammar,
+          rawOutput: text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Probe S1: FAIL ${String(err)}`);
+        logResultJson('Q1CRESULT:probeS1', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // Probe S2 — §4: fire `reason120` (already underscore-free - digits only, no rename needed)
+  // in its real `eliminate_task` context, to confirm it parses now that its sibling rules in
+  // the same file are de-underscored (a union grammar fails to compile as a whole if ANY
+  // branch has a bad rule name, even one this specific branch doesn't visit).
+  const runProbeS2 = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar =
+        'root ::= "{\\"action\\":\\"eliminate_task\\",\\"task_id\\":\\"1\\",\\"reason\\":" reason120 "}"\n' +
+        'reason120 ::= "\\"" jchar{1,120} "\\""\n' +
+        JCHAR_LINE;
+      appendLog('Probe S2 (§4): reason120 in real eliminate_task shape ...');
+      try {
+        const result = await runCompletion(
+          [
+            {
+              role: 'user',
+              content: 'Reply with exactly {"action":"eliminate_task","task_id":"1","reason":"no longer relevant"}',
+            },
+          ],
+          { grammar, n_predict: 60 },
+        );
+        const text = (result.text ?? '').trim();
+        appendLog(`Probe S2: PASS output=${JSON.stringify(text)}`);
+        logResultJson('Q1CRESULT:probeS2', {
+          pass: true,
+          grammar,
+          rawOutput: text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Probe S2: FAIL ${String(err)}`);
+        logResultJson('Q1CRESULT:probeS2', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // Probe S3 — §4: fire `condition120` in its real `until_condition` -> `untilCondition`
+  // context (renamed per §2), nested inside `defer_task`'s `until` union - the deepest of the
+  // three coaching fields structurally.
+  const runProbeS3 = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar =
+        'root ::= "{\\"action\\":\\"defer_task\\",\\"task_id\\":\\"1\\",\\"until\\":" until "}"\n' +
+        'until ::= untilCondition\n' +
+        'untilCondition ::= "{\\"condition\\":" condition120 "}"\n' +
+        'condition120 ::= "\\"" jchar{1,120} "\\""\n' +
+        JCHAR_LINE;
+      appendLog('Probe S3 (§4): condition120 in real until_condition/untilCondition shape ...');
+      try {
+        const result = await runCompletion(
+          [
+            {
+              role: 'user',
+              content:
+                'Reply with exactly {"action":"defer_task","task_id":"1","until":{"condition":"after the kitchen renovation is done"}}',
+            },
+          ],
+          { grammar, n_predict: 80 },
+        );
+        const text = (result.text ?? '').trim();
+        appendLog(`Probe S3: PASS output=${JSON.stringify(text)}`);
+        logResultJson('Q1CRESULT:probeS3', {
+          pass: true,
+          grammar,
+          rawOutput: text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Probe S3: FAIL ${String(err)}`);
+        logResultJson('Q1CRESULT:probeS3', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
+  // Probe T — §4: the full `due` union, byte-for-byte the real (post-rename)
+  // task_extraction.v1.gbnf shape - dueOnDate/dueInDays/dueWeekday, daysInt as the plain
+  // `[1-9] [0-9]{0,2}` form (no alternation), date self-quoting per Q1b's fix. This is
+  // DateStrProbeScreen's Probe F re-run with the real renamed rule set, to confirm the whole
+  // union (not just isolated fields) still parses end-to-end.
+  const runProbeT = useCallback(async () => {
+    setRunning(true);
+    try {
+      const grammar = [
+        'root ::= "{\\"title\\":" title ",\\"due\\":" due "}"',
+        'title ::= "\\"" jchar{1,80} "\\""',
+        'due ::= "null" | dueOnDate | dueInDays | dueWeekday',
+        'dueOnDate ::= "{\\"kind\\":\\"on_date\\",\\"date\\":" date "}"',
+        'date ::= "\\"" jchar{1,10} "\\""',
+        'dueInDays ::= "{\\"kind\\":\\"in_days\\",\\"days\\":" daysInt "}"',
+        'daysInt ::= [1-9] [0-9]{0,2}',
+        'dueWeekday ::= "{\\"kind\\":\\"weekday\\",\\"day\\":" weekday ",\\"which\\":" which "}"',
+        'which ::= "\\"this\\"" | "\\"next\\""',
+        'weekday ::= "\\"monday\\"" | "\\"tuesday\\"" | "\\"wednesday\\"" | "\\"thursday\\"" | "\\"friday\\"" | "\\"saturday\\"" | "\\"sunday\\""',
+        JCHAR_LINE,
+      ].join('\n');
+      appendLog('Probe T (§4): full due union, real post-rename shape ...');
+      try {
+        const result = await runCompletion(
+          [{ role: 'user', content: 'I have to call the insurance company on 2026-08-01' }],
+          { grammar, n_predict: 60 },
+        );
+        const text = (result.text ?? '').trim();
+        appendLog(`Probe T: PASS output=${JSON.stringify(text)}`);
+        logResultJson('Q1CRESULT:probeT', {
+          pass: true,
+          grammar,
+          rawOutput: text,
+          timings: extractTimings(result),
+        });
+      } catch (err: any) {
+        appendLog(`Probe T: FAIL ${String(err)}`);
+        logResultJson('Q1CRESULT:probeT', { pass: false, grammar, error: String(err) });
+      }
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog, runCompletion]);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
       <Text style={styles.title}>Rule-name disambiguation probes (Q1c §1)</Text>
@@ -268,6 +478,38 @@ export default function RuleNameProbeScreen() {
       <Button
         title="Probe Q4: foo/foo_str (known-fail control)"
         onPress={runProbeQ4}
+        disabled={running}
+      />
+      <View style={{ height: 16 }} />
+      <Text style={styles.title}>§3 — boundedIntRule retest</Text>
+      <Button
+        title="Probe R: [1-9][0-9]{0,3} under clean name (durationMinutes)"
+        onPress={runProbeR}
+        disabled={running}
+      />
+      <View style={{ height: 16 }} />
+      <Text style={styles.title}>§4 — fire the renamed grammars for real</Text>
+      <Button
+        title="Probe S1: changesNotes in real modify_task shape"
+        onPress={runProbeS1}
+        disabled={running}
+      />
+      <View style={{ height: 8 }} />
+      <Button
+        title="Probe S2: reason120 in real eliminate_task shape"
+        onPress={runProbeS2}
+        disabled={running}
+      />
+      <View style={{ height: 8 }} />
+      <Button
+        title="Probe S3: condition120 in real until_condition shape"
+        onPress={runProbeS3}
+        disabled={running}
+      />
+      <View style={{ height: 8 }} />
+      <Button
+        title="Probe T: full due union, real post-rename shape"
+        onPress={runProbeT}
         disabled={running}
       />
       <View style={{ height: 16 }} />

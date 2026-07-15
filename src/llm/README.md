@@ -51,6 +51,30 @@ see D7) are templates: `{{slot_name}}` placeholders that `grammar/buildGrammar.t
 at call time with a literal alternation of the app's actual candidate values (known context
 tags, the task ids in play). They are not valid GBNF until substituted.
 
+## Rule-name constraint — no underscores (Q1c)
+
+**No GBNF rule name (the LHS of `::=`) may contain `_` on this build.** `llama.cpp`'s GBNF
+parser (as bundled in `llama.rn` 0.12.5) lexes rule names with an `is_word_char` predicate that
+accepts letters, digits, and `-`, but not `_` — an underscore inside a rule name silently
+truncates the identifier and the parser then fails on the malformed remainder
+(`failed to parse grammar`). This is a **build quirk, not GBNF semantics** — don't "fix" the
+workaround later thinking it's wrong. See `docs/eval/Q1c_findings_report.md` for the isolating
+probes.
+
+**JSON keys are unaffected and keep their underscores freely** — `"estimated_duration_minutes"`
+stays as a schema key; only the *rule* referenced under it is renamed (e.g. to
+`estimatedDurationMinutes`). Every rule name in the checked-in `.gbnf` files uses camelCase for
+this reason. `src/llm/grammar/__tests__/ruleNaming.test.ts` is the regression guard — it lints
+every checked-in `.gbnf` file and `buildGrammar`'s substituted output against
+`/^[a-zA-Z][a-zA-Z0-9]*$/`.
+
+An earlier investigation (`docs/eval/Q1b_findings_report.md`) concluded instead that **a rule's
+name must exactly match its own JSON key** — that conclusion is **retracted**. It rested on a
+probe pair that changed the rule's name and its underscore status at the same time; Q1c isolated
+the two and found the underscore was the whole story (key-matching is directly falsified by
+grammars that already parse with a rule name unrelated to its key, e.g. `jchar`, `weekday`).
+Do not reinstate the key-matching rule.
+
 ## The `{m,n}` caveat — unverified, not yet trusted
 
 Every grammar here uses GBNF's `{m,n}` bounded-repetition syntax (bounded strings, bounded

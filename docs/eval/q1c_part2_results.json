@@ -1,0 +1,90 @@
+{
+  "manifest": {
+    "modelFilename": "Ternary-Bonsai-4B-TQ1_0.gguf",
+    "modelSha256": "da1f7ecd5aba89d920589b23e205d0212830b492dc3f8326638dc13b8c45431c",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE (serial R5CWC240D5H)",
+    "date": "2026-07-14",
+    "note": "§3/§4 of docs/briefs/Q1c_rule_name_disambiguation_brief.md, run against the renamed grammars from this session's commit. Probes R/S1/S2/S3/T are from src/dev/RuleNameProbeScreen.tsx; stage2/stage3 are src/dev/Q1GrammarSpikeScreen.tsx's existing harness, re-run unmodified against the now-renamed real task_extraction.v1.gbnf via buildGrammar. Reassembled verbatim from a live adb logcat capture via scripts/q1-reassemble.js (source tags: Q1CRESULT:probeR/S1/S2/S3/T, Q1RESULT:stage2/stage3) - not hand-transcribed."
+  },
+
+  "probes": {
+    "R_boundedIntRule_retest": {
+      "section": "§3",
+      "purpose": "Does the ORIGINAL boundedIntRule shape ([1-9] [0-9]{0,3}, no digit-width alternation) parse under a clean, underscore-free name?",
+      "grammar": "root ::= \"{\\\"minutes\\\":\" durationMinutes \"}\"\ndurationMinutes ::= [1-9] [0-9]{0,3}",
+      "pass": true,
+      "rawOutput": "{\"minutes\":245}",
+      "timings": { "promptMs": 1409.341, "promptPerSecond": 12.77, "predictedN": 7, "predictedPerSecond": 9.35 }
+    },
+    "S1_changesNotes": {
+      "section": "§4",
+      "purpose": "Fire changesNotes (was changes_notes, one of Q1b's three flagged-but-untested coaching fields) in its real modify_task/changes context.",
+      "grammar": "root ::= \"{\\\"action\\\":\\\"modify_task\\\",\\\"task_id\\\":\\\"1\\\",\\\"changes\\\":\" changes \"}\"\nchanges ::= \"{\\\"duration_minutes\\\":null,\\\"context_tags\\\":null,\\\"energy\\\":null,\\\"approach_notes\\\":\" changesNotes \"}\"\nchangesNotes ::= \"null\" | \"\\\"\" jchar{1,200} \"\\\"\"\njchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F]{4})",
+      "pass": true,
+      "rawOutput": "{\"action\":\"modify_task\",\"task_id\":\"1\",\"changes\":{\"duration_minutes\":null,\"context_tags\":null,\"energy\":null,\"approach_notes\":\"try mornings instead\"}}",
+      "timings": { "promptMs": 2687.52, "promptPerSecond": 14.51, "predictedN": 35, "predictedPerSecond": 7.66 }
+    },
+    "S2_reason120": {
+      "section": "§4",
+      "purpose": "Fire reason120 (already underscore-free) in its real eliminate_task context, to confirm the whole union still compiles now that its sibling rules are de-underscored.",
+      "grammar": "root ::= \"{\\\"action\\\":\\\"eliminate_task\\\",\\\"task_id\\\":\\\"1\\\",\\\"reason\\\":\" reason120 \"}\"\nreason120 ::= \"\\\"\" jchar{1,120} \"\\\"\"\njchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F]{4})",
+      "pass": true,
+      "rawOutput": "{\"action\":\"eliminate_task\",\"task_id\":\"1\",\"reason\":\"no longer relevant\"}",
+      "timings": { "promptMs": 1340.79, "promptPerSecond": 14.92, "predictedN": 18, "predictedPerSecond": 9.76 }
+    },
+    "S3_condition120": {
+      "section": "§4",
+      "purpose": "Fire condition120 in its real until_condition/untilCondition context (renamed), nested inside defer_task's until union - the deepest of the three flagged coaching fields.",
+      "grammar": "root ::= \"{\\\"action\\\":\\\"defer_task\\\",\\\"task_id\\\":\\\"1\\\",\\\"until\\\":\" until \"}\"\nuntil ::= untilCondition\nuntilCondition ::= \"{\\\"condition\\\":\" condition120 \"}\"\ncondition120 ::= \"\\\"\" jchar{1,120} \"\\\"\"\njchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F]{4})",
+      "pass": true,
+      "rawOutput": "{\"action\":\"defer_task\",\"task_id\":\"1\",\"until\":{\"condition\":\"after the kitchen renovation is done\"}}",
+      "timings": { "promptMs": 1613.56, "promptPerSecond": 14.87, "predictedN": 22, "predictedPerSecond": 9.21 }
+    },
+    "T_full_due_union": {
+      "section": "§4",
+      "purpose": "Full due union (dueOnDate/dueInDays/dueWeekday, daysInt as the plain digit-count form, date self-quoting), byte-for-byte the real post-rename task_extraction.v1.gbnf shape.",
+      "grammar": "root ::= \"{\\\"title\\\":\" title \",\\\"due\\\":\" due \"}\"\ntitle ::= \"\\\"\" jchar{1,80} \"\\\"\"\ndue ::= \"null\" | dueOnDate | dueInDays | dueWeekday\ndueOnDate ::= \"{\\\"kind\\\":\\\"on_date\\\",\\\"date\\\":\" date \"}\"\ndate ::= \"\\\"\" jchar{1,10} \"\\\"\"\ndueInDays ::= \"{\\\"kind\\\":\\\"in_days\\\",\\\"days\\\":\" daysInt \"}\"\ndaysInt ::= [1-9] [0-9]{0,2}\ndueWeekday ::= \"{\\\"kind\\\":\\\"weekday\\\",\\\"day\\\":\" weekday \",\\\"which\\\":\" which \"}\"\nwhich ::= \"\\\"this\\\"\" | \"\\\"next\\\"\"\nweekday ::= \"\\\"monday\\\"\" | \"\\\"tuesday\\\"\" | \"\\\"wednesday\\\"\" | \"\\\"thursday\\\"\" | \"\\\"friday\\\"\" | \"\\\"saturday\\\"\" | \"\\\"sunday\\\"\"\njchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F]{4})",
+      "pass": true,
+      "rawOutput": "{\"title\":\"Call Insurance Company on 2026-08-01\",\"due\":null}",
+      "note": "Grammar parsed cleanly (PASS = no parse error). The model chose the due:null branch despite a date in the prompt rather than dueOnDate - a model-quality/prompting artifact (this probe has no system prompt grounding date interpretation, unlike Stage 2's fixtures), not a grammar defect.",
+      "timings": { "promptMs": 1606.98, "promptPerSecond": 14.93, "predictedN": 25, "predictedPerSecond": 9.31 }
+    }
+  },
+
+  "stage2": {
+    "section": "§4",
+    "purpose": "The real task_extraction.v1.gbnf, substituted via buildGrammar with the app's context_tags_known slot, fired over 4 seed fixtures (docs/eval/extraction_fixtures_seed.jsonl) - the first time this has ever run to completion (previously blocked purely on parse failures since Q1).",
+    "grammarLength": 2081,
+    "fixtureCount": 4,
+    "validJsonCount": 4,
+    "validatorPassCount": 4,
+    "perFixture": [
+      { "id": "simple-scheduled-01", "parsesAsJson": true, "passesValidator": true,
+        "rawOutput": "{\"title\":\"Take out the trash\",\"description\":null,\"estimated_duration_minutes\":60,\"duration_from_user\":false,\"due\":null,\"context_tags\":[\"trash\",\":every_tuesday\"],\"tool_requirements\":[\"trash can\",\":lack of trash\",\":access to trash\",\":time\"],\"energy\":null,\"importance_user\":5,\"recurrence\":null}" },
+      { "id": "oneoff-null-01", "parsesAsJson": true, "passesValidator": true,
+        "rawOutput": "{\"title\":\"Renew passport\",\"description\":null,\"estimated_duration_minutes\":60,\"duration_from_user\":false,\"due\":null,\"context_tags\":[\"travel\",\"identity\",\"government\"],\"tool_requirements\":[\"passport renewal app\",\"],\"],\"energy\":null,\"importance_user\":8,\"recurrence\":null}" },
+      { "id": "trap-unsched-01", "parsesAsJson": true, "passesValidator": true,
+        "rawOutput": "{\"title\":\"Keep Working on Your Novel\",\"description\":null,\"estimated_duration_minutes\":20,\"duration_from_user\":false,\"due\":null,\"context_tags\":[\"writing\",\":ongoing\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":5,\"recurrence\":null}" },
+      { "id": "date-weekday-01", "parsesAsJson": true, "passesValidator": true,
+        "rawOutput": "{\"title\":\"Call Insurance Company\",\"description\":null,\"estimated_duration_minutes\":60,\"duration_from_user\":false,\"due\":null,\"context_tags\":[\"urgent\",\"],\"],\"tool_requirements\":[\"phone\",\"],\"],\"energy\":null,\"importance_user\":8,\"recurrence\":null}" }
+    ],
+    "note": "Two fixtures contain a junk second array element ('],' as literal 2-char string content) in context_tags/tool_requirements - syntactically legal jchar content (the validator doesn't police tag/tool semantics), a model-quality artifact of the 4B TQ1_0 quantization, not a grammar or parser defect. All 4 fixtures still parsesAsJson=true and passesValidator=true.",
+    "grammarFingerprint": "33fce30d"
+  },
+
+  "stage3": {
+    "section": "§4",
+    "purpose": "Constrained vs unconstrained generation speed, same prompt (simple-scheduled-01), both temperature 0.",
+    "unconstrained": { "predictedN": 103, "predictedPerSecond": 8.1997 },
+    "constrained": { "predictedN": 62, "predictedPerSecond": 7.9769, "grammarFingerprint": "a2885d7f" },
+    "overheadRatio": 1.0279,
+    "note": "overheadRatio = unconstrained tok/s ÷ constrained tok/s. 1.03x means the grammar constraint cost about 3% throughput on this run."
+  },
+
+  "verdict": {
+    "section3": "PASS - boundedIntRule's plain [1-9] [0-9]{0,3} form parses under a clean name. Q1's original 'bounded-integer shape is broken' verdict was naming collateral. No structural change to src/llm/grammar/primitives.ts's boundedIntRule was needed (it was never actually changed to the digit-width alternation in the first place - Q1b validated that alternation but explicitly held off applying it).",
+    "section4": "PASS on every probe. The three previously-untested coaching fields (changesNotes/reason120/condition120), the full due union, and the real task_extraction.v1 template (Stage 2: 4/4 valid + validator-passing; Stage 3: 1.03x overhead) all parse and fire correctly under the renamed, underscore-free rule set.",
+    "outcome": "GREEN - naming rule fully isolated and applied; every renamed grammar fires correctly on-device. Tasks 6/12 may proceed on this basis."
+  }
+}

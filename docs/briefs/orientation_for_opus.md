@@ -30,12 +30,18 @@ These are established, most of them the hard way, on real hardware. Treat them a
 | Q1 | Does grammar-constrained decoding work on-device? | ✅ **GREEN**; `docs/eval/Q1*_findings_report.md` |
 | 6 | `llama.rn` integration / `TernaryBonsaiProvider` | ✅ **done** — confirmed on-device; `docs/eval/task6_phaseB_findings_report.md` |
 | 7 | System-prompt engineering (task input + coaching) | ✅ **done** — tuned on-device; `docs/eval/task7_phaseB_findings_report.md` |
-| **9** | **Scoring implementation (§5.1–5.2)** | **this batch (independent — start now)** |
+| 9 | Scoring implementation (§5.1–5.2) | ⚠ **status unconfirmed** — no task-9 findings report on file; verify it's built and that Fable review (10) is done |
 | 12 | Coaching flows + resolution dispatch (§7.2) | ✅ **done** — confirmed on-device; `docs/eval/task12_phaseB_findings_report.md`. **2 human-review gates open** (crisis detector coverage, `CRISIS_REFERRAL_TEXT` localisation) |
 | 10 | Fable review of scoring composition | after 9 |
 | 8, 13–17, 19 | tiering / data-resilience / timer / learning / skill integration | later |
 | 18 | Skill-injection layer (Fable) | later — leave its seam in 12 (see batch brief) |
 | 20 | Eval harness | later (parallel track) |
+| 21 | Crisis detector review + referral localization (human) | 🔴 **beta gate** — draft detector active & gate-first; §8, §9 |
+| 22 | `which:"next"` weekday semantics decision | ⚠ decision, any target; §8, §9 |
+| 23 | UI/UX design (interaction + visual system) | ⬜ **new** — not started; beta gate for polish, high-leverage to start early; §9 |
+| 24 | Product UI implementation (real screens) | ⬜ **new** — not started; **functional pass is required for personal ship** (only dev screens exist today); §9 |
+
+**Ship gating for everything above is in §8; the new tasks (21–24) are detailed in §9.**
 
 ## 3. Module map — what exists and its contract
 
@@ -93,4 +99,50 @@ These are established, most of them the hard way, on real hardware. Treat them a
 
 ## 7. How this batch fits
 
-Task **9 is independent** — pure logic over the data layer, no LLM — so it can start immediately and in parallel. Task **6 is the spine**: it unblocks **7** (prompts need a working provider to iterate against) and **12** (coaching needs the provider + prompts). **Fable reviews task 9's composition (task 10)** once it's buildable. Full sequencing and per-task detail are in the batch brief.
+Task **9 is independent** — pure logic over the data layer, no LLM — so it can start immediately and in parallel. Task **6 is the spine**: it unblocks **7** (prompts need a working provider to iterate against) and **12** (coaching needs the provider + prompts). **Fable reviews task 9's composition (task 10)** once it's buildable. Full sequencing and per-task detail are in the batch brief. *(6, 7, 12 are now done — see §2. The live frontier is the ship-gating in §8 and the new tasks in §9.)*
+
+## 8. Ship targets and their gates
+
+Three targets, each a higher bar than the last. An item **gates** a target if that target can't ship until the item is resolved. Deferring is fine *only if* the item is pinned to the gate that actually blocks it — the list below is that pinning.
+
+**Personal** — audience: Jason only (the developer, who knows the app's limits).
+- *Bar:* the core loop is usable by someone who understands what it does and doesn't do.
+- *Needs:* a working end-to-end loop (add task → work session → task execution with the timer → coaching) behind **functional product UI (task 24, minimal)** — which **does not exist yet**; today only `src/dev/` screens exist. The confirmed backend (6/7/12 + data layer, and 9 pending confirmation) is in place.
+- *Does NOT need:* crisis review, designed/polished UI, thermal management, tiering, 8B, or a device-envelope definition. (The draft crisis gate is already active, so even personal runs protected.)
+
+**Beta** — audience: a small external test group (people who are not Jason).
+- *Bar:* safe and coherent for a stranger.
+- *Gates that activate here:*
+  - **Crisis detector review + `CRISIS_REFERRAL_TEXT` localization (task 21) — HARD gate.** The moment a non-Jason user can install it, "the developer knows the limits" stops protecting anyone. Human-reviewed, not a code task.
+  - **Designed UI/UX (task 23) + polished screens (task 24).** Strangers need real interaction/visual design, not functional dev screens.
+  - **Device-envelope definition.** Testers won't all have an S23 FE; the one-rung 4B path needs a stated minimum spec (RAM / chipset / OS) before hand-off. (The prep item open since the original spike.)
+  - **Verification residue cleared** (§9): `add_dependency`/`add_missing_task` dispatch exercised on-device; the D1 recap→constrain flow measured.
+
+**General** — audience: the public.
+- *Bar:* robust across devices, polished, scalable.
+- *Gates beyond beta:*
+  - **Real tiering + 8B**, if pursued — the fork / Q2_0 / Vulkan decision (spec §11).
+  - **Real thermal management** (below) — required once tiering or heat-sensitive background work is live.
+  - Full data-lifecycle hardening (export / deletion / corruption recovery), richer analytics, and whatever else the privacy model gates.
+
+**Two deferrals recorded, each pinned to its real trigger:**
+- **Crisis review → beta gate.** Safe to defer for personal *only* because the sole user is the developer and a deterministic draft gate is already active and gate-first. Isolated: it lives behind the `checkCrisis` → `runCoachingResolution` short-circuit and changes no interface, so appending it breaks nothing. Do not let it cross into beta unresolved.
+- **Thermal sampler → stays a stub** until **whichever lands first**: the 8B/4B/1.7B tiering (task 8, itself gated on the quants existing) *or* the heat-sensitive idle-window background loops (tasks 17/18). It has **zero live consumers today** (one model rung, no background loops). Interim throttle signal: assume ~3 s cold-start and treat the **8.3→5.8 tok/s cold-to-warm drift** as the proxy. Left uncoupled, this would silently ship a heat-blind background loop later — hence the pin.
+
+## 9. New tasks (21–24) + verification residue
+
+**Task 21 — Crisis detector review + referral localization** *(beta gate; human-owned)*
+Finalize the `DRAFT_CRISIS_DETECTOR` (committed, gate-first, over-triggers by design — a false positive shows care, a false negative hands a person in crisis a task). Two human judgments, not code: **(a) coverage** — phrase-matching will miss indirect/coded expressions, which are the common form; decide whether it's sufficient for beta or needs a richer approach; **(b) `CRISIS_REFERRAL_TEXT`** — localize it and decide referral content (it names no hotline by design; fabricating an emergency number is itself harmful). Blocks beta. Evidence: task 7 §9, task 12 §9.
+
+**Task 22 — `which:"next"` weekday semantics** *(decision; any target; small)*
+Lives in shared `resolveDue`/DueSpec (task 5's contract), so it affects **every** date the app resolves — extraction and deferral alike. From a Thursday, the 4B emitted `which:"next"` for "next Monday" → 11 days out, when most people mean 4. Decide: define `which:"next"` as "the coming one" in `resolveDue`, **or** teach both guides to prefer `which:"this"` for a bare "next <weekday>". Then apply + add a fixture. Evidence: task 12 §5.
+
+**Task 23 — UI/UX design** *(beta gate for polish; high-leverage to start early)*
+The product's interaction + visual design — which the task list never had: it assumed "implement screens *from a design*" with no task producing the design. ADHD-specific, not generic: minimal decision load, timer-dominant execution screen, prominent escape valve, novelty without chaos, low-friction capture. *Input:* spec §6 (the functional flows already exist). *Output:* an interaction spec + visual design system (color/type/spacing tokens, component set) that task 24 consumes. The design *thinking* is the high-value part (use the frontend-design skill; Opus or a human designer); producing components from a settled design is Sonnet. Can start now in parallel — cheap early, expensive to retrofit.
+
+**Task 24 — Product UI implementation** *(functional pass gates PERSONAL; designed pass gates beta)*
+There is **no product UI yet** — only `src/dev/` screens. The real surface (dashboard, add-task chat, work-session setup, **task-execution screen with the dominant timer**, coaching chat, metrics, settings) must be built for the app to be usable at all. A **minimal functional** pass is what personal ship actually requires; the **designed** pass (consuming task 23) is a beta gate. This is where task 13 (timestamp-based timer) and the confirmed 6/7/9/12 backend finally surface to a user. Sonnet builds screens once the design (23), or at least the flow, is settled.
+
+**Verification residue** *(believed-done — confirm before leaning on it):*
+- `add_dependency` / `add_missing_task` resolution dispatch — **unexercised on-device** (task 12 §4). Fold into the next device session.
+- The **D1 recap→constrain flow** — still **unmeasured**; task 7 §7 suggests it may close the last extraction gap (the `quota`-drops-days case the recap understood but the constrained pass re-derived wrong). Wire recap→constrain and re-measure.

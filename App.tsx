@@ -25,6 +25,9 @@ import Task6DeviceScreen from './src/dev/Task6DeviceScreen';
 // Phase B: Task 7 prompt-tuning loop, driving the REAL task-7 prompts and scoring
 // valid-AND-correct against each fixture's gold. See src/dev/Task7PromptScreen.tsx.
 import Task7PromptScreen from './src/dev/Task7PromptScreen';
+// Phase B: Task 12 on-device — the DB de-risk spike, the three triggers, and real dispatch
+// through real repositories. See src/dev/Task12DeviceScreen.tsx.
+import Task12DeviceScreen from './src/dev/Task12DeviceScreen';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -38,7 +41,7 @@ function App() {
 }
 
 function AppContent() {
-  const [screen, setScreen] = useState<'task7' | 'task6' | 'q1' | 'dateStr' | 'ruleName'>('task7');
+  const [screen, setScreen] = useState<'task12' | 'task7' | 'task6' | 'q1' | 'dateStr' | 'ruleName'>('task12');
   // Bug fixed live (2026-07-13): this switcher was rendering under the status bar with no
   // top inset - the "date_str Probes" button was visible on-screen but its taps were being
   // intercepted by the status bar area instead of reaching the Button, so switching never
@@ -48,6 +51,7 @@ function AppContent() {
   return (
     <View style={styles.container}>
       <View style={[styles.switcher, { paddingTop: insets.top + 8 }]}>
+        <Button title="Task 12" onPress={() => setScreen('task12')} disabled={screen === 'task12'} />
         <Button title="Task 7" onPress={() => setScreen('task7')} disabled={screen === 'task7'} />
         <Button title="Task 6" onPress={() => setScreen('task6')} disabled={screen === 'task6'} />
         <Button title="Q1" onPress={() => setScreen('q1')} disabled={screen === 'q1'} />
@@ -62,6 +66,7 @@ function AppContent() {
           disabled={screen === 'ruleName'}
         />
       </View>
+      {screen === 'task12' && <Task12DeviceScreen />}
       {screen === 'task7' && <Task7PromptScreen />}
       {screen === 'task6' && <Task6DeviceScreen />}
       {screen === 'q1' && <Q1GrammarSpikeScreen />}

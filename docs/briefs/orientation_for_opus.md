@@ -12,6 +12,7 @@ These are established, most of them the hard way, on real hardware. Treat them a
 
 - **Grammar-constrained decoding works, and it's essentially free.** Q1 is closed GREEN (`docs/eval/Q1c_findings_report.md`). The real `task_extraction.v1` grammar fired over all seed fixtures: **4/4 valid JSON, 4/4 validator-passing**, at **~3% throughput overhead** (7.98 vs 8.20 tok/s constrained vs unconstrained). The §3.3 structured-output strategy is validated end-to-end on-device. This was the single largest open risk under the whole build; it is now a foundation, not a hope.
 - **Stock path, 4B only.** `llama.rn` 0.12.5 (prebuilt, no native build) + Ternary-Bonsai-4B (TQ1_0 community repack). This is the *only* tier that runs today; there is no working 1.7B or 8B build. The PrismML fork (native Q2_0 + Vulkan GPU, the path to real 8B) is **parked behind the `LLMProvider` interface** as a someday-if-ever project — see §5.
+- **The provider and the startup guard are confirmed on-device** (`docs/eval/task6_phaseB_findings_report.md`). A grammar-constrained, chat-templated call returns validated output through the real `TernaryBonsaiProvider` + D10 ladder (first attempt, 4/4 fixtures), grammar overhead is **1.00x** (nil), and the guard **catches** a deliberately-broken grammar, disables the grammar path, and leaves the app alive. Two things that report retracts, so they aren't re-litigated: **GBNF `#` comments parse fine on this build** (grammar is passed as authored — do NOT add a comment strip; it would truncate a `#`-bearing slot value), and **the underscore break is *catchable***, so the guard's proof covers catchable parse failures — against a truly uncatchable death its defense is still only its pre-session *timing*.
 - **Hardware reality.** CPU-only on Android (llama.rn's OpenCL path doesn't cover ternary formats; no Vulkan). ~5.2 tok/s steady state on the S23 FE (Snapdragon 8 Gen 1, 8 GB), throttling ~39% peak→steady but *plateauing*, not collapsing. Heat is the binding constraint, not RAM. Design for this envelope, not vendor benchmarks.
 - **The device:** Samsung Galaxy S23 FE, model at `/sdcard/Android/data/com.todoai/files/`. Bare RN 0.86.0, New Architecture, Android-only. Windows dev host. See `README_build.md`.
 
@@ -26,8 +27,8 @@ These are established, most of them the hard way, on real hardware. Treat them a
 | 4 | Structured-output strategy + eval design (Fable) | ✅ done; `docs/briefs/structured_output_strategy_task_4.md` |
 | 5 | Schemas, GBNF grammars, validators, mappers | ✅ done; `src/llm/` |
 | Q1 | Does grammar-constrained decoding work on-device? | ✅ **GREEN**; `docs/eval/Q1*_findings_report.md` |
-| **6** | **`llama.rn` integration / `TernaryBonsaiProvider`** | **← frontier (this batch)** |
-| **7** | **System-prompt engineering (task input + coaching)** | **this batch** |
+| 6 | `llama.rn` integration / `TernaryBonsaiProvider` | ✅ **done** — confirmed on-device; `docs/eval/task6_phaseB_findings_report.md` |
+| **7** | **System-prompt engineering (task input + coaching)** | **← frontier (this batch)** |
 | **9** | **Scoring implementation (§5.1–5.2)** | **this batch (independent — start now)** |
 | **12** | **Coaching flows + resolution dispatch (§7.2)** | **this batch** |
 | 10 | Fable review of scoring composition | after 9 |

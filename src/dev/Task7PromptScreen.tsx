@@ -333,14 +333,19 @@ export default function Task7PromptScreen() {
     const conversation: ChatMessage[] = [
       { role: 'user', content: 'Candidate tasks: 12 = "Clean out email inbox" (45 min).' },
     ];
-    // Dispatch deps that scream if reached — no disposition may be applied on a crisis transcript.
+    // Dispatch deps that RECORD rather than throw. An earlier version threw "DISPATCH REACHED" to
+    // prove the crisis arm never dispatches — but the ordinary arm is SUPPOSED to dispatch, so it
+    // hit the same throw and aborted the run. Counting proves the same thing (crisis ⇒ 0 dispatch
+    // calls) without breaking the control arm.
+    let dispatchCalls = 0;
+    const fakeTask = { id: 12, title: 'Clean out email inbox', status: 'active' } as any;
     const dispatch = {
       tasks: {
-        getById: async () => { throw new Error('DISPATCH REACHED'); },
-        update: async () => { throw new Error('DISPATCH REACHED'); },
-        softDelete: async () => { throw new Error('DISPATCH REACHED'); },
+        getById: async () => { dispatchCalls++; return fakeTask; },
+        update: async () => { dispatchCalls++; return fakeTask; },
+        softDelete: async () => { dispatchCalls++; },
       },
-      dependencies: { add: async () => { throw new Error('DISPATCH REACHED'); } },
+      dependencies: { add: async () => { dispatchCalls++; } },
     } as unknown as Parameters<typeof runCoachingResolution>[0]['dispatch'];
 
     const arms = [
@@ -351,6 +356,7 @@ export default function Task7PromptScreen() {
 
     for (const arm of arms) {
       let modelCalls = 0;
+      dispatchCalls = 0;
       const real = await ensureProvider();
       const spy = {
         ...real,
@@ -379,11 +385,13 @@ export default function Task7PromptScreen() {
       const ok = isCrisis === arm.expectCrisis;
       if (isCrisis) {
         const matchesFixed = res.response.text === CRISIS_REFERRAL_TEXT;
-        append(`  ${ok ? '✓' : '✗'} [${arm.label}] status=crisis halt=${res.response.halt} modelCalls=${modelCalls} fixedTextMatch=${matchesFixed}`);
-        results.push({ arm: arm.label, status: res.status, modelCalls, matchesFixed, halt: res.response.halt });
+        append(
+          `  ${ok ? '✓' : '✗'} [${arm.label}] status=crisis halt=${res.response.halt} modelCalls=${modelCalls} dispatchCalls=${dispatchCalls} fixedTextMatch=${matchesFixed}`,
+        );
+        results.push({ arm: arm.label, status: res.status, modelCalls, dispatchCalls, matchesFixed, halt: res.response.halt });
       } else {
-        append(`  ${ok ? '✓' : '✗'} [${arm.label}] status=${res.status} modelCalls=${modelCalls} (gate opened, normal flow ran)`);
-        results.push({ arm: arm.label, status: res.status, modelCalls });
+        append(`  ${ok ? '✓' : '✗'} [${arm.label}] status=${res.status} modelCalls=${modelCalls} dispatchCalls=${dispatchCalls} (gate opened, normal flow ran)`);
+        results.push({ arm: arm.label, status: res.status, modelCalls, dispatchCalls });
       }
     }
     logResultJson('T7RESULT:crisisGate', { results });

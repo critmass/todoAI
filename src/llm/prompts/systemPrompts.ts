@@ -41,11 +41,14 @@ export function buildExtractionSystemPrompt(todayISO: string): string {
  */
 export function buildExtractionRecapInstruction(): string {
   return [
-    'If something material is genuinely unclear — above all whether the task is a one-off or something ongoing/repeating —',
-    'ask ONE short, warm question about it and nothing else. Do not guess and do not restate.',
-    'Only if everything material is clear, restate what you understood in one warm sentence so the user can confirm or correct it:',
+    'Normally: restate. In one warm sentence, restate what you understood so the user can confirm or correct it —',
     'the task, when it recurs (in plain words), how long it takes, and when it is due.',
-    'Either way: no JSON here — just the one question or the one sentence.',
+    'Exception — only if the user has said nothing that settles whether this is a one-off or something ongoing/repeating,',
+    'ask ONE short, warm question about that instead of restating.',
+    'Check before asking: if their words already give the frequency ("every Tuesday", "3 times a week", "keep practicing"),',
+    'or already describe a single errand that is finished once done ("renew my passport"), then it IS settled — restate, do not ask.',
+    'Never ask about something the user already told you.',
+    'No JSON here — just the one sentence, or the one question.',
   ].join(' ');
 }
 

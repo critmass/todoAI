@@ -5,11 +5,15 @@ validator-passing, first attempt). Task 7's target is *correct* — right fields
 type, right due date — which is empirical on a 4B and cannot be judged headless. This is the
 draft→run→observe→adjust loop against the real Ternary-Bonsai-4B.
 
-**Verdict: the extraction half is GREEN.** Critical-correct went **10/16 → 15/16** across five
-prompt iterations, junk tags to ~0, and the D6 ask-don't-guess behavior from **0/5 (never asks)**
-to **8/9 discriminated** (asks on ambiguity, stays quiet when the user was explicit). The
-remaining single failure is a fixture whose own gold marks a clarifying question acceptable.
-Coaching prompts are **not** covered here — that half of task 7 is still open.
+**Verdict: extraction is GREEN; coaching is GREEN on tone and disposition and RED on the crisis
+path.** Critical-correct went **10/16 → 15/16** across five prompt iterations, junk tags to ~0, and
+the D6 ask-don't-guess behavior from **0/5 (never asks)** to **8/9 discriminated** (asks on
+ambiguity, stays quiet when the user was explicit); the remaining single failure is a fixture whose
+own gold marks a clarifying question acceptable. Coaching's three triggers and the constrained
+disposition pass (§9) — but the 4B **failed to recognise a distress input at all**, which both
+vindicates Phase A's "never let the model decide" architecture and leaves the crisis path inert and
+ship-blocking until a human-reviewed detector exists. **Task 7 is not closeable on that last
+point.**
 
 **Date:** 2026-07-16 · **Device:** Samsung Galaxy S23 FE (`R5CWC240D5H`) · **Model:**
 `Ternary-Bonsai-4B-TQ1_0.gguf` · **`llama.rn`:** 0.12.5 · Greedy (temp 0, top_k 1).

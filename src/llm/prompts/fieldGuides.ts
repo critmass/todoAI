@@ -14,12 +14,14 @@
  * recurrence is ambiguous the model must ASK one short question, never default silently.
  */
 export const RECURRENCE_DECISION_TREE = [
-  'Decide recurrence in this order — pick the FIRST that fits:',
-  '1) Completing it once finishes it forever? → one-off (recurrence: null).',
-  '2) Done after N total completions, ever (e.g. "review deck 10×")? → count (target N).',
-  '3) Happens on fixed days? With a per-period quota alongside → scheduled_quota; otherwise → scheduled.',
-  '4) A quota per period but no fixed days ("15/week, whenever")? → quota.',
-  '5) Recurs indefinitely, no schedule and no quota (ongoing project, practice, "keep at it")? → unscheduled.',
+  'RECURRENCE — the field most often got wrong. Decide it deliberately.',
+  'recurrence: null is NOT "unknown". It is a positive claim: this task is ONE-OFF — done once, gone forever. If the task repeats in ANY way, null is WRONG.',
+  'First ask: does this happen more than once? If yes, it is never null. Then pick:',
+  '- Named fixed days ("every Tuesday", "Mon/Wed/Fri")? → scheduled {days}. Only if they ALSO gave a per-period count → scheduled_quota {quota, period, days}.',
+  '- A count per period, no fixed days ("3 times a week, whenever")? → quota {quota, period}.',
+  '- A total number of times ever, then done ("10 times", "20 jobs")? → count {target}.',
+  '- Repeats indefinitely, no schedule, no total ("keep at it", "ongoing", "practice", "keep coming back to")? → unscheduled.',
+  'Only if completing it once truly finishes it forever → null.',
   'CRITICAL: null (one-off) and unscheduled (ongoing) are opposites — never confuse them. If it is genuinely unclear which, ASK one short question ("Is this a one-time thing, or something ongoing?") instead of guessing.',
 ].join('\n');
 
@@ -35,17 +37,19 @@ export const SCOPE_TO_OBSERVABLE_RULE =
 
 /** The extraction field guide (strategy §4.1 key order = generation order). Compact by design. */
 export const EXTRACTION_FIELD_GUIDE = [
-  'Extract structured task data. Fill every field; use null where a value is unknown (except title, duration, and the arrays).',
+  'Extract structured task data from what the user ACTUALLY said.',
+  'Record only what the user said or clearly implied. Do NOT invent a value just to fill a field: null and [] are correct, expected answers — not failures. Guess only where a field explicitly says you may.',
   'Fields, in order:',
   '- title: short imperative name.',
-  '- description: extra detail, or null.',
-  '- estimated_duration_minutes: how long the TASK ITSELF takes. If the user did not say, guess a reasonable value and set duration_from_user=false; if they stated it, set duration_from_user=true.',
-  '- due: null if no deadline; else a relative-date object — {"kind":"on_date","date":"YYYY-MM-DD"} | {"kind":"in_days","days":N} | {"kind":"weekday","day":"friday","which":"this"|"next"}. Transcribe what was said; do not do calendar math.',
-  '- context_tags: 0–5 short tags for where/how it is done (home, office, phone, computer). Reuse existing tags; only coin a new one for a genuinely new context. No filler tags.',
-  '- tool_requirements: 0–5 things needed, or empty.',
-  '- energy: "low" | "med" | "high", or null if unclear.',
-  '- importance_user: 1–10, or null if unstated. Do not invent one.',
-  '- recurrence: see the tree below (LAST — decide it after everything above).',
+  '- description: extra detail the user gave, or null.',
+  '- estimated_duration_minutes: how long the TASK ITSELF takes. This is the ONLY field you may guess.',
+  '- duration_from_user: true ONLY if the user stated a length ("an hour", "20 minutes"). If you guessed the duration → false. Guessing is normal here.',
+  '- due: null unless the user gave a deadline; else {"kind":"on_date","date":"YYYY-MM-DD"} | {"kind":"in_days","days":N} | {"kind":"weekday","day":"friday","which":"this"|"next"}. Transcribe what was said; do not do calendar math. No deadline mentioned → null.',
+  '- context_tags: 0–5 short tags for where/how it is done (home, office, phone, computer). Reuse existing tags; only coin one for a genuinely new context. Each element is ONE plain lowercase phrase — never punctuation, fragments, or non-English text. Nothing clearly fits → [].',
+  '- tool_requirements: 0–5 real things needed; same element rules. Usually [].',
+  '- energy: "low" | "med" | "high" ONLY if the user described the effort or energy. Otherwise null. Most tasks → null.',
+  '- importance_user: 1–10 ONLY if the user stated importance or priority. Otherwise null. Most tasks → null. Never default to 5.',
+  '- recurrence: see the tree below.',
   '',
   RECURRENCE_DECISION_TREE,
   '',

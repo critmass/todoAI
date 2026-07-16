@@ -59,6 +59,15 @@ export interface ScoreResult {
   criticalFailures: string[];
   /** Array elements that look like model noise rather than real tags (the known junk-tag target). */
   junkTags: string[];
+  /**
+   * How many context_tags were emitted. TRACKED, NOT SCORED — `gold.context_tags_must_include` is
+   * a minimum, not the complete correct set, so extra tags can't be called wrong without inventing
+   * gold. But the subset check alone is gameable: a model that dumps the entire known vocabulary
+   * into every task passes it every time (observed live, iter 2 — "take out the trash" came back
+   * tagged home+office+phone). Surfacing the count makes that visible instead of invisible.
+   * A real must_not_include belongs in the fixtures; task 20's harness should add one.
+   */
+  tagCount: number;
 }
 
 /** Normalizes a title for comparison: lowercase, collapse whitespace, drop surrounding
@@ -201,6 +210,7 @@ export function scoreExtraction(extraction: ExtractionLike, fixture: ExtractionF
     fields,
     criticalFailures,
     junkTags,
+    tagCount: tags.length,
   };
 }
 
@@ -210,6 +220,10 @@ export interface RunSummary {
   criticalCorrectCount: number;
   fullyCorrectCount: number;
   junkTagCount: number;
+  /** Mean context_tags per fixture. A tell for vocabulary-dumping, which the must-include subset
+   *  check cannot catch (see ScoreResult.tagCount). Gold needs ≤1 tag on most fixtures, so a mean
+   *  much above ~1.5 means the model is spraying tags. */
+  avgTagCount: number;
   /** Per-field wrong-counts across the run — shows which field to tune next. */
   fieldFailures: Record<string, number>;
 }
@@ -229,6 +243,7 @@ export function summarize(scores: ScoreResult[], total: number, validCount: numb
     criticalCorrectCount: scores.filter((s) => s.criticalCorrect).length,
     fullyCorrectCount: scores.filter((s) => s.fullyCorrect).length,
     junkTagCount: scores.reduce((n, s) => n + s.junkTags.length, 0),
+    avgTagCount: scores.length === 0 ? 0 : scores.reduce((n, s) => n + s.tagCount, 0) / scores.length,
     fieldFailures,
   };
 }

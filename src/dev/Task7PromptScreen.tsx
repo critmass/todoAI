@@ -174,7 +174,8 @@ export default function Task7PromptScreen() {
       append(
         `[${label}] KPI — valid ${summary.validCount}/${summary.total}, ` +
           `CRITICAL-CORRECT ${summary.criticalCorrectCount}/${summary.total}, ` +
-          `fully-correct ${summary.fullyCorrectCount}/${summary.total}, junk tags ${summary.junkTagCount}`,
+          `fully-correct ${summary.fullyCorrectCount}/${summary.total}, junk tags ${summary.junkTagCount}, ` +
+          `avg tags ${summary.avgTagCount.toFixed(1)}`,
       );
       const worst = Object.entries(summary.fieldFailures).sort((a, b) => b[1] - a[1]);
       append(`[${label}] field failures: ${worst.map(([f, n]) => `${f}=${n}`).join(' ') || 'none'}`);

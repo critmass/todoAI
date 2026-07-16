@@ -146,6 +146,15 @@ describe('scoreExtraction', () => {
   });
 });
 
+describe('tag-spam visibility', () => {
+  it('passes the must-include subset check even when the model dumps the vocabulary — so tagCount is what exposes it', () => {
+    const spam = scoreExtraction({ ...GOOD_EXTRACTION, context_tags: ['home', 'office', 'phone', 'computer'] }, FIXTURE);
+    // the subset check is satisfied ('home' is present) — this is exactly the blind spot
+    expect(spam.fields.find((f) => f.field === 'context_tags')?.verdict).toBe('correct');
+    expect(spam.tagCount).toBe(4);
+  });
+});
+
 describe('summarize', () => {
   it('aggregates the KPI and per-field failure counts', () => {
     const good = scoreExtraction(GOOD_EXTRACTION, FIXTURE);

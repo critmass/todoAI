@@ -10,13 +10,16 @@ export type CreateTaskInput = TaskWriteInput & { title: string; estimatedDuratio
  *  Deliberately NOT sourced from the `active_tasks_with_neglect` view: that view's
  *  neglect_multiplier column calls SQLite's POWER(), and op-sqlite's Android build compiles
  *  SQLite without SQLITE_ENABLE_MATH_FUNCTIONS (see android/build.gradle's defaultSqliteFlags -
- *  FTS5 and RTREE are explicitly enabled there; math functions are not), so POWER() is expected
- *  to be unavailable on-device. weeksNeglected uses the same pure-arithmetic formula as the view
- *  (safe - no POWER()); neglectMultiplier is squared here in TypeScript instead, producing an
- *  identical, still-uncapped result (constraint: never cap this - spec §5.2 fail-safe).
- *  TODO(device verification): confirm on the S23 FE whether the view's POWER() column actually
- *  fails; if a future op-sqlite build does compile in math functions, this can switch back to
- *  reading the view directly. Flagged to the human per the brief's constraint #2. */
+ *  FTS5 and RTREE are explicitly enabled there; math functions are not), so POWER() is unavailable
+ *  on-device. weeksNeglected uses the same pure-arithmetic formula as the view (safe - no POWER());
+ *  neglectMultiplier is squared here in TypeScript instead, producing an identical, still-uncapped
+ *  result (constraint: never cap this - spec §5.2 fail-safe).
+ *
+ *  CONFIRMED on-device 2026-07-16 (S23 FE, op-sqlite 17.1.2) - this closes the prior
+ *  TODO(device verification): `SELECT POWER(2,2)` fails with "[op-sqlite] sqlite query error: no
+ *  such function: POWER". The bypass is REQUIRED, not defensive - do not "simplify" it back to
+ *  reading the view. See docs/eval/task12_phaseB_findings_report.md §1. (If a future op-sqlite
+ *  build compiles in math functions, re-run that spike before changing anything here.) */
 export interface TaskWithNeglect {
   task: Task;
   weeksNeglected: number;

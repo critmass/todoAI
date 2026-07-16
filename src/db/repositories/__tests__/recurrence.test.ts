@@ -73,6 +73,40 @@ describe('recurrenceRepository', () => {
     });
   });
 
+  describe('incrementPeriodProgress', () => {
+    it('increments quota progress and reports when the per-period quota is met', async () => {
+      await repo.create(taskId, { type: 'quota', quota: 2, period: 'week' });
+
+      const first = await repo.incrementPeriodProgress(taskId);
+      expect(first).toEqual({ progress: 1, quota: 2, quotaReached: false });
+
+      const second = await repo.incrementPeriodProgress(taskId);
+      expect(second).toEqual({ progress: 2, quota: 2, quotaReached: true });
+
+      const entity = await repo.getEntityByTaskId(taskId);
+      expect(entity?.currentPeriodProgress).toBe(2);
+    });
+
+    it('works for scheduled_quota (also quota-bearing)', async () => {
+      await repo.create(taskId, {
+        type: 'scheduled_quota',
+        quota: 3,
+        period: 'week',
+        scheduledDays: ['monday', 'wednesday', 'friday'],
+      });
+      expect(await repo.incrementPeriodProgress(taskId)).toEqual({
+        progress: 1,
+        quota: 3,
+        quotaReached: false,
+      });
+    });
+
+    it('rejects a recurrence type that has no per-period quota', async () => {
+      await repo.create(taskId, { type: 'scheduled', scheduledDays: ['tuesday'] });
+      await expect(repo.incrementPeriodProgress(taskId)).rejects.toThrow(RecurrenceValidationError);
+    });
+  });
+
   it('the schema CHECK (target_count iff count) still fires for a direct raw write bypassing the repository', () => {
     expect(() =>
       conn.raw

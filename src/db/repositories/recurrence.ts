@@ -110,7 +110,43 @@ export function createRecurrenceRepository(db: SqliteConnection) {
     return { progress: nextProgress, targetReached: nextProgress >= entity.recurrence.target };
   }
 
-  return { getByTaskId, getEntityByTaskId, create, update, remove, incrementCountProgress };
+  /** Primitive for quota-bearing completion (spec §4.2: 'quota' / 'scheduled_quota'): increments
+   *  current_period_progress by one within the CURRENT period and reports whether the per-period
+   *  quota is now met. It does NOT reset the period, advance reset_date, or apply the missed-quota
+   *  importance boost - those are time-driven period-rollover concerns (a period boundary passing),
+   *  owned by the recurrence/timer engine (task 13), not by completion. Throws for any type that
+   *  has no per-period quota ('scheduled', 'unscheduled', 'count'). Service-layer completion policy
+   *  (task 9, ../../scoring / services) decides when to call this by checking the recurrence type. */
+  async function incrementPeriodProgress(
+    taskId: number,
+  ): Promise<{ progress: number; quota: number; quotaReached: boolean }> {
+    const entity = await getEntityByTaskId(taskId);
+    if (!entity) {
+      throw new NotFoundError('task_recurrence for task', taskId);
+    }
+    const { recurrence } = entity;
+    if (recurrence.type !== 'quota' && recurrence.type !== 'scheduled_quota') {
+      throw new RecurrenceValidationError(
+        `incrementPeriodProgress: task ${taskId}'s recurrence is '${recurrence.type}', which has no per-period quota`,
+      );
+    }
+    const nextProgress = entity.currentPeriodProgress + 1;
+    await db.execute('UPDATE task_recurrence SET current_period_progress = ? WHERE task_id = ?', [
+      nextProgress,
+      taskId,
+    ]);
+    return { progress: nextProgress, quota: recurrence.quota, quotaReached: nextProgress >= recurrence.quota };
+  }
+
+  return {
+    getByTaskId,
+    getEntityByTaskId,
+    create,
+    update,
+    remove,
+    incrementCountProgress,
+    incrementPeriodProgress,
+  };
 }
 
 export type RecurrenceRepository = ReturnType<typeof createRecurrenceRepository>;

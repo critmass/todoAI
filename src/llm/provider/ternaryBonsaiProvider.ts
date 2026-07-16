@@ -23,6 +23,7 @@ import {
   buildCompletionParams,
   mapCompletionResult,
   selectTier,
+  stripGrammarComments,
   thermalHeadroomFromAndroidStatus,
   type RawCompletionResult,
   type TernaryBonsaiConfig,
@@ -95,7 +96,9 @@ export class TernaryBonsaiProvider implements LLMProvider {
     const ctx = this.requireContext();
     await ctx.completion({
       messages: [{ role: 'user', content: 'x' }],
-      grammar,
+      // Normalize exactly as the runtime path does (buildCompletionParams strips too), so the
+      // guard compile-checks byte-for-byte what a real constrained call will hand the parser.
+      grammar: stripGrammarComments(grammar),
       n_predict: 1,
       temperature: 0,
       top_k: 1,

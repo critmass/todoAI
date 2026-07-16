@@ -19,6 +19,9 @@ import DateStrProbeScreen from './src/dev/DateStrProbeScreen';
 // key-matching confound (docs/briefs/Q1c_rule_name_disambiguation_brief.md). See
 // src/dev/RuleNameProbeScreen.tsx.
 import RuleNameProbeScreen from './src/dev/RuleNameProbeScreen';
+// Phase B: Task 6 on-device confirmation, driving the REAL TernaryBonsaiProvider + ladder +
+// startup guard (docs/briefs/opus_batch_B_device.md). See src/dev/Task6DeviceScreen.tsx.
+import Task6DeviceScreen from './src/dev/Task6DeviceScreen';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -32,7 +35,7 @@ function App() {
 }
 
 function AppContent() {
-  const [screen, setScreen] = useState<'q1' | 'dateStr' | 'ruleName'>('q1');
+  const [screen, setScreen] = useState<'task6' | 'q1' | 'dateStr' | 'ruleName'>('task6');
   // Bug fixed live (2026-07-13): this switcher was rendering under the status bar with no
   // top inset - the "date_str Probes" button was visible on-screen but its taps were being
   // intercepted by the status bar area instead of reaching the Button, so switching never
@@ -42,6 +45,7 @@ function AppContent() {
   return (
     <View style={styles.container}>
       <View style={[styles.switcher, { paddingTop: insets.top + 8 }]}>
+        <Button title="Task 6" onPress={() => setScreen('task6')} disabled={screen === 'task6'} />
         <Button title="Q1 Harness" onPress={() => setScreen('q1')} disabled={screen === 'q1'} />
         <Button
           title="date_str Probes"
@@ -54,6 +58,7 @@ function AppContent() {
           disabled={screen === 'ruleName'}
         />
       </View>
+      {screen === 'task6' && <Task6DeviceScreen />}
       {screen === 'q1' && <Q1GrammarSpikeScreen />}
       {screen === 'dateStr' && <DateStrProbeScreen />}
       {screen === 'ruleName' && <RuleNameProbeScreen />}

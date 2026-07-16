@@ -3,10 +3,28 @@ import {
   buildCompletionParams,
   mapCompletionResult,
   selectTier,
+  stripGrammarComments,
   thermalHeadroomFromAndroidStatus,
 } from '../ternaryBonsaiSupport';
 
 const CONFIG = DEFAULT_TERNARY_BONSAI_CONFIG;
+
+describe('stripGrammarComments', () => {
+  it('drops full-line comments, inline comments, and blank lines (the Q1c GREEN transform)', () => {
+    const grammar = [
+      '# header comment',
+      '',
+      'root ::= "x" # trailing comment',
+      '   # indented comment',
+      'child ::= "y"',
+    ].join('\n');
+    expect(stripGrammarComments(grammar)).toBe('root ::= "x"\nchild ::= "y"');
+  });
+
+  it('is a no-op on already-clean grammar text', () => {
+    expect(stripGrammarComments('root ::= "x"\nchild ::= "y"')).toBe('root ::= "x"\nchild ::= "y"');
+  });
+});
 
 describe('buildCompletionParams', () => {
   it('a constrained call forwards grammar + greedy knobs from the ladder', () => {
@@ -31,6 +49,14 @@ describe('buildCompletionParams', () => {
 
   it('passes stop strings through when set', () => {
     expect(buildCompletionParams({ stop: ['\n\n'] }, CONFIG).stop).toEqual(['\n\n']);
+  });
+
+  it('strips # comments from the grammar before it reaches the parser (device quirk)', () => {
+    const params = buildCompletionParams(
+      { grammar: '# comment\nroot ::= "x" # trailing', temperature: 0, topK: 1 },
+      CONFIG,
+    );
+    expect(params.grammar).toBe('root ::= "x"');
   });
 });
 

@@ -44,7 +44,6 @@ import { buildGrammar } from '../llm/grammar/buildGrammar';
 import { TASK_EXTRACTION_V1_GBNF } from '../llm/grammar/grammarText';
 import { validateTaskExtraction } from '../llm';
 import { TernaryBonsaiProvider } from '../llm/provider/ternaryBonsaiProvider';
-import { stripGrammarComments } from '../llm/provider/ternaryBonsaiSupport';
 import {
   buildGrammarRegistry,
   runConstrained,
@@ -127,6 +126,18 @@ function fixtureMessages(fixture: SeedFixture) {
   ];
 }
 
+// Dev-only copy of the `#`-comment strip that Q1GrammarSpikeScreen's Stage 2 applied. Production
+// deliberately does NOT do this: check H proved on-device (2026-07-16) that the parser accepts
+// comments as-authored, so the strip is unnecessary (and would corrupt a `#`-bearing slot value).
+// Kept here solely so the H probe stays reproducible.
+function devStripGrammarComments(grammar: string): string {
+  return grammar
+    .split('\n')
+    .map((line) => line.replace(/#.*$/, '').trimEnd())
+    .filter((line) => line.length > 0)
+    .join('\n');
+}
+
 // A deliberately-broken grammar for the guard proof: an underscore in a rule name — the known
 // parser-breaker (Q1c §3). Comment-stripping cannot rescue it (it's a rule name, not a comment),
 // so it survives normalization and genuinely exercises the guard.
@@ -195,12 +206,11 @@ export default function Task6DeviceScreen() {
   const runHygiene = withRun(async () => {
     const provider = await ensureProvider();
     const raw = buildGrammar(TASK_EXTRACTION_V1_GBNF, { context_tags_known: CONTEXT_TAGS_KNOWN });
-    const stripped = stripGrammarComments(raw);
+    const stripped = devStripGrammarComments(raw);
     append(`Hygiene: raw=${raw.length} chars, stripped=${stripped.length} chars. Compiling RAW (with # comments) ...`);
 
-    // NOTE: provider.compileGrammar strips internally now, so to test the RAW case we bypass it and
-    // hit the context directly with the un-stripped text — that reproduces exactly what Phase A's
-    // provider WOULD have sent before the fix.
+    // Hit the context directly for both cases so the probe is independent of what the provider
+    // does internally (it now sends grammar as-authored — see the RESULT note below).
     const ctx = (provider as any).context as { completion: (p: any) => Promise<any> };
     let rawResult: Record<string, unknown>;
     try {
@@ -223,7 +233,10 @@ export default function Task6DeviceScreen() {
       append(`Hygiene: STRIPPED FAILED: ${strippedError}`);
     }
     logResultJson('T6RESULT:hygiene', { device: DEVICE_LABEL, runNote: RUN_NOTE, ...rawResult, strippedCompiles, strippedError });
-    append('Hygiene finding: if RAW failed but STRIPPED passed, the Phase-A comment-strip gap was real and the fix is confirmed.');
+    // RESULT (2026-07-16, S23 FE): RAW and STRIPPED both compiled. This build's GBNF parser accepts
+    // `#` comments; Q1's Stage 2 strip was a leftover hypothesis from the underscore-bug era and was
+    // never re-tested after the Q1c rename fixed the real cause. Production sends grammar as-authored.
+    append('Hygiene finding: RAW and STRIPPED both compile on this build — no strip needed (confirmed 2026-07-16).');
   });
 
   // ---- A: provider works (real ladder + real validator) ----

@@ -1007,11 +1007,16 @@ export default function Q1GrammarSpikeScreen() {
       appendLog(`Stage 2: task_extraction.v1.gbnf over ${STAGE2_FIXTURES.length} fixtures ...`);
       const template = TASK_EXTRACTION_V1_GBNF;
       const substituted = buildGrammar(template, { context_tags_known: CONTEXT_TAGS_KNOWN });
-      // DIAGNOSTIC (temporary): Stage 0/1's comment-free grammars parsed fine; this real
-      // grammar is full of `#` comments and is failing to parse. Testing whether this build's
-      // GBNF parser lacks `#` line-comment support by stripping comments/blank lines before
-      // use. If this fixes it, that's the Q1 finding to report - not a reason to edit the
-      // checked-in .gbnf (comments stay for humans; a strip-before-use step belongs in task 6).
+      // DIAGNOSTIC (temporary, and REFUTED - see below): Stage 0/1's comment-free grammars parsed
+      // fine while this comment-laden real grammar didn't, so this stripped comments to test
+      // whether the build's GBNF parser lacks `#` line-comment support.
+      //
+      // RETRACTED (Task 6 Phase B, 2026-07-16, S23 FE): the parser accepts `#` comments fine. The
+      // real cause of the parse failures was the underscore rule names, fixed by the Q1c rename;
+      // this strip was never re-tested afterwards and got mistaken for load-bearing. Production
+      // (src/llm/provider) deliberately sends grammar AS AUTHORED - do NOT add a strip there: it
+      // buys nothing and would truncate a `#`-bearing slot value (e.g. a `#home` context tag).
+      // The strip is kept here only so this historical stage reproduces byte-for-byte.
       const grammar = substituted
         .split('\n')
         .map((line) => line.replace(/#.*$/, '').trimEnd())

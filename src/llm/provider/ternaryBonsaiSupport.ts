@@ -26,27 +26,15 @@ export const DEFAULT_TERNARY_BONSAI_CONFIG: TernaryBonsaiConfig = {
   defaultProseTemperature: 0.7,
 };
 
-/**
- * Strips GBNF `#` line comments and blank lines from grammar text before it reaches llama.cpp.
- *
- * WHY (Phase B, device-grounded): the Q1c GREEN run only parsed the real grammars because
- * `Q1GrammarSpikeScreen`'s Stage 2 stripped comments first — its own note reads "this real
- * grammar is full of `#` comments and is failing to parse ... a strip-before-use step belongs in
- * task 6." The checked-in `.gbnf`/`grammarText.ts` constants keep their comments for humans; this
- * is the "before use" normalization that note called for. Byte-for-byte the transform that went
- * GREEN: drop everything from `#` to end-of-line, trim trailing space, drop now-empty lines.
- *
- * CAVEAT: this strips any `#` to EOL, so a `#` *inside a string literal* would be corrupted. None
- * of the four checked-in grammars contain a `#` in a literal, and slot values (context tags, task
- * ids) are constrained to word characters — but if that ever changes, this needs a real lexer.
- */
-export function stripGrammarComments(grammar: string): string {
-  return grammar
-    .split('\n')
-    .map((line) => line.replace(/#.*$/, '').trimEnd())
-    .filter((line) => line.length > 0)
-    .join('\n');
-}
+// NOTE (Phase B, 2026-07-16, device-verified): grammar text is passed to llama.cpp AS AUTHORED,
+// comments and all. An earlier Phase-B pass added a `#`-comment strip here on the inference that
+// Q1c's GREEN run needed one (Q1GrammarSpikeScreen's Stage 2 strips comments, with a note saying
+// "a strip-before-use step belongs in task 6"). The S23 FE refuted it: the real 4758-char
+// extraction grammar, comments included, compiles fine. That strip was a leftover hypothesis from
+// the era when underscore rule names were breaking every grammar; the Q1c rename fixed the real
+// cause and nobody re-tested the comment theory — the same confound shape as Q1b's key-matching.
+// Do not re-add a strip: it buys nothing, and because buildGrammar substitutes slot values as
+// literals, a hashtag-style context tag (`#home`) would be silently truncated to end-of-line.
 
 /** The completion params passed to llama.rn's ctx.completion() (subset used by the app). Shaped
  *  to match the Q1 spike's call: messages API (chat template), grammar, greedy knobs, cap. */
@@ -72,7 +60,7 @@ export function buildCompletionParams(
     n_predict: opts.maxTokens ?? config.defaultMaxTokens,
     temperature: opts.temperature ?? config.defaultProseTemperature,
   };
-  if (opts.grammar !== undefined) params.grammar = stripGrammarComments(opts.grammar);
+  if (opts.grammar !== undefined) params.grammar = opts.grammar;
   if (opts.topK !== undefined) params.top_k = opts.topK;
   if (opts.stop !== undefined) params.stop = opts.stop;
   return params;

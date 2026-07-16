@@ -240,6 +240,76 @@ export default function Task12DeviceScreen() {
     await repos.tasks.softDelete(decoy.id);
   });
 
+  /**
+   * 3b — dispatch scenarios that must MUTATE a row.
+   *
+   * Step 3 passed but proved less than it looks: the model chose break_down_task, which is a staged
+   * stub (D8) — it calls requireTask and returns, leaving the row untouched. So step 3 exercised the
+   * READ path only. These scenarios steer toward the mutating actions and then RE-READ the row to
+   * prove the write actually landed in SQLite. Doubles as disposition quality at n>1.
+   */
+  const runDispatchScenarios = withRun(async () => {
+    const repos = await ensureDb();
+    const provider = await ensureProvider();
+
+    const scenarios = [
+      {
+        label: 'modify',
+        seed: { title: 'Clean out email inbox', estimatedDuration: 45 },
+        say: (id: number) => `Task ${id} is set to 45 minutes and I bounce off it every time. Please change its duration to 15 minutes — that I could actually start.`,
+        verify: (row: any) => ({ ok: row?.estimatedDuration === 15, saw: `dur=${row?.estimatedDuration}`, want: 'dur=15' }),
+      },
+      {
+        label: 'eliminate',
+        seed: { title: 'Book venue for the cancelled offsite', estimatedDuration: 30 },
+        say: (id: number) => `Task ${id} doesn't need doing at all any more — the offsite was cancelled entirely. Get rid of it.`,
+        verify: (row: any) => ({ ok: row?.status === 'deleted', saw: `status=${row?.status}`, want: 'status=deleted (soft-delete, NOT a completion)' }),
+      },
+      {
+        label: 'defer',
+        seed: { title: 'File the quarterly expenses', estimatedDuration: 40 },
+        say: (id: number) => `I can't touch task ${id} until next Monday — nothing I can do before then. Push it out.`,
+        verify: (row: any) => ({ ok: row?.nextDueAt != null, saw: `nextDueAt=${row?.nextDueAt}`, want: 'nextDueAt set' }),
+      },
+    ];
+
+    const results: Array<Record<string, unknown>> = [];
+    for (const s of scenarios) {
+      const task = await repos.tasks.create(s.seed);
+      const grammar = buildGrammar(COACHING_RESOLUTION_V1_GBNF, {
+        task_id: [String(task.id)],
+        depends_on_task_id: [String(task.id)],
+        context_tags_known: CONTEXT_TAGS_KNOWN,
+      });
+      const userText = s.say(task.id);
+      const conversation: ChatMessage[] = [
+        { role: 'user', content: `Candidate tasks: ${task.id} = "${task.title}" (${task.estimatedDuration} min).` },
+        { role: 'user', content: userText },
+      ];
+      const res = await runCoachingResolution({
+        provider,
+        messages: assembleCoachingPrompt({ base: COACHING_RESOLUTION_FIELD_GUIDE, conversation }),
+        grammar,
+        dispatch: { tasks: repos.tasks, dependencies: repos.dependencies },
+        ctx: { todayISO: new Date().toISOString().slice(0, 10) },
+        userText,
+      });
+
+      if (res.status !== 'dispatched') {
+        append(`  ✗ [${s.label}] status=${res.status}`);
+        results.push({ label: s.label, status: res.status });
+        continue;
+      }
+      const row = await repos.tasks.getById(task.id);
+      const v = s.verify(row);
+      append(`  ${v.ok ? '✓' : '✗'} [${s.label}] action=${res.outcome.action} → ${v.saw} (want ${v.want})`);
+      results.push({ label: s.label, action: res.outcome.action, outcome: res.outcome, rowAfter: row, verified: v.ok });
+      await repos.tasks.softDelete(task.id);
+    }
+    logResultJson('T12RESULT:dispatchScenarios', { results });
+    append('[scenarios] a PASS needs the ROW to change — a staged stub leaving it untouched proves only the read path.');
+  });
+
   // ---- 4: the completion-primitive boundary (null vs unscheduled) ----
   // NOTE: no coaching_resolution action COMPLETES a task (dispatch.ts is explicit: eliminate_task
   // is a soft-delete, deliberately NOT a completion), so this boundary is NOT reachable through
@@ -282,6 +352,8 @@ export default function Task12DeviceScreen() {
       <Button title="2 · Three triggers → urgency" onPress={runTriggers} disabled={running} />
       <View style={styles.gap} />
       <Button title="3 · Real dispatch through real repos" onPress={runRealDispatch} disabled={running} />
+      <View style={styles.gap} />
+      <Button title="3b · Mutating scenarios (modify/eliminate/defer)" onPress={runDispatchScenarios} disabled={running} />
       <View style={styles.gap} />
       <Button title="4 · Completion boundary (null vs unscheduled)" onPress={runCompletionBoundary} disabled={running} />
       <View style={styles.gap} />

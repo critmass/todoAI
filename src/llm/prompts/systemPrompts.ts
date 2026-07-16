@@ -29,13 +29,23 @@ export function buildExtractionSystemPrompt(todayISO: string): string {
   return `Today is ${todayISO} (${weekdayName(todayISO)}).\n\n${EXTRACTION_FIELD_GUIDE}`;
 }
 
-/** The prose recap instruction (D1). Streamed to the user as conversation; if the recap is wrong
- *  the user corrects it before the structured call happens. */
+/**
+ * The prose recap instruction (D1). Streamed to the user as conversation; if the recap is wrong
+ * the user corrects it before the structured call happens.
+ *
+ * ASKING IS FIRST-CLASS HERE (D6). An earlier draft said only "restate what you understood", which
+ * on-device suppressed the clarifying question entirely (0/5 ambiguous inputs asked; it confidently
+ * recapped "applying to 20 jobs is a one-time thing" — the exact silent wrong guess D6 exists to
+ * prevent). The constrained call CANNOT ask — the grammar forces a full object — so this prose turn
+ * is the only place a question can happen. If it doesn't ask here, the app guesses silently.
+ */
 export function buildExtractionRecapInstruction(): string {
   return [
-    'In one warm sentence, restate what you understood so the user can confirm or correct it:',
+    'If something material is genuinely unclear — above all whether the task is a one-off or something ongoing/repeating —',
+    'ask ONE short, warm question about it and nothing else. Do not guess and do not restate.',
+    'Only if everything material is clear, restate what you understood in one warm sentence so the user can confirm or correct it:',
     'the task, when it recurs (in plain words), how long it takes, and when it is due.',
-    'Do not output JSON here — just the sentence.',
+    'Either way: no JSON here — just the one question or the one sentence.',
   ].join(' ');
 }
 

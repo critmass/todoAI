@@ -78,7 +78,11 @@ export const COACHING_RESOLUTION_FIELD_GUIDE = [
   '- modify_task: adjust duration, context_tags, energy, or add an approach note. Use null for fields you are not changing.',
   '- break_down_task: the task is too big — split it (a follow-up step will collect the subtasks).',
   '- eliminate_task: it no longer needs doing — give a short reason.',
-  '- defer_task: not now — set "until" (a date, in N days, a weekday, or a plain-language condition).',
+  // The thin version of this line ("set until (a date, in N days, a weekday, or a condition)")
+  // produced until:null on-device for "I can't touch it until next Monday" — the same shape as the
+  // due:null miss the extraction guide had before it was given the explicit union + a transcribe
+  // rule. Same medicine (Task 12 Phase B).
+  '- defer_task: not now — set "until" to when it can happen: {"kind":"on_date","date":"YYYY-MM-DD"} | {"kind":"in_days","days":N} | {"kind":"weekday","day":"monday","which":"this"|"next"} | {"condition":"<what must happen first>"}. Transcribe what the user said; do not do calendar math. "until next Monday" → {"kind":"weekday","day":"monday","which":"next"}. Use null ONLY if they gave no when at all.',
   '- add_dependency: it is blocked by another task — name which.',
   '- add_missing_task: a new task surfaced — give its title (a follow-up step will flesh it out).',
   '- no_change: nothing needs to change — give a short reason. This is a valid, first-class choice; do not invent an intervention.',

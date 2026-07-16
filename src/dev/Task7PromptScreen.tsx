@@ -53,6 +53,14 @@ const QUICK_IDS = ['simple-scheduled-01', 'oneoff-null-01', 'trap-unsched-01', '
 /** Fixtures whose gold says a clarifying question is acceptable — the ask-don't-guess probe set. */
 const AMBIGUOUS_IDS = EXTRACTION_FIXTURES.filter((f) => f.gold.clarify_ok.length > 0).map((f) => f.id);
 
+/**
+ * The CONTROL for the ask probe: fixtures whose gold has no clarify_ok, i.e. the user was explicit
+ * ("every Tuesday", "Mon/Wed/Fri"). These must NOT produce a question — an assistant that
+ * interrogates the user about something they just plainly said is its own failure, and a probe made
+ * only of ambiguous inputs cannot detect it. Asking is only correct when it is discriminating.
+ */
+const CLEAR_IDS = ['simple-scheduled-01', 'oneoff-null-01', 'sched-vs-schedquota-01', 'date-weekday-01'];
+
 function logResultJson(tag: string, value: unknown): void {
   const json = JSON.stringify(value);
   const CHUNK = 3000;
@@ -192,11 +200,19 @@ export default function Task7PromptScreen() {
     await runScored('full16', EXTRACTION_FIXTURES);
   });
 
-  /** D6 ask-don't-guess: ambiguous input, NO clarify answer, unconstrained prose turn. */
+  /**
+   * D6 ask-don't-guess: ambiguous input, NO clarify answer, unconstrained prose turn.
+   * Runs BOTH arms — ambiguous (must ask) and clear (must NOT ask). The discriminating rate is the
+   * real KPI; "asked 5/5" means nothing if it also asks on the 4 clear ones.
+   */
   const runAskProbe = withRun(async () => {
     const provider = await ensureProvider();
-    const fixtures = EXTRACTION_FIXTURES.filter((f) => AMBIGUOUS_IDS.includes(f.id));
-    append(`[ask] ${fixtures.length} ambiguous fixtures, clarify_answers WITHHELD, prose turn ...`);
+    const fixtures = [
+      ...EXTRACTION_FIXTURES.filter((f) => AMBIGUOUS_IDS.includes(f.id)),
+      ...EXTRACTION_FIXTURES.filter((f) => CLEAR_IDS.includes(f.id)),
+    ];
+    const shouldAsk = (id: string) => AMBIGUOUS_IDS.includes(id);
+    append(`[ask] ${AMBIGUOUS_IDS.length} ambiguous (must ask) + ${CLEAR_IDS.length} clear (must NOT ask), clarify_answers WITHHELD ...`);
     const results: Array<Record<string, unknown>> = [];
 
     for (const fixture of fixtures) {
@@ -212,17 +228,26 @@ export default function Task7PromptScreen() {
         const res = await provider.generateResponse(messages, { maxTokens: 120, temperature: 0 });
         const text = res.text.trim();
         const asked = looksLikeQuestion(text);
-        append(`  ${asked ? '✓ ASKED' : '✗ no question'} ${fixture.id}: ${JSON.stringify(text.slice(0, 160))}`);
-        results.push({ id: fixture.id, clarifyOk: fixture.gold.clarify_ok, asked, text });
+        const want = shouldAsk(fixture.id);
+        const ok = asked === want;
+        append(
+          `  ${ok ? '✓' : '✗'} ${want ? 'ambiguous' : 'CLEAR    '} ${fixture.id}: ${asked ? 'asked' : 'recapped'} — ${JSON.stringify(text.slice(0, 130))}`,
+        );
+        results.push({ id: fixture.id, shouldAsk: want, asked, discriminated: ok, text });
       } catch (err: any) {
         append(`  ✗ ${fixture.id} ERROR: ${String(err?.message ?? err)}`);
         results.push({ id: fixture.id, error: String(err?.message ?? err) });
       }
     }
 
-    const askedCount = results.filter((r) => r.asked === true).length;
-    append(`[ask] KPI — asked a question on ${askedCount}/${fixtures.length} ambiguous inputs`);
-    logResultJson('T7RESULT:ask', { askedCount, total: fixtures.length, results });
+    const askedWhenShould = results.filter((r) => r.shouldAsk === true && r.asked === true).length;
+    const quietWhenClear = results.filter((r) => r.shouldAsk === false && r.asked === false).length;
+    const discriminated = results.filter((r) => r.discriminated === true).length;
+    append(
+      `[ask] KPI — asked ${askedWhenShould}/${AMBIGUOUS_IDS.length} ambiguous, stayed quiet ${quietWhenClear}/${CLEAR_IDS.length} clear, ` +
+        `DISCRIMINATED ${discriminated}/${fixtures.length}`,
+    );
+    logResultJson('T7RESULT:ask', { askedWhenShould, quietWhenClear, discriminated, total: fixtures.length, results });
   });
 
   return (

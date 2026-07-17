@@ -42,6 +42,19 @@ describe('dependenciesRepository', () => {
     await expect(repo.add(taskB, taskA)).rejects.toThrow(CircularDependencyError); // B depends on A
   });
 
+  it('rejects a multi-hop circular dependency (task 10, R2 DAG guard) - not just direct A<->B', async () => {
+    await repo.add(taskA, taskB); // A depends on B
+    await repo.add(taskB, taskC); // B depends on C
+    // Closing the loop: C depends on A would make A->B->C->A a cycle. The DB trigger alone
+    // only catches a direct pair, so this proves the repo-level BFS guard is doing the work.
+    await expect(repo.add(taskC, taskA)).rejects.toThrow(CircularDependencyError);
+    expect(await repo.listForTask(taskC)).toEqual([]); // rejected insert left no partial row
+  });
+
+  it('rejects a self-dependency', async () => {
+    await expect(repo.add(taskA, taskA)).rejects.toThrow(CircularDependencyError);
+  });
+
   it('a count task composes with dependencies for free (no separate depends-on-N concept)', async () => {
     // Documents spec §4.2: task C depending on a 'count' task A just means "depends on N
     // completions of A" - the count type's own completion semantics carry the gating, so the

@@ -18,7 +18,13 @@ export {
   validate as validateTaskBreakdown,
   type TaskBreakdownV1,
 } from './breakdown/validator';
-export { subtaskImportance, breakdownToSubtaskWrites, type ParentContext } from './breakdown/mapper';
+export {
+  subtaskImportance,
+  breakdownToSubtaskWrites,
+  sequentialUnlocks,
+  type ParentContext,
+  type SubtaskWrite,
+} from './breakdown/mapper';
 
 export {
   coachingResolutionSchema,

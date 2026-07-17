@@ -7,13 +7,14 @@ export type CreateTaskInput = TaskWriteInput & { title: string; estimatedDuratio
 
 /** A task from the active pool, annotated with its neglect standing (spec §5.2).
  *
- *  Deliberately NOT sourced from the `active_tasks_with_neglect` view: that view's
- *  neglect_multiplier column calls SQLite's POWER(), and op-sqlite's Android build compiles
- *  SQLite without SQLITE_ENABLE_MATH_FUNCTIONS (see android/build.gradle's defaultSqliteFlags -
- *  FTS5 and RTREE are explicitly enabled there; math functions are not), so POWER() is unavailable
- *  on-device. weeksNeglected uses the same pure-arithmetic formula as the view (safe - no POWER());
- *  neglectMultiplier is squared here in TypeScript instead, producing an identical, still-uncapped
- *  result (constraint: never cap this - spec §5.2 fail-safe).
+ *  Deliberately NOT sourced from the `active_tasks_with_neglect` view: that view historically
+ *  called SQLite's POWER(), and op-sqlite's Android build compiles SQLite without
+ *  SQLITE_ENABLE_MATH_FUNCTIONS (see android/build.gradle's defaultSqliteFlags - FTS5 and RTREE
+ *  are explicitly enabled there; math functions are not), so POWER() was unavailable on-device.
+ *  weeksNeglected uses the same pure-arithmetic formula as the view. `neglectMultiplier` here is
+ *  the raw weeksNeglected value (task 10, R1: the curve is LINEAR, not squared — see
+ *  `../../scoring/score.ts`'s `neglectCurve`, the actual swappable seam scoring routes through).
+ *  Still uncapped by design (constraint: never cap this - spec §5.2 fail-safe).
  *
  *  CONFIRMED on-device 2026-07-16 (S23 FE, op-sqlite 17.1.2) - this closes the prior
  *  TODO(device verification): `SELECT POWER(2,2)` fails with "[op-sqlite] sqlite query error: no
@@ -113,7 +114,8 @@ export function createTasksRepository(db: SqliteConnection) {
         return {
           task: taskRowToDomain(row),
           weeksNeglected,
-          neglectMultiplier: weeksNeglected ** 2, // uncapped by design (spec §5.2) - never cap this
+          // LINEAR, not squared (task 10, R1) - uncapped by design (spec §5.2) - never cap this
+          neglectMultiplier: weeksNeglected,
         };
       },
     );

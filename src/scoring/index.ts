@@ -17,7 +17,7 @@ export {
 } from './factors';
 
 export {
-  NEGLECT_FLOOR,
+  neglectCurve,
   scoreTask,
   scoreTasks,
   rankWithContextNovelty,

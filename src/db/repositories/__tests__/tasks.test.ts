@@ -83,11 +83,11 @@ describe('tasksRepository', () => {
     expect(active.map((t) => t.id)).toEqual([b.id]);
   });
 
-  it('listActiveByNeglect orders most-neglected first and computes an uncapped squared multiplier', async () => {
+  it('listActiveByNeglect orders most-neglected first and computes an uncapped linear multiplier', async () => {
     const older = await repo.create({ title: 'Old task', estimatedDuration: 10 });
     const newer = await repo.create({ title: 'New task', estimatedDuration: 10 });
 
-    // Backdate `older`'s created_at by 21 days (3 weeks) so its neglect multiplier is 3^2 = 9.
+    // Backdate `older`'s created_at by 21 days (3 weeks) so its neglect multiplier is 3 (linear).
     conn.raw
       .prepare("UPDATE tasks SET created_at = datetime('now', '-21 days') WHERE id = ?")
       .run(older.id);
@@ -95,7 +95,7 @@ describe('tasksRepository', () => {
     const byNeglect = await repo.listActiveByNeglect();
     expect(byNeglect[0].task.id).toBe(older.id);
     expect(byNeglect[0].weeksNeglected).toBeCloseTo(3, 1);
-    expect(byNeglect[0].neglectMultiplier).toBeCloseTo(9, 1);
+    expect(byNeglect[0].neglectMultiplier).toBeCloseTo(3, 1);
     expect(byNeglect[1].task.id).toBe(newer.id);
     expect(byNeglect[1].neglectMultiplier).toBeLessThan(byNeglect[0].neglectMultiplier);
   });

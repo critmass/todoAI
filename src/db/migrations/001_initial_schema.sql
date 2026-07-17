@@ -462,6 +462,11 @@ CREATE INDEX idx_skill_evidence_skill ON skill_evidence(skill_id);
 -- Active tasks with UNCAPPED neglect multiplier (spec 5.2). Do NOT cap.
 -- For 'unscheduled' tasks, completion updates last_completed_at (resetting neglect here)
 -- while status stays 'active' -- so they keep flowing through this view (app logic).
+-- This view is BYPASSED on-device (src/db/repositories/tasks.ts computes weeksNeglected in TS
+-- instead; see that file's TaskWithNeglect doc comment for why). Kept honest anyway: task 10
+-- (R1) replaced the neglect curve with a LINEAR one (1 + weeks, not weeks^2) -- the real
+-- swappable seam is neglectCurve in src/scoring/score.ts, which this column's shape must
+-- mirror if this view is ever revived. Linear no longer needs POWER() at all.
 CREATE VIEW active_tasks_with_neglect AS
 SELECT
     t.*,
@@ -473,10 +478,10 @@ SELECT
     END as weeks_neglected,
     CASE
         WHEN t.last_completed_at IS NULL THEN
-            POWER((julianday('now') - julianday(t.created_at)) / 7.0, 2)
+            (julianday('now') - julianday(t.created_at)) / 7.0
         ELSE
-            POWER((julianday('now') - julianday(t.last_completed_at)) / 7.0, 2)
-    END as neglect_multiplier   -- UNCAPPED by design (spec 5.2)
+            (julianday('now') - julianday(t.last_completed_at)) / 7.0
+    END as neglect_multiplier   -- UNCAPPED by design (spec 5.2); LINEAR (task 10, R1)
 FROM tasks t
 WHERE t.status = 'active';
 

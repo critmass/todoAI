@@ -1,7 +1,7 @@
 import type { Task } from '../../types/domain';
 import type { TaskWithNeglect } from '../../db/repositories/tasks';
 import {
-  NEGLECT_FLOOR,
+  neglectCurve,
   rankWithContextNovelty,
   scoreTask,
   scoreTasks,
@@ -40,8 +40,10 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   };
 }
 
-function withNeglect(task: Task, neglectMultiplier: number, weeksNeglected = 0): TaskWithNeglect {
-  return { task, weeksNeglected, neglectMultiplier };
+// neglectMultiplier mirrors the real repo (task 10, R1: linear, uncapped) — scoreTask now
+// derives the actual multiplier from weeksNeglected via neglectCurve, not this field.
+function withNeglect(task: Task, weeksNeglected: number): TaskWithNeglect {
+  return { task, weeksNeglected, neglectMultiplier: weeksNeglected };
 }
 
 const CHECK_IN: SessionCheckIn = { energy: 'med', contexts: ['home', 'computer'] };
@@ -63,22 +65,33 @@ describe('scoreTask', () => {
     expect(scored.factors.contextFit).toBe(1);
     expect(scored.factors.historicalSuccess).toBeCloseTo(1);
     expect(scored.baseScore).toBeCloseTo(1);
-    // neglectMultiplier 0 → floor of 1 → finalScore == baseScore (fresh task scored on merit)
-    expect(scored.finalScore).toBeCloseTo(1 * (NEGLECT_FLOOR + 0));
+    // weeksNeglected 0 → neglectCurve(0) = 1 → finalScore == baseScore (fresh task on merit)
+    expect(scored.finalScore).toBeCloseTo(1 * neglectCurve(0));
   });
 
   it('applies neglect as a floor of 1, never zeroing a fresh task', () => {
     const task = makeTask({ importance: 800 });
     const scored = scoreTask(withNeglect(task, 0), CHECK_IN, NOW);
-    // A brand-new (neglectMultiplier 0) task keeps its full weighted-sum score.
+    // A brand-new (weeksNeglected 0) task keeps its full weighted-sum score.
     expect(scored.finalScore).toBeCloseTo(scored.baseScore);
     expect(scored.finalScore).toBeGreaterThan(0);
   });
 
-  it('final score is baseScore × (1 + neglectMultiplier)', () => {
+  it('final score is baseScore × neglectCurve(weeksNeglected), linear (task 10, R1)', () => {
     const task = makeTask({ importance: 400 });
     const scored = scoreTask(withNeglect(task, 9), CHECK_IN, NOW);
     expect(scored.finalScore).toBeCloseTo(scored.baseScore * 10);
+    expect(scored.neglectMultiplier).toBeCloseTo(10);
+  });
+
+  it('neglectCurve is linear and unbounded (task 10, R1 — the swappable seam)', () => {
+    expect(neglectCurve(0)).toBe(1);
+    expect(neglectCurve(1)).toBe(2);
+    expect(neglectCurve(10)).toBe(11);
+    expect(neglectCurve(1_000_000)).toBe(1_000_001);
+    // Linear, not squared: doubling weeks roughly doubles the curve value at scale, never
+    // collapsing to a knee — the pathology R1 fixed (worst-vs-best crossover at ~2 weeks).
+    expect(neglectCurve(20) - neglectCurve(10)).toBeCloseTo(neglectCurve(10) - neglectCurve(0));
   });
 });
 
@@ -89,7 +102,7 @@ describe('uncapped neglect fail-safe (§5.2)', () => {
 
     // Fresh important task vs a barely-important task neglected for many weeks.
     const fresh = withNeglect(important, 0);
-    const stale = withNeglect(neglected, 400, 20); // 20 weeks → 400
+    const stale = withNeglect(neglected, 20); // 20 weeks → neglectCurve(20) = 21 (linear)
 
     const ranked = scoreTasks([fresh, stale], CHECK_IN, NOW);
     expect(ranked[0].task.id).toBe(2); // neglect forces the ignored task to the top

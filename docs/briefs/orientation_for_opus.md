@@ -30,10 +30,10 @@ These are established, most of them the hard way, on real hardware. Treat them a
 | Q1 | Does grammar-constrained decoding work on-device? | ✅ **GREEN**; `docs/eval/Q1*_findings_report.md` |
 | 6 | `llama.rn` integration / `TernaryBonsaiProvider` | ✅ **done** — confirmed on-device; `docs/eval/task6_phaseB_findings_report.md` |
 | 7 | System-prompt engineering (task input + coaching) | ✅ **done** — tuned on-device; `docs/eval/task7_phaseB_findings_report.md` |
-| 9 | Scoring implementation (§5.1–5.2) | ⚠ **status unconfirmed** — no task-9 findings report on file; verify it's built and that Fable review (10) is done |
+| 9 | Scoring implementation (§5.1–§5.2) | ✅ built + documented (`docs/briefs/scoring_review_task_10.md` §0–§2). Code: `src/scoring/`, `src/services/taskCompletion.ts`. **Fable review (10) is teed up but NOT yet run** |
+| 10 | Fable review of scoring composition | 🟡 **briefed, not run** — `docs/briefs/scoring_review_task_10.md`. Opus already pre-surfaced **3 candidate pathologies (§3)** + **6 forks (§4)**; §3.1 (neglect knee at ~2 weeks) needs a ruling before 11/17 build on the ranking |
 | 12 | Coaching flows + resolution dispatch (§7.2) | ✅ **done** — confirmed on-device; `docs/eval/task12_phaseB_findings_report.md`. **2 human-review gates open** (crisis detector coverage, `CRISIS_REFERRAL_TEXT` localisation) |
-| 10 | Fable review of scoring composition | after 9 |
-| 8, 13–17, 19 | tiering / data-resilience / timer / learning / skill integration | later |
+| 8, 11, 13, 14, 15, 17, 19 | tiering / session-planning / timer / data-resilience / learning / skill integration | later (see `docs/build_allocation.md` for allocation + dependencies) |
 | 18 | Skill-injection layer (Fable) | later — leave its seam in 12 (see batch brief) |
 | 20 | Eval harness | later (parallel track) |
 | 21 | Crisis detector review + referral localization (human) | 🔴 **beta gate** — draft detector active & gate-first; §8, §9 |

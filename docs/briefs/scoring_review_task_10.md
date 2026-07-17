@@ -8,6 +8,29 @@
 
 ---
 
+## RESOLVED — Jason's rulings on §3 (decided; do not re-open)
+
+The task-9 self-audit did its job: §3's candidates are ruled, and §3.3 spawned a new coaching trigger. These are product-intent calls, now made. Fable's remaining scope is §4's open forks + the unknowns pass, **run against the revised composition** (see re-scoped §6).
+
+**R1 — Neglect curve (§3.1): drop the square; one swappable `neglectCurve(weeks)`, starting LINEAR.**
+`neglectMultiplier` → `neglectCurve(weeks)`, seeded `1 + weeks`, replacing `weeks²`. Still **uncapped** (constraint #5 stands — the square came from the v1 spec and was carried forward in error; it was never part of the uncapped decision). Linear moves the worst-vs-best crossover 2.0→4.1 wks and collapses 10-wk tail domination ~20×→~2×. **The seam is the deliverable** — √weeks / `weeks/N` are one-line swaps if real usage shows the tail too soft or hard. Touches spec §5.2, the schema-view comment, `tasks.ts` (`** 2` removed), `src/scoring/`.
+
+**R2 — Subtask ordering (§3.2): `ordered:true` creates real `task_dependencies`; sub-band offset = transitive fan-out.**
+Sequence rides on the dependency graph, not importance offsets. The 1–99 sub-band orders siblings by **transitive fan-out** (descendants a subtask unlocks) — high-leverage unblockers first — and because a prerequisite always has ≥ the fan-out of its descendants, descending-by-score is a valid execution order. Dependency **filtering** keeps a blocked high-fan-out task from jumping its own prerequisites. **Constraint:** the transitive count assumes a DAG — confirm the data layer blocks *multi-hop* cycles (A→B→C→A), not only direct ones, before trusting the count; add the guard if absent. Touches `breakdown/mapper.ts`, the breakdown→dependencies step, task 9.
+
+**R3 — Context & tools (§3.3): hard pre-filter, not weights; freed 15% → 31/23/23/23.**
+`context` and `tool_requirements` become **hard pre-filters** on the candidate pool at the selection boundary (task 9), *before* scoring — a task you cannot do right now is unrankable, full stop. `contextFit` leaves `FACTOR_WEIGHTS`; the freed 15% redistributes to **importance 31 / urgency 23 / energy 23 / historical 23** (= 100). Empty pool → existing §8.1 coaching/deferral. **The filter must retain its rejects** — R4 reads them. (This resolves §4 fork 4: fraction-vs-filter → filter.)
+
+**R4 — New coaching trigger #4: buried out-of-context/tool tasks (→ spec §7.2 / §8.1).**
+R3's hard filter can make a task *invisible* (it never appears while you're out of its context), so a safety valve is required. At app open, scan the **filtered-out** set; if any task there is **old** (start ~6 months, tunable) **or due soon** (start ~48 h, tunable), open a coaching conversation about that set. **The check is dumb; the conversation is smart** — the coach explores dispositions (rescope to a reachable context, add a "get ___ tool" prerequisite task, pause a context for a few days, remind next time in-context, defer, drop). Distinct from the 5-day re-orientation (that = "you've been away"; this = "this is buried by context"). Settled design constraints:
+  - **Pause/cap:** to stop the same tasks re-triggering after a "remind me later" disposition, gate them behind a **zero-minute sentinel task** in the target context ("Be at the office") that completes when a session in that context next runs, surfacing the real tasks then. *(Reuses the dependency machinery instead of a snooze state.)*
+  - **Edge 1 (must):** the sentinel is itself 0-min and context-tagged, so it must be **excluded from the buried-task scan** — else it re-triggers the coaching it suppresses (infinite loop).
+  - **Edge 2 (must):** the pause applies to the **old** branch only. A **due-soon** out-of-context task is **never** silently paused — its conversation reaches a real disposition (rescope / partial / reschedule the deadline / acknowledge). Backstop: paused tasks still surface in the 5-day re-orientation sweep.
+
+**R5 — §3.4 (neglect clock from creation): softened, minor open item.** Linear drops the year-old-but-future-dated case from ~2700× to ~53×, so it's no longer acute. Whether the clock should start at *actionable* vs *creation* is a small yes/no — Fable may advise or defer to real data.
+
+---
+
 ## §0 — What task 9 built
 
 Pure logic over the data layer. No LLM, no device; all of it runs under Jest.
@@ -40,6 +63,8 @@ weeksNeglected = (now − COALESCE(last_completed_at, created_at)) / 7
 The asymmetry that drives every finding below: **`base` is bounded [0,1]; the neglect term is unbounded.** Base can separate two tasks by at most ~10×. Neglect separates them without limit.
 
 ## §3 — Three candidate pathologies, with worked numbers
+
+> **RESOLVED — see the Rulings section above: §3.1→R1, §3.2→R2, §3.3→R3, §3.4→R5. Kept below for the worked numbers and rationale; not open for re-litigation.**
 
 These are **reproduced against the real code**, not hand-derived. They are candidates for your ruling, not established bugs — in each case the spec is genuinely ambiguous about intent.
 
@@ -92,7 +117,7 @@ Each is a reasoned starting choice, not a measured one. Grep `REVIEW(task10)`.
 | 1 | **Urgency horizon** = 14 days, linear ramp; overdue saturates at 1 | reasoned, unmeasured | a different horizon, or a non-linear ramp; note overdue-by-1-day and overdue-by-6-months are identical |
 | 2 | **Base sensitivity** (`urgency_level` 1–5) contributes a floor capped at **0.15** | honors §4.1's "optional base sensitivity" conservatively | drop `urgency_level` from v1 entirely (it defaults to 3 → a 0.075 floor on *every* deadline-less task) |
 | 3 | **Energy match is symmetric** — `1 − \|session − task\|/4` | spend the energy you have on matching work | asymmetric: a high-energy session can always "afford" a low-energy task, so only *under*-capacity should be penalized |
-| 4 | **Context fit = fraction** of the task's tags available | partial credit | any-overlap (binary), or a hard filter (see §3.3) |
+| 4 | ~~Context fit = fraction~~ | **RESOLVED → R3** | context is now a **hard filter**, not a weighted factor — this fork is closed |
 | 5 | **Cold-start prior = 0.5** for a task with zero attempts | a task with no history isn't a task that "always fails" | §5.4's real hierarchical shrinkage (task 17) — is 0.5 the right stand-in until then? |
 | 6 | **Novelty shuffle** samples proportional to raw `finalScore` | simple | because `finalScore` is unbounded, the shuffle's strength is an *uncontrolled* function of the neglect spread: it degenerates to deterministic when one task dominates. A softmax over normalized scores, or rank-proportional sampling, would be tunable. Also: `rankWithContextNovelty` orders groups by their **max** score, so one hugely-neglected task drags its whole group — including that group's weak tasks — ahead of a better-matched group |
 
@@ -103,11 +128,14 @@ Each is a reasoned starting choice, not a measured one. Grep `REVIEW(task10)`.
 - **Period rollover** (task 13): `next_due_at` advancement, `reset_date`, missed-quota importance boost.
 - **Re-opening §1's decisions** as decisions. Their *consequences* (§3.1) are fair game.
 
-## §6 — What a good review returns
+## §6 — What a good review returns (RE-SCOPED — §3 is resolved)
 
-1. A **ruling on each of §3.1–§3.4** — pathology or intended? If pathology, the mechanism to change (curve shape / band direction / filter-vs-weight), not the code.
-2. A **call on each §4 fork**, or an explicit "leave it, measure it later, here's the measurement that would settle it."
-3. Anything the composition does that **none of us have thought to look at** — that's the actual reason this review exists.
-4. Where a ruling changes the spec's intent rather than just the implementation, **say so explicitly** so §5.1–§5.2 get updated rather than quietly diverging from the code.
+§3 is decided (Rulings R1–R5) — **do not re-open it.** Run this review **against the revised composition** (linear `neglectCurve`, context/tool hard filter, 31/23/23/23 weights, fan-out subtask ordering) — i.e. **after** R1–R3 land; reviewing the pre-revision code wastes the pass. Deliver:
 
-Task 9 is otherwise **done**: built, unit-tested, lint/typecheck clean. It's the one task in batch A that closes without a device. This review is the last gate on it.
+1. A **call on each remaining §4 fork — 1, 2, 3, 5, 6** (fork 4 is resolved by R3). For each: pathology / intended / "leave it, and here's the measurement that would settle it." Note **fork 6** (novelty shuffle) now runs against *linear* neglect — re-judge whether the unbounded-score-drives-shuffle-strength concern still bites once the curve is gentler.
+2. The **unknowns pass — the real reason this review exists.** Does the *revised* composition do anything none of us thought to look at? R1–R3 changed four interacting things at once (curve, filter, weights, ordering); that recombination is exactly where a new pathology hides.
+3. Where a finding implies a **spec change** (§5.1 / §5.2 / §7.2 / §8.1), say so explicitly so the spec updates rather than quietly diverging.
+
+**Out of scope:** re-litigating R1–R5; the R4 trigger's *conversation* design (task 12 territory).
+
+Task 9 is built and documented; the R1–R3 rulings now revise it. Once those land, this re-scoped review is the last gate before session planning (11) and the learning loops (17) build on the ranking.

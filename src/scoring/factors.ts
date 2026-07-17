@@ -12,13 +12,17 @@ import { userToInternalEnergy, type UserEnergy } from '../types/scales';
 
 /** Default weights (spec §5.1). Fractions of 1.0, not percentages, so the weighted sum lands
  *  in [0,1] directly. These are the *seeded* weights; the numeric-learning loop (§5.4, task 17)
- *  tunes them later — scoring reads them as data, never hard-codes the numbers at call sites. */
+ *  tunes them later — scoring reads them as data, never hard-codes the numbers at call sites.
+ *
+ *  Task 10, R3: `contextFit` left this set — a task the user cannot physically do right now
+ *  (wrong context, missing tool) is unrankable, not merely down-weighted, so context/tools are
+ *  now a hard pre-filter at the selection boundary (see ./filter.ts) instead of a soft weight.
+ *  The freed 15% redistributes evenly across the remaining four (25/20/20/20 + 15/4 each). */
 export const FACTOR_WEIGHTS = {
-  importance: 0.25,
-  urgency: 0.2,
-  energyMatch: 0.2,
-  contextFit: 0.15,
-  historicalSuccess: 0.2,
+  importance: 0.31,
+  urgency: 0.23,
+  energyMatch: 0.23,
+  historicalSuccess: 0.23,
 } as const;
 
 export type FactorName = keyof typeof FACTOR_WEIGHTS;
@@ -109,24 +113,6 @@ export function energyMatchFactor(
 }
 
 /**
- * Context-fit factor: how much of the task's context requirement is satisfiable in the current
- * session (spec §5.1 "Context fit"). A task with no context tags is context-flexible and fits
- * anywhere (1.0). Otherwise it's the fraction of the task's tags available this session, so a
- * task needing ["computer","quiet"] in a "computer"-only session scores 0.5. Matching is exact
- * (case-sensitive) — the extraction vocabulary (D7) is the canonical tag source, so tags are
- * expected to already be normalized. REVIEW(task10): fraction-overlap vs any-overlap is a fork.
- */
-export function contextFitFactor(
-  sessionContexts: readonly string[],
-  taskContextTags: readonly string[],
-): number {
-  if (taskContextTags.length === 0) return 1; // context-flexible
-  const available = new Set(sessionContexts);
-  const matched = taskContextTags.filter((tag) => available.has(tag)).length;
-  return clamp01(matched / taskContextTags.length);
-}
-
-/**
  * Historical-success factor (spec §5.1 "Historical success rate"). `successRate` is
  * completion / (completion + skip) — but a task with *no attempts yet* has a stored rate of 0,
  * which is "undefined", not "always fails". Cold-start handling (spec §5.4): a task with zero
@@ -144,20 +130,20 @@ export interface FactorBreakdown {
   importance: number;
   urgency: number;
   energyMatch: number;
-  contextFit: number;
   historicalSuccess: number;
 }
 
 /**
- * The weighted sum of the five factors (spec §5.1) — the "base score" BEFORE the neglect
- * multiplier is applied. In [0,1] because every factor is in [0,1] and the weights sum to 1.0.
+ * The weighted sum of the four scored factors (spec §5.1, as revised by task 10 R3) — the
+ * "base score" BEFORE the neglect multiplier is applied. In [0,1] because every factor is in
+ * [0,1] and the weights sum to 1.0. Context/tool fit is no longer summed here — see
+ * ./filter.ts's hard pre-filter (task 10, R3).
  */
 export function weightedSum(factors: FactorBreakdown): number {
   return (
     FACTOR_WEIGHTS.importance * factors.importance +
     FACTOR_WEIGHTS.urgency * factors.urgency +
     FACTOR_WEIGHTS.energyMatch * factors.energyMatch +
-    FACTOR_WEIGHTS.contextFit * factors.contextFit +
     FACTOR_WEIGHTS.historicalSuccess * factors.historicalSuccess
   );
 }

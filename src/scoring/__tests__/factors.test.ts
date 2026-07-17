@@ -3,7 +3,6 @@ import {
   DEFAULT_IMPORTANCE_INTERNAL,
   FACTOR_WEIGHTS,
   URGENCY_HORIZON_DAYS,
-  contextFitFactor,
   energyMatchFactor,
   historicalSuccessFactor,
   importanceFactor,
@@ -21,13 +20,12 @@ describe('FACTOR_WEIGHTS', () => {
     expect(total).toBeCloseTo(1.0, 10);
   });
 
-  it('matches the spec §5.1 default weights', () => {
+  it('matches the task 10 (R3) revised weights — context/tool filtered out, not weighted', () => {
     expect(FACTOR_WEIGHTS).toEqual({
-      importance: 0.25,
-      urgency: 0.2,
-      energyMatch: 0.2,
-      contextFit: 0.15,
-      historicalSuccess: 0.2,
+      importance: 0.31,
+      urgency: 0.23,
+      energyMatch: 0.23,
+      historicalSuccess: 0.23,
     });
   });
 });
@@ -106,27 +104,6 @@ describe('energyMatchFactor', () => {
   });
 });
 
-describe('contextFitFactor', () => {
-  it('is 1 for a context-flexible task (no tags)', () => {
-    expect(contextFitFactor(['home'], [])).toBe(1);
-    expect(contextFitFactor([], [])).toBe(1);
-  });
-
-  it('is the fraction of the task tags available this session', () => {
-    expect(contextFitFactor(['computer'], ['computer'])).toBe(1);
-    expect(contextFitFactor(['computer'], ['computer', 'quiet'])).toBe(0.5);
-    expect(contextFitFactor(['home'], ['computer', 'quiet'])).toBe(0);
-  });
-
-  it('does not exceed 1 when the session offers more than the task needs', () => {
-    expect(contextFitFactor(['home', 'computer', 'quiet'], ['home'])).toBe(1);
-  });
-
-  it('matches tags exactly (case-sensitive)', () => {
-    expect(contextFitFactor(['Home'], ['home'])).toBe(0);
-  });
-});
-
 describe('historicalSuccessFactor', () => {
   it('returns a neutral prior for a task with no attempts (cold start)', () => {
     expect(historicalSuccessFactor(0, 0)).toBe(0.5);
@@ -149,7 +126,6 @@ describe('weightedSum', () => {
       importance: 1,
       urgency: 1,
       energyMatch: 1,
-      contextFit: 1,
       historicalSuccess: 1,
     };
     expect(weightedSum(factors)).toBeCloseTo(1.0);
@@ -161,28 +137,25 @@ describe('weightedSum', () => {
         importance: 0,
         urgency: 0,
         energyMatch: 0,
-        contextFit: 0,
         historicalSuccess: 0,
       }),
     ).toBe(0);
   });
 
-  it('weights importance at 25% and context fit at 15%', () => {
+  it('weights importance at 31% and the other three at 23% each (task 10, R3)', () => {
     const onlyImportance: FactorBreakdown = {
       importance: 1,
       urgency: 0,
       energyMatch: 0,
-      contextFit: 0,
       historicalSuccess: 0,
     };
-    const onlyContext: FactorBreakdown = {
+    const onlyHistorical: FactorBreakdown = {
       importance: 0,
       urgency: 0,
       energyMatch: 0,
-      contextFit: 1,
-      historicalSuccess: 0,
+      historicalSuccess: 1,
     };
-    expect(weightedSum(onlyImportance)).toBeCloseTo(0.25);
-    expect(weightedSum(onlyContext)).toBeCloseTo(0.15);
+    expect(weightedSum(onlyImportance)).toBeCloseTo(0.31);
+    expect(weightedSum(onlyHistorical)).toBeCloseTo(0.23);
   });
 });

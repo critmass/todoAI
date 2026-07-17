@@ -46,14 +46,13 @@ function withNeglect(task: Task, weeksNeglected: number): TaskWithNeglect {
   return { task, weeksNeglected, neglectMultiplier: weeksNeglected };
 }
 
-const CHECK_IN: SessionCheckIn = { energy: 'med', contexts: ['home', 'computer'] };
+const CHECK_IN: SessionCheckIn = { energy: 'med', contexts: ['home', 'computer'], tools: [] };
 
 describe('scoreTask', () => {
   it('wires task fields through the factor functions and composes the final score', () => {
     const task = makeTask({
       importance: 1000,
       energyRequirement: 3, // matches 'med' → energyMatch 1
-      contextTags: ['home'], // available → contextFit 1
       nextDueAt: '2026-07-15', // due today → urgency 1
       successRate: 1,
       completionCount: 4,
@@ -62,7 +61,6 @@ describe('scoreTask', () => {
     expect(scored.factors.importance).toBeCloseTo(1);
     expect(scored.factors.urgency).toBe(1);
     expect(scored.factors.energyMatch).toBe(1);
-    expect(scored.factors.contextFit).toBe(1);
     expect(scored.factors.historicalSuccess).toBeCloseTo(1);
     expect(scored.baseScore).toBeCloseTo(1);
     // weeksNeglected 0 → neglectCurve(0) = 1 → finalScore == baseScore (fresh task on merit)
@@ -153,7 +151,7 @@ describe('rankWithContextNovelty', () => {
     // in-group order is preserved and the assertion is about group ordering only.
     const ranked = rankWithContextNovelty(
       [homeWeak, homeStrong, office],
-      { energy: 'med', contexts: ['home', 'office'] },
+      { energy: 'med', contexts: ['home', 'office'], tools: [] },
       NOW,
       seqRng([0]),
     );

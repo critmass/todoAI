@@ -41,15 +41,23 @@ describe('splitSqlStatements', () => {
 });
 
 describe('runMigrations', () => {
-  it('applies 001 on an empty database: all tables, views, and triggers exist', async () => {
+  it('applies every migration on an empty database: all tables, views, and triggers exist', async () => {
     const conn = createTestConnection();
     expect(await getCurrentSchemaVersion(conn)).toBeNull();
 
     await runMigrations(conn);
 
-    expect(await getCurrentSchemaVersion(conn)).toBe('2.2.0');
+    // A fresh DB walks the whole MIGRATIONS list, not just 001 - it should land on the latest
+    // recorded version (002 bumps schema_metadata to 2.3.0), with 002's new table present too.
+    expect(await getCurrentSchemaVersion(conn)).toBe('2.3.0');
     expect(tableNames(conn.raw)).toEqual(
-      expect.arrayContaining(['tasks', 'task_recurrence', 'sessions', 'schema_metadata']),
+      expect.arrayContaining([
+        'tasks',
+        'task_recurrence',
+        'sessions',
+        'schema_metadata',
+        'learning_state',
+      ]),
     );
     expect(viewNames(conn.raw)).toEqual([
       'active_tasks_with_neglect',

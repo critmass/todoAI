@@ -18,6 +18,7 @@ import type {
   FireableSkillsRow,
   SkillConditionRow,
   SkillEvidenceRow,
+  SkillEvidenceSource,
   SkillRow,
 } from '../../types/db';
 
@@ -95,10 +96,11 @@ export function createSkillsRepository(db: SqliteConnection) {
     skillId: number,
     evidenceType: EvidenceType,
     interactionId?: number,
+    source?: SkillEvidenceSource,
   ): Promise<SkillEvidence> {
     const result = await db.execute(
-      'INSERT INTO skill_evidence (skill_id, evidence_type, interaction_id) VALUES (?, ?, ?)',
-      [skillId, evidenceType, interactionId ?? null],
+      'INSERT INTO skill_evidence (skill_id, evidence_type, interaction_id, source) VALUES (?, ?, ?, ?)',
+      [skillId, evidenceType, interactionId ?? null, source ?? null],
     );
     const id = result.insertId;
     if (id == null) {

@@ -10,12 +10,18 @@ import type { CoachingQueueEntry } from '../../types/domain';
 import type { CoachingTrigger, CoachingUrgency } from '../../types/db';
 
 /**
- * Urgency tier for a coaching trigger. The three §7.2 triggers are spec-pinned; the others get
- * reasonable defaults documented here and flagged for review (only the three above are fixed by
- * the spec):
+ * Urgency tier for a coaching trigger. The three original §7.2 triggers are spec-pinned; R4 and
+ * R7 (migration 002) add a fourth and fifth row (task10_fable_review_report.md R4;
+ * postreview_scoring_task_25.md R7); the rest get reasonable defaults documented here and
+ * flagged for review:
  *   session_ended_early / task_ended_early → next_start (a gentle follow-up, like a skip)
  *   repeated_failures                      → immediate  (a stronger recalibration signal)
  *   pattern_detected                       → next_open  (surfaced on next open, not mid-flow)
+ *   buried_task (R4)                       → next_open  (the scan runs "at app open"; the
+ *                                             due-soon variant can override via `urgency` at
+ *                                             enqueue time - task 19 is the actual caller)
+ *   breakdown_complete (R7)                → immediate  (spec-pinned: "fires with
+ *                                             urgency = 'immediate'" - task 25 is the caller)
  */
 export function urgencyForTrigger(trigger: CoachingTrigger): CoachingUrgency {
   switch (trigger) {
@@ -32,6 +38,10 @@ export function urgencyForTrigger(trigger: CoachingTrigger): CoachingUrgency {
       return 'immediate';
     case 'pattern_detected':
       return 'next_open';
+    case 'buried_task':
+      return 'next_open';
+    case 'breakdown_complete':
+      return 'immediate';
   }
 }
 

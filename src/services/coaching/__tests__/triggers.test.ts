@@ -13,6 +13,11 @@ describe('urgencyForTrigger (§7.2 spec-pinned mapping)', () => {
     expect(urgencyForTrigger('session_recalibration')).toBe('immediate');
     expect(urgencyForTrigger('app_reorientation')).toBe('next_open');
   });
+
+  it('maps R4/R7\'s new triggers (migration 002) to their urgency tiers', () => {
+    expect(urgencyForTrigger('buried_task')).toBe('next_open');
+    expect(urgencyForTrigger('breakdown_complete')).toBe('immediate');
+  });
 });
 
 describe('enqueueCoachingTrigger', () => {

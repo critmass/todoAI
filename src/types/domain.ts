@@ -37,6 +37,7 @@ import type {
   SessionType,
   SkillConditionRow,
   SkillEvidenceRow,
+  SkillEvidenceSource,
   SkillRow,
   SkillScope,
   SqliteBoolean,
@@ -376,6 +377,11 @@ export interface Interaction {
   userEnergyLevelStart: number | null;
   userEnergyLevelEnd: number | null;
   conclusions: string[];
+  /** Free-form JSON; the skill layer (task 19) populates it as `{ snapshot, skillsFired }`
+   *  (task 18 design §1.2/§2.3). Any writer of that shape must embed an internal `"v": 1` field
+   *  at the top level - mirroring summarySchemaVersion's discipline below, just inside the JSON
+   *  instead of a dedicated column - so future readers can branch on version (migration 002,
+   *  design report §2 item 6). No writer exists yet; this is the convention task 19 must follow. */
   learningData: Record<string, unknown> | null;
   conversationSummary: string | null;
   summarySchemaVersion: string | null;
@@ -690,7 +696,7 @@ export function skillRowToDomain(row: SkillRow): Skill {
     scope: row.scope ?? 'both',
     schemaVersion: row.schema_version,
     confidence: row.confidence ?? 0,
-    isActive: boolFromRow(row.is_active, true),
+    isActive: boolFromRow(row.is_active, false), // mirrors the DB default (born inactive; migration 002)
     timesFired: row.times_fired ?? 0,
     timesCorroborated: row.times_corroborated ?? 0,
     timesContradicted: row.times_contradicted ?? 0,
@@ -742,6 +748,10 @@ export interface SkillEvidence {
   interactionId: number | null;
   evidenceType: EvidenceType;
   createdAt: string | null;
+  /** Optional provenance: 'distiller' (Channel A, friction re-derivation) vs 'outcome'
+   *  (Channel B, fired-skill result) - audit-only, the confidence math weighs both equally
+   *  (task 18 design §3.1, migration 002). */
+  source: SkillEvidenceSource | null;
 }
 
 export function skillEvidenceRowToDomain(row: SkillEvidenceRow): SkillEvidence {
@@ -751,6 +761,7 @@ export function skillEvidenceRowToDomain(row: SkillEvidenceRow): SkillEvidence {
     interactionId: row.interaction_id,
     evidenceType: row.evidence_type,
     createdAt: row.created_at,
+    source: row.source,
   };
 }
 

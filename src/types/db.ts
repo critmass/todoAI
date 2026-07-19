@@ -46,7 +46,10 @@ export type CoachingTrigger =
   | 'session_ended_early'
   | 'task_ended_early'
   | 'repeated_failures'
-  | 'pattern_detected';
+  | 'pattern_detected'
+  | 'buried_task' // R4: buried out-of-context/tool task trigger (migration 002)
+  | 'breakdown_complete'; // R7: parent-confirmation trigger, fires with urgency='immediate' (migration 002)
+export type SkillEvidenceSource = 'distiller' | 'outcome';
 export type CoachingUrgency = 'immediate' | 'next_start' | 'next_open';
 export type CoachingQueueStatus = 'pending' | 'resolved';
 export type BackupType = 'automatic' | 'manual' | 'pre_session';
@@ -268,6 +271,17 @@ export interface SkillEvidenceRow {
   interaction_id: number | null;
   evidence_type: EvidenceType;
   created_at: string | null;
+  source: SkillEvidenceSource | null;
+}
+
+/** Key/value store for the skill layer's distillation watermarks and runtime-tunable
+ *  parameters (migration 002) - task 19 is the consumer; no domain mapper or repository exists
+ *  yet, matching this file's existing precedent of declaring a row type per table ahead of the
+ *  repo that will use it (e.g. BackupLogRow, DataRetentionRow above). */
+export interface LearningStateRow {
+  key: string;
+  value: string;
+  updated_at: string | null;
 }
 
 export interface CoachingQueueRow {

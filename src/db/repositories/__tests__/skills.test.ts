@@ -22,7 +22,9 @@ describe('skillsRepository', () => {
     });
     expect(created.scope).toBe('both');
     expect(created.confidence).toBe(0);
-    expect(created.isActive).toBe(true);
+    // Born inactive by default (migration 002, task 18 §2.1 defense-in-depth) - a skill only
+    // fires once something explicitly activates it.
+    expect(created.isActive).toBe(false);
     expect(created.timesFired).toBe(0);
 
     const fetched = await repo.getById(created.id);
@@ -55,10 +57,17 @@ describe('skillsRepository', () => {
     expect(evidence).toHaveLength(1);
     expect(evidence[0].evidenceType).toBe('origin');
     expect(evidence[0].interactionId).toBeNull();
+    expect(evidence[0].source).toBeNull();
+  });
+
+  it('addEvidence accepts an optional source, defaulting to null (migration 002)', async () => {
+    const skill = await repo.create({ instruction: 'test skill' });
+    const withSource = await repo.addEvidence(skill.id, 'corroboration', undefined, 'outcome');
+    expect(withSource.source).toBe('outcome');
   });
 
   it('fireable() only returns active skills and parses the conditions column', async () => {
-    const active = await repo.create({ instruction: 'active one' });
+    const active = await repo.create({ instruction: 'active one', isActive: true });
     const inactive = await repo.create({ instruction: 'inactive one', isActive: false });
     await repo.addCondition(active.id, 'energy', 'eq', 'low');
 

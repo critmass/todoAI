@@ -1,6 +1,43 @@
 import { createTestConnection, type TestSqliteConnection } from '../../testUtils/sqliteTestConnection';
 import { runMigrations } from '../../migrations';
-import { createTasksRepository, type TasksRepository } from '../tasks';
+import { createTasksRepository, neglectAccrualGapDays, type TasksRepository } from '../tasks';
+import { createRecurrenceRepository } from '../recurrence';
+import type { Recurrence } from '../../../types/domain';
+
+describe('neglectAccrualGapDays (task 25 R8 — the accrual gate, pure)', () => {
+  it('gates scheduled/quota types by period / (1 + quota), matching R8 worked examples', () => {
+    // weekly scheduled (one day/week): 7 / (1 + 1) = 3.5 d
+    expect(neglectAccrualGapDays({ type: 'scheduled', scheduledDays: ['monday'] })).toBeCloseTo(3.5, 6);
+    // quota 3×/week: 7 / (1 + 3) = 1.75 d
+    expect(neglectAccrualGapDays({ type: 'quota', quota: 3, period: 'week' })).toBeCloseTo(1.75, 6);
+    // quota 15/week: 7 / (1 + 15) = 0.4375 d (~10.5 h)
+    expect(neglectAccrualGapDays({ type: 'quota', quota: 15, period: 'week' })).toBeCloseTo(0.4375, 6);
+    // scheduled_quota uses its explicit quota, not scheduledDays.length
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled_quota',
+        quota: 2,
+        period: 'week',
+        scheduledDays: ['monday', 'thursday', 'friday'],
+      }),
+    ).toBeCloseTo(7 / 3, 6);
+    // monthly quota (covers the 'month' → 30 d branch): 30 / (1 + 2) = 10 d
+    expect(neglectAccrualGapDays({ type: 'quota', quota: 2, period: 'month' })).toBeCloseTo(10, 6);
+  });
+
+  it('multi-day scheduled uses the occurrence count (shorter gap, surfaces sooner)', () => {
+    // Mon+Thu → 2 occurrences/week → 7 / (1 + 2) = 2.33 d (< the single-day 3.5 d)
+    expect(
+      neglectAccrualGapDays({ type: 'scheduled', scheduledDays: ['monday', 'thursday'] }),
+    ).toBeCloseTo(7 / 3, 6);
+  });
+
+  it('does NOT gate unscheduled, count, or one-offs (accrue from the anchor as today)', () => {
+    expect(neglectAccrualGapDays({ type: 'unscheduled' })).toBe(0);
+    expect(neglectAccrualGapDays({ type: 'count', target: 5, progress: 0 })).toBe(0);
+    expect(neglectAccrualGapDays(undefined)).toBe(0); // one-off
+  });
+});
 
 describe('tasksRepository', () => {
   let conn: TestSqliteConnection;
@@ -98,5 +135,87 @@ describe('tasksRepository', () => {
     expect(byNeglect[0].neglectMultiplier).toBeCloseTo(3, 1);
     expect(byNeglect[1].task.id).toBe(newer.id);
     expect(byNeglect[1].neglectMultiplier).toBeLessThan(byNeglect[0].neglectMultiplier);
+  });
+
+  describe('listActiveByNeglect — R8 accrual gate (task 25)', () => {
+    let recurrence: ReturnType<typeof createRecurrenceRepository>;
+    beforeEach(() => {
+      recurrence = createRecurrenceRepository(conn);
+    });
+
+    /** Create a task, attach `rec`, and backdate its created_at by `ageDays`. */
+    async function makeAged(rec: Recurrence | undefined, ageDays: number): Promise<number> {
+      const task = await repo.create({ title: 'T', estimatedDuration: 10 });
+      if (rec) await recurrence.create(task.id, rec);
+      conn.raw
+        .prepare(`UPDATE tasks SET created_at = datetime('now', '-${ageDays} days') WHERE id = ?`)
+        .run(task.id);
+      return task.id;
+    }
+
+    async function weeksFor(taskId: number): Promise<number> {
+      const rows = await repo.listActiveByNeglect();
+      const row = rows.find((r) => r.task.id === taskId);
+      if (!row) throw new Error('task not found in neglect list');
+      return row.weeksNeglected;
+    }
+
+    it('a recurring task INSIDE its gap has weeksNeglected 0 (multiplier 1.0)', async () => {
+      // weekly scheduled, gap 3.5 d; only 2 days old → still inside the gap.
+      const id = await makeAged({ type: 'scheduled', scheduledDays: ['monday'] }, 2);
+      expect(await weeksFor(id)).toBe(0);
+    });
+
+    it('a recurring task PAST its gap accrues from accrualStart, not from the anchor', async () => {
+      // weekly scheduled, gap 3.5 d; 10 days old. accrualStart = created + 3.5 d = 6.5 d ago →
+      // 6.5/7 ≈ 0.93 weeks. (Ungated, it would be 10/7 ≈ 1.43 — proving the offset applied.)
+      const id = await makeAged({ type: 'scheduled', scheduledDays: ['monday'] }, 10);
+      expect(await weeksFor(id)).toBeCloseTo(6.5 / 7, 1);
+      expect(await weeksFor(id)).toBeLessThan(10 / 7); // definitely gated
+    });
+
+    it('a quota 3×/week task gates by 1.75 d', async () => {
+      // 14 days old, gap 1.75 d → accrualStart 12.25 d ago → 12.25/7 = 1.75 weeks.
+      const id = await makeAged({ type: 'quota', quota: 3, period: 'week' }, 14);
+      expect(await weeksFor(id)).toBeCloseTo(12.25 / 7, 1);
+    });
+
+    it('unscheduled is NOT gated — neglect is its whole resurfacing mechanism', async () => {
+      const id = await makeAged({ type: 'unscheduled' }, 21);
+      expect(await weeksFor(id)).toBeCloseTo(3, 1); // full 21 days / 7, no offset
+    });
+
+    it('count is NOT gated (no period to halve)', async () => {
+      const id = await makeAged({ type: 'count', target: 5, progress: 0 }, 21);
+      expect(await weeksFor(id)).toBeCloseTo(3, 1);
+    });
+
+    it('a one-off (no recurrence row) accrues from created_at, ungated', async () => {
+      const id = await makeAged(undefined, 21);
+      expect(await weeksFor(id)).toBeCloseTo(3, 1);
+    });
+
+    it('the gate offsets from the anchor: last_completed_at moves the clock, then the gap applies', async () => {
+      // weekly scheduled completed 10 days ago (last_completed_at is the anchor, gap 3.5 d).
+      const task = await repo.create({ title: 'T', estimatedDuration: 10 });
+      await recurrence.create(task.id, { type: 'scheduled', scheduledDays: ['monday'] });
+      conn.raw
+        .prepare(
+          `UPDATE tasks SET created_at = datetime('now', '-90 days'),
+             last_completed_at = datetime('now', '-10 days') WHERE id = ?`,
+        )
+        .run(task.id);
+      // Anchor is the 10-day-old completion, NOT the 90-day-old creation; gap 3.5 d → ≈0.93 wk.
+      expect(await weeksFor(task.id)).toBeCloseTo(6.5 / 7, 1);
+    });
+
+    it('the linear curve stays unbounded three orders of magnitude out (R1 fail-safe intact)', async () => {
+      // A weekly scheduled task 1000 days neglected: gate offset (3.5 d) is negligible, growth is
+      // unbounded and linear — never saturates (constraint #5).
+      const id = await makeAged({ type: 'scheduled', scheduledDays: ['monday'] }, 1000);
+      const weeks = await weeksFor(id);
+      expect(weeks).toBeCloseTo((1000 - 3.5) / 7, 0);
+      expect(weeks).toBeGreaterThan(140);
+    });
   });
 });

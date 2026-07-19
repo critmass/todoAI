@@ -84,7 +84,33 @@ export function createDependenciesRepository(db: SqliteConnection) {
     return (result.rows as unknown as TaskDependencyRow[]).map(taskDependencyRowToDomain);
   }
 
-  return { add, remove, listForTask, listDependents };
+  /** For every ACTIVE task, the ids of tasks it depends_on that are NOT yet completed — the input
+   *  the U1 dependency pre-filter (scoring/filter.ts `filterDependencyBlocked`) needs to hold
+   *  blocked tasks out of the ranked pool. A dependency counts as resolved only when the
+   *  depended-on task is `status='completed'`; anything else (still active, deleted, archived)
+   *  keeps the edge live. The eliminate-a-subtask edge case (a subtask that will never complete
+   *  blocking its parent forever) is handled by REMOVING the edge on eliminate_task — see the
+   *  coaching dispatch — not by treating a deleted blocker as resolved here. Tasks with no live
+   *  blockers are simply absent from the returned map. */
+  async function listUnresolvedBlockersForActiveTasks(): Promise<Map<number, number[]>> {
+    const result = await db.execute(
+      `SELECT d.task_id AS task_id, d.depends_on_task_id AS blocker_id
+         FROM task_dependencies d
+         JOIN tasks t ON t.id = d.task_id
+         JOIN tasks blocker ON blocker.id = d.depends_on_task_id
+        WHERE t.status = 'active' AND blocker.status != 'completed'`,
+    );
+    const rows = result.rows as unknown as Array<{ task_id: number; blocker_id: number }>;
+    const map = new Map<number, number[]>();
+    for (const row of rows) {
+      const existing = map.get(row.task_id);
+      if (existing) existing.push(row.blocker_id);
+      else map.set(row.task_id, [row.blocker_id]);
+    }
+    return map;
+  }
+
+  return { add, remove, listForTask, listDependents, listUnresolvedBlockersForActiveTasks };
 }
 
 export type DependenciesRepository = ReturnType<typeof createDependenciesRepository>;

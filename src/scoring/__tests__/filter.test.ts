@@ -1,7 +1,7 @@
 import type { Task } from '../../types/domain';
 import type { TaskWithNeglect } from '../../db/repositories/tasks';
-import { filterBySessionCapability } from '../filter';
-import { scoreTasks, type SessionCheckIn } from '../score';
+import { filterBySessionCapability, filterDependencyBlocked } from '../filter';
+import { rankWithContextNovelty, scoreTasks, type SessionCheckIn } from '../score';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -112,5 +112,87 @@ describe('filterBySessionCapability', () => {
     const ranked = scoreTasks(eligible, checkIn, NOW);
 
     expect(ranked.map((s) => s.task.id)).toEqual([2]);
+  });
+});
+
+describe('filterDependencyBlocked (task 10 U1 — dependency-blocked pre-filter)', () => {
+  it('passes a task with no unresolved blockers and no pending confirmation', () => {
+    const item = withNeglect(makeTask({ id: 1 }));
+    const { eligible, rejected } = filterDependencyBlocked([item], new Map());
+    expect(eligible).toEqual([item]);
+    expect(rejected).toEqual([]);
+  });
+
+  it('holds a blocked subtask out of the pool but lets the unblocked head through', () => {
+    const head = withNeglect(makeTask({ id: 1 }));
+    const blocked = withNeglect(makeTask({ id: 2 }));
+    // task 2 depends on task 1, which is not yet complete
+    const blockers = new Map<number, number[]>([[2, [1]]]);
+
+    const { eligible, rejected } = filterDependencyBlocked([head, blocked], blockers);
+    expect(eligible.map((i) => i.task.id)).toEqual([1]);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].item.task.id).toBe(2);
+    expect(rejected[0].blockedBy).toEqual([1]);
+    expect(rejected[0].pendingBreakdownComplete).toBe(false);
+  });
+
+  it('carries the correct (multiple) blocker ids on a reject', () => {
+    const blocked = withNeglect(makeTask({ id: 3 }));
+    const blockers = new Map<number, number[]>([[3, [1, 2]]]);
+    const { rejected } = filterDependencyBlocked([blocked], blockers);
+    expect(rejected[0].blockedBy).toEqual([1, 2]);
+  });
+
+  it('holds a parent pending a breakdown_complete confirmation, even with no live blockers (R7c)', () => {
+    const parent = withNeglect(makeTask({ id: 10 }));
+    const { eligible, rejected } = filterDependencyBlocked(
+      [parent],
+      new Map(), // all its subtasks completed → no live dependency blockers
+      new Set([10]), // but the check-off conversation is still pending
+    );
+    expect(eligible).toEqual([]);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].pendingBreakdownComplete).toBe(true);
+    expect(rejected[0].blockedBy).toEqual([]);
+  });
+
+  it('retains rejects (both signals) rather than discarding them', () => {
+    const ok = withNeglect(makeTask({ id: 1 }));
+    const dep = withNeglect(makeTask({ id: 2 }));
+    const held = withNeglect(makeTask({ id: 3 }));
+    const { eligible, rejected } = filterDependencyBlocked(
+      [ok, dep, held],
+      new Map([[2, [1]]]),
+      new Set([3]),
+    );
+    expect(eligible.map((i) => i.task.id)).toEqual([1]);
+    expect(rejected.map((r) => r.item.task.id).sort()).toEqual([2, 3]);
+  });
+
+  it('a chain re-ranked N times under the novelty ranker never inverts (only the head is ever in the pool)', () => {
+    const checkIn: SessionCheckIn = { energy: 'med', contexts: [], tools: [] };
+    // A three-step ordered chain: 1 → 2 → 3, all sharing a context group and near-equal scores
+    // (the exact case that fools weightedShuffle). Only the head (1) is unblocked.
+    const s1 = withNeglect(makeTask({ id: 1, importance: 503 }));
+    const s2 = withNeglect(makeTask({ id: 2, importance: 502 }));
+    const s3 = withNeglect(makeTask({ id: 3, importance: 501 }));
+    const blockers = new Map<number, number[]>([
+      [2, [1]],
+      [3, [2]],
+    ]);
+
+    for (let seed = 0; seed < 50; seed++) {
+      const { eligible } = filterDependencyBlocked([s1, s2, s3], blockers);
+      // deterministic pseudo-rng seeded off the iteration so the shuffle actually varies
+      let state = seed + 1;
+      const rng = () => {
+        state = (state * 1103515245 + 12345) & 0x7fffffff;
+        return state / 0x7fffffff;
+      };
+      const ranked = rankWithContextNovelty(eligible, checkIn, NOW, rng);
+      // Only step 1 is ever eligible, so a chain can never be served out of order.
+      expect(ranked.map((s) => s.task.id)).toEqual([1]);
+    }
   });
 });

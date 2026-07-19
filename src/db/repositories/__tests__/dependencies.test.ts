@@ -68,4 +68,39 @@ describe('dependenciesRepository', () => {
     conn.raw.prepare('DELETE FROM tasks WHERE id = ?').run(taskB);
     expect(await repo.listForTask(taskA)).toEqual([]);
   });
+
+  describe('listUnresolvedBlockersForActiveTasks (U1 pre-filter input)', () => {
+    it('maps each active task to its not-yet-completed blockers, omitting the unblocked', async () => {
+      await repo.add(taskA, taskB); // A depends on B (incomplete)
+      await repo.add(taskA, taskC); // A depends on C (incomplete)
+      // taskB/taskC have no blockers of their own → absent from the map
+      const map = await repo.listUnresolvedBlockersForActiveTasks();
+      expect(map.get(taskA)?.sort()).toEqual([taskB, taskC].sort());
+      expect(map.has(taskB)).toBe(false);
+      expect(map.has(taskC)).toBe(false);
+    });
+
+    it('drops a blocker from the map once the depended-on task is completed', async () => {
+      await repo.add(taskA, taskB); // A depends on B
+      conn.raw.prepare("UPDATE tasks SET status = 'completed' WHERE id = ?").run(taskB);
+      const map = await repo.listUnresolvedBlockersForActiveTasks();
+      expect(map.has(taskA)).toBe(false); // B is done → A is unblocked
+    });
+
+    it('does not report blockers for a non-active (e.g. completed) dependent task', async () => {
+      await repo.add(taskA, taskB); // A depends on B (incomplete)
+      conn.raw.prepare("UPDATE tasks SET status = 'completed' WHERE id = ?").run(taskA);
+      const map = await repo.listUnresolvedBlockersForActiveTasks();
+      expect(map.has(taskA)).toBe(false); // A itself is no longer active, so it isn't in the pool
+    });
+
+    it('a deleted (never-completing) blocker still blocks — the edge must be removed on eliminate', async () => {
+      await repo.add(taskA, taskB); // A depends on B
+      conn.raw.prepare("UPDATE tasks SET status = 'deleted' WHERE id = ?").run(taskB);
+      const map = await repo.listUnresolvedBlockersForActiveTasks();
+      // Documents the contract: 'deleted' != 'completed', so A stays blocked here. The R7
+      // eliminate_task path is responsible for REMOVING the edge so this can't strand A forever.
+      expect(map.get(taskA)).toEqual([taskB]);
+    });
+  });
 });

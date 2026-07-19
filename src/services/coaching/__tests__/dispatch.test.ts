@@ -101,6 +101,24 @@ describe('dispatchResolution (grammar-union → repository actions, D8)', () => 
     expect((await tasks.getById(t.id))?.status).toBe('deleted');
   });
 
+  it('eliminate_task removes edges pointing at it, so its dependents are not blocked forever (R7)', async () => {
+    const parent = await tasks.create({ title: 'Parent', estimatedDuration: 60 });
+    const subtask = await tasks.create({ title: 'Subtask', estimatedDuration: 20 });
+    await dependencies.add(parent.id, subtask.id); // parent depends_on subtask (R7a shape)
+
+    await dispatchResolution(
+      deps,
+      valid({ action: 'eliminate_task', task_id: subtask.id, reason: 'not needed after all' }),
+      { todayISO: TODAY },
+    );
+
+    // The parent's blocking edge to the (soft-deleted, never-completing) subtask is gone, so U1's
+    // unresolved-blocker read no longer strands the parent.
+    expect(await dependencies.listForTask(parent.id)).toEqual([]);
+    const blockers = await dependencies.listUnresolvedBlockersForActiveTasks();
+    expect(blockers.has(parent.id)).toBe(false);
+  });
+
   it('defer_task with a DueSpec resolves next_due_at', async () => {
     const t = await tasks.create({ title: 'T', estimatedDuration: 30 });
     const outcome = await dispatchResolution(

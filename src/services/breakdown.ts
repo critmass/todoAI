@@ -25,6 +25,13 @@ export interface BreakdownPersistenceDeps {
  * Persists a validated breakdown's subtasks and, when `ordered`, the dependency chain that
  * sequences them. Returns the created tasks in generation order (index i of the result
  * corresponds to `valid.subtasks[i]`, not to importance/fan-out order).
+ *
+ * Task 25 R7a — the parent is also linked to EVERY subtask with a real `parent depends_on subtask`
+ * edge. `parent_task_id` is a column, not a dependency edge, so this creates no cycle; what it
+ * does is make the U1 dependency filter hide the parent for the whole life of the chain (fixing
+ * U2, where the parent competed with its own pieces at a grain that's always wrong to serve). The
+ * parent unblocks only when the last subtask completes — the seam R7b fires `breakdown_complete`
+ * on. Every edge goes through the guarded `dependencies.add`, so the DAG guard runs on each.
  */
 export async function persistBreakdown(
   deps: BreakdownPersistenceDeps,
@@ -44,6 +51,12 @@ export async function persistBreakdown(
         await deps.dependencies.add(created[to].id, created[from].id); // `to` depends_on `from`
       }
     }
+  }
+
+  // R7a: the parent depends_on each subtask, so U1 holds it out of the pool until they all
+  // complete. Independent of `ordered` — an unordered breakdown's parent must be held too.
+  for (const subtask of created) {
+    await deps.dependencies.add(valid.parent_task_id, subtask.id); // parent depends_on subtask
   }
 
   return created;

@@ -79,7 +79,46 @@ describe('persistBreakdown (task 10, R2 — the breakdown -> dependencies step)'
     expect(created).toHaveLength(2);
     expect(created[0].importance).toBe(created[1].importance);
     for (const task of created) {
+      // subtasks depend on nothing (unordered); the parent-depends-on-subtask edges (R7a) live
+      // on the PARENT, not here.
       expect(await dependencies.listForTask(task.id)).toEqual([]);
     }
+  });
+
+  it('R7a: the parent depends_on every subtask, so U1 holds it out of the pool (ordered)', async () => {
+    const parentTask = await tasks.create({ title: 'Clean out the garage', estimatedDuration: 90 });
+    const valid = validate({
+      parent_task_id: parentTask.id,
+      ordered: true,
+      subtasks: [
+        { title: 'clear a shelf', estimated_duration_minutes: 20, duration_from_user: false },
+        { title: 'sort into piles', estimated_duration_minutes: 30, duration_from_user: false },
+        { title: 'haul away', estimated_duration_minutes: 40, duration_from_user: false },
+      ],
+    });
+
+    const created = await persistBreakdown(deps, valid, parent);
+    const parentBlockers = (await dependencies.listForTask(parentTask.id))
+      .map((d) => d.dependsOnTaskId)
+      .sort((a, b) => a - b);
+    expect(parentBlockers).toEqual(created.map((t) => t.id).sort((a, b) => a - b));
+  });
+
+  it('R7a: the parent is held even for an unordered breakdown', async () => {
+    const parentTask = await tasks.create({ title: 'Call vendors', estimatedDuration: 30 });
+    const valid = validate({
+      parent_task_id: parentTask.id,
+      ordered: false,
+      subtasks: [
+        { title: 'call vendor A', estimated_duration_minutes: 10, duration_from_user: false },
+        { title: 'call vendor B', estimated_duration_minutes: 10, duration_from_user: false },
+      ],
+    });
+
+    const created = await persistBreakdown(deps, valid, parent);
+    const parentBlockers = (await dependencies.listForTask(parentTask.id)).map(
+      (d) => d.dependsOnTaskId,
+    );
+    expect(parentBlockers.sort((a, b) => a - b)).toEqual(created.map((t) => t.id).sort((a, b) => a - b));
   });
 });

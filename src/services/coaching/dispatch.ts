@@ -19,7 +19,7 @@ import { NotFoundError } from '../../db/errors';
 
 export interface ResolutionDispatchDeps {
   tasks: Pick<TasksRepository, 'getById' | 'update' | 'softDelete'>;
-  dependencies: Pick<DependenciesRepository, 'add'>;
+  dependencies: Pick<DependenciesRepository, 'add' | 'listDependents' | 'remove'>;
 }
 
 export interface ResolutionContext {
@@ -76,10 +76,20 @@ export async function dispatchResolution(
       await requireTask(deps, resolution.task_id);
       return { action: 'break_down_task', taskId: resolution.task_id, staged: true };
 
-    case 'eliminate_task':
+    case 'eliminate_task': {
       await requireTask(deps, resolution.task_id);
       await deps.tasks.softDelete(resolution.task_id); // never hard-delete (history/FKs depend on the row)
+      // R7 edge: eliminating a task that others depend_on (e.g. a subtask) must remove those
+      // edges, or the dependent (e.g. the parent) is blocked forever by a task that will never
+      // complete. softDelete is status='deleted', NOT a row delete, so ON DELETE CASCADE does not
+      // fire — remove the edges explicitly. `blocker.status != 'completed'` (U1) would otherwise
+      // keep counting a 'deleted' task as a live blocker.
+      const dependents = await deps.dependencies.listDependents(resolution.task_id);
+      for (const dependent of dependents) {
+        await deps.dependencies.remove(dependent.taskId, resolution.task_id);
+      }
       return { action: 'eliminate_task', taskId: resolution.task_id, reason: resolution.reason };
+    }
 
     case 'defer_task': {
       await requireTask(deps, resolution.task_id);

@@ -2,6 +2,7 @@ import {
   BASE_SENSITIVITY_CEILING,
   DEFAULT_IMPORTANCE_INTERNAL,
   FACTOR_WEIGHTS,
+  HISTORICAL_SUCCESS_PRIOR_K,
   URGENCY_HORIZON_DAYS,
   energyMatchFactor,
   historicalSuccessFactor,
@@ -104,19 +105,45 @@ describe('energyMatchFactor', () => {
   });
 });
 
-describe('historicalSuccessFactor', () => {
-  it('returns a neutral prior for a task with no attempts (cold start)', () => {
+describe('historicalSuccessFactor (task 10 R6 — smoothed cold-start)', () => {
+  it('returns the neutral prior for a task with no attempts (cold start falls out of the formula)', () => {
+    // (0·0 + 0.5·2)/(0+2) = 0.5 — the old n≤0 branch is now the k=2 case, not a special case.
     expect(historicalSuccessFactor(0, 0)).toBe(0.5);
   });
 
-  it('returns the recorded rate once there is history', () => {
-    expect(historicalSuccessFactor(0.8, 5)).toBeCloseTo(0.8);
-    expect(historicalSuccessFactor(0, 3)).toBe(0); // genuinely failing task
+  it('lands the first skip at 0.33 and the first completion at 0.67, not 0.0 / 1.0', () => {
+    // one skip: rate 0, n 1 → (0·1 + 0.5·2)/(1+2) = 1/3
+    expect(historicalSuccessFactor(0, 1)).toBeCloseTo(1 / 3, 5);
+    // one completion: rate 1, n 1 → (1·1 + 0.5·2)/(1+2) = 2/3
+    expect(historicalSuccessFactor(1, 1)).toBeCloseTo(2 / 3, 5);
   });
 
-  it('clamps to [0,1]', () => {
-    expect(historicalSuccessFactor(1.5, 2)).toBe(1);
-    expect(historicalSuccessFactor(-0.2, 2)).toBe(0);
+  it('converges toward the raw rate as evidence accumulates', () => {
+    // rate 0.8 pulled toward 0.5 by k=2 pseudo-obs, less and less as n grows.
+    expect(historicalSuccessFactor(0.8, 5)).toBeCloseTo((0.8 * 5 + 1) / 7, 5); // ≈0.714
+    expect(historicalSuccessFactor(0.8, 100)).toBeCloseTo((0.8 * 100 + 1) / 102, 5); // ≈0.794
+    // large n: within a hair of the raw rate
+    expect(historicalSuccessFactor(0.8, 10000)).toBeCloseTo(0.8, 3);
+  });
+
+  it('a genuinely failing task is pulled off 0 by the prior but stays low', () => {
+    // rate 0, n 3 → (0·3 + 1)/(3+2) = 0.2 (was 0.0 pre-R6)
+    expect(historicalSuccessFactor(0, 3)).toBeCloseTo(0.2, 5);
+    expect(historicalSuccessFactor(0, 3)).toBeGreaterThan(0);
+    expect(historicalSuccessFactor(0, 3)).toBeLessThan(0.5);
+  });
+
+  it('exposes k as a named constant (task 17 reaches it to swap the prior source)', () => {
+    expect(HISTORICAL_SUCCESS_PRIOR_K).toBe(2);
+  });
+
+  it('clamps an out-of-range rate before shrinking, so the result stays in [0,1]', () => {
+    // rate clamps to 1 first: (1·2 + 1)/(2+2) = 0.75
+    expect(historicalSuccessFactor(1.5, 2)).toBeCloseTo(0.75, 5);
+    // rate clamps to 0 first: (0·2 + 1)/(2+2) = 0.25
+    expect(historicalSuccessFactor(-0.2, 2)).toBeCloseTo(0.25, 5);
+    // a negative attempt count is treated as no history → the pure prior
+    expect(historicalSuccessFactor(0.9, -5)).toBe(0.5);
   });
 });
 

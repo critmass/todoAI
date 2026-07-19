@@ -55,7 +55,9 @@ describe('scoreTask', () => {
       energyRequirement: 3, // matches 'med' → energyMatch 1
       nextDueAt: '2026-07-15', // due today → urgency 1
       successRate: 1,
-      completionCount: 4,
+      // Enough completions that R6's k=2 shrinkage toward 0.5 is negligible (401/402 ≈ 0.9975):
+      // this test asserts the all-factors-maxed composition, not the cold-start behaviour.
+      completionCount: 400,
     });
     const scored = scoreTask(withNeglect(task, 0), CHECK_IN, NOW);
     expect(scored.factors.importance).toBeCloseTo(1);

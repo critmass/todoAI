@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(adb -s R5CWC240D5H logcat *)"
+    ]
+  }
+}

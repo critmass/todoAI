@@ -37,6 +37,19 @@ export const DEFAULT_IMPORTANCE_INTERNAL = 500;
  *  sensitivity floor). REVIEW(task10): 14d is a reasoned starting horizon, not a measured one. */
 export const URGENCY_HORIZON_DAYS = 14;
 
+/** Smoothing strength for the cold-start prior on `historicalSuccessFactor` (spec §5.4 / task 10
+ *  R6). `k` is the number of pseudo-observations the 0.5 prior is worth: the factor is
+ *  `(rate·n + 0.5·k)/(n + k)`, so the first real observation moves the value by `1/(1+k)` off the
+ *  prior instead of all the way to 0 or 1. k=2 lands the first skip at 0.33 and the first
+ *  completion at 0.67, converging to the raw rate as n grows. This is the DEGENERATE form of
+ *  §5.4's hierarchical shrinkage — task 17 replaces the prior's *source* (fixed 0.5 → a learned
+ *  global/parent prior), NOT this formula, so the constant is named for 17 to reach. */
+export const HISTORICAL_SUCCESS_PRIOR_K = 2;
+
+/** The prior mean the k pseudo-observations above carry — a neutral 0.5 (neither reliably done nor
+ *  reliably skipped). Task 17 later swaps this fixed value for a learned prior; the shape stays. */
+export const HISTORICAL_SUCCESS_PRIOR_MEAN = 0.5;
+
 /** The most that `urgency_level` (the optional base sensitivity, spec §4.1) can contribute on
  *  its own to a deadline-less task's urgency. Kept deliberately small: a task with no due date
  *  should lean on importance + the neglect fail-safe to surface, not on a manufactured urgency.
@@ -114,16 +127,26 @@ export function energyMatchFactor(
 
 /**
  * Historical-success factor (spec §5.1 "Historical success rate"). `successRate` is
- * completion / (completion + skip) — but a task with *no attempts yet* has a stored rate of 0,
- * which is "undefined", not "always fails". Cold-start handling (spec §5.4): a task with zero
- * recorded attempts gets a neutral prior (0.5) instead of being zeroed out on a 20% weight.
+ * completion / (completion + skip) — but a task with *few attempts yet* has a rate dominated by
+ * noise (one skip → 0.0, one completion → 1.0), which is ±0.115 of the base score decided by a
+ * single event on the 23% weight. Task 10 R6 replaces the old hard `n≤0 → 0.5, else raw` branch
+ * with Bayesian shrinkage toward a neutral prior:
  *
- * REVIEW(task10): the neutral prior for cold-start is a hierarchical-shrinkage stand-in until
- * the real §5.4 learning loop (task 17) supplies a proper global prior.
+ *     (successRate·n + PRIOR_MEAN·k) / (n + k),   k = HISTORICAL_SUCCESS_PRIOR_K
+ *
+ * The old cold-start branch falls out of the same expression (n=0 → PRIOR_MEAN = 0.5), so it is
+ * gone rather than kept alongside. First skip → 0.33, first completion → 0.67, converging to the
+ * raw rate as evidence accumulates.
+ *
+ * REVIEW(task17): PRIOR_MEAN is a fixed 0.5 stand-in for §5.4's hierarchical prior; task 17
+ * replaces the prior's *source* (a learned global/parent rate), not this formula.
  */
 export function historicalSuccessFactor(successRate: number, attemptCount: number): number {
-  if (attemptCount <= 0) return 0.5; // no history → neutral prior, not a 0
-  return clamp01(successRate);
+  const n = Math.max(0, attemptCount); // a negative count is meaningless; treat as no history
+  const k = HISTORICAL_SUCCESS_PRIOR_K;
+  const shrunk =
+    (clamp01(successRate) * n + HISTORICAL_SUCCESS_PRIOR_MEAN * k) / (n + k);
+  return clamp01(shrunk);
 }
 
 export interface FactorBreakdown {

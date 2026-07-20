@@ -7,6 +7,7 @@
 import type { SqliteConnection } from '../connection';
 import { MIGRATION_001_SQL } from './001_initial_schema';
 import { MIGRATION_002_SQL } from './002_skill_layer_schema';
+import { MIGRATION_003_SQL } from './003_multisession_work';
 import { splitSqlStatements } from './statementSplitter';
 
 interface Migration {
@@ -23,6 +24,7 @@ interface Migration {
 const MIGRATIONS: Migration[] = [
   { version: '2.2.0', sql: MIGRATION_001_SQL },
   { version: '2.3.0', sql: MIGRATION_002_SQL, rebuildsTables: true },
+  { version: '2.4.0', sql: MIGRATION_003_SQL, rebuildsTables: true },
 ];
 
 export async function getCurrentSchemaVersion(db: SqliteConnection): Promise<string | null> {

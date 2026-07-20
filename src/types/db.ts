@@ -10,6 +10,12 @@
 
 export type TaskStatus = 'active' | 'completed' | 'archived' | 'deleted';
 export type DurationSource = 'user' | 'model_guess';
+/** Whether `estimated_duration` is a best-guess estimate or a FLOOR ("at least an hour") for
+ *  open-ended work (task 28 §3.1, migration 003). A 'floor' task counts UP and has no overrun. */
+export type DurationType = 'estimate' | 'floor';
+/** Whether a task has an open, partially-worked stretch toward its current completion (task 28
+ *  §1, migration 003). Orthogonal to `status` — a parked task stays `status='active'`. */
+export type WorkState = 'none' | 'in_progress';
 export type RecurrenceType =
   | 'scheduled_quota'
   | 'quota'
@@ -24,8 +30,9 @@ export type InteractionType =
   | 'energy_checkin'
   | 'pattern_recognition'
   | 'task_completion'
-  | 'task_skip';
-export type CompletionStatus = 'completed' | 'skipped' | 'ended_early' | 'abandoned';
+  | 'task_skip'
+  | 'task_progress'; // task 28 §1.1: the park episode's interaction row (migration 003)
+export type CompletionStatus = 'completed' | 'skipped' | 'ended_early' | 'abandoned' | 'progress'; // 'progress' = parked (task 28, migration 003)
 export type SessionType = 'quick' | 'moderate' | 'deep_focus';
 export type SessionStatus = 'completed' | 'abandoned';
 export type ModelTier = '8B' | '4B' | '1.7B';
@@ -110,6 +117,11 @@ export interface TaskRow {
   skip_reasons: string | null;
   last_completed_at: string | null;
   success_rate: number | null;
+  // Task 28 / migration 003 (all NOT NULL DEFAULT except last_worked_at, which is nullable).
+  duration_type: DurationType | null;
+  work_state: WorkState | null;
+  accumulated_minutes: number | null;
+  last_worked_at: string | null;
 }
 
 export interface TaskRecurrenceRow {
@@ -198,6 +210,7 @@ export interface SessionRow {
   status: SessionStatus;
   tasks_completed: number | null;
   tasks_skipped: number | null;
+  tasks_progressed: number | null; // task 28 / migration 003: parked tasks count here
   escape_valve_used: SqliteBoolean | null;
   extended: SqliteBoolean | null;
   model_tier: ModelTier | null;

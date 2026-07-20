@@ -111,6 +111,25 @@ describe('tasksRepository', () => {
     expect(completed.lastCompletedAt).not.toBeNull();
   });
 
+  it('recordProgressEpisode accumulates minutes, marks in_progress, stamps last_worked_at, never skips (task 28)', async () => {
+    const created = await repo.create({ title: 'Big project', estimatedDuration: 120 });
+    expect(created.workState).toBe('none');
+    expect(created.accumulatedMinutes).toBe(0);
+    expect(created.lastWorkedAt).toBeNull();
+
+    const afterFirst = await repo.recordProgressEpisode(created.id, 25);
+    expect(afterFirst.workState).toBe('in_progress');
+    expect(afterFirst.accumulatedMinutes).toBe(25);
+    expect(afterFirst.lastWorkedAt).not.toBeNull();
+    expect(afterFirst.status).toBe('active'); // parked tasks stay in the pool
+
+    // A second sitting accumulates on top; still never a skip or a success-rate change.
+    const afterSecond = await repo.recordProgressEpisode(created.id, 15);
+    expect(afterSecond.accumulatedMinutes).toBe(40);
+    expect(afterSecond.skipCount).toBe(0);
+    expect(afterSecond.successRate).toBe(0);
+  });
+
   it('listActive only returns active tasks', async () => {
     const a = await repo.create({ title: 'A', estimatedDuration: 10 });
     const b = await repo.create({ title: 'B', estimatedDuration: 10 });
@@ -216,6 +235,66 @@ describe('tasksRepository', () => {
       const weeks = await weeksFor(id);
       expect(weeks).toBeCloseTo((1000 - 3.5) / 7, 0);
       expect(weeks).toBeGreaterThan(140);
+    });
+  });
+
+  describe('listActiveByNeglect — last_worked_at re-anchor (task 33, §5)', () => {
+    async function weeksFor(taskId: number): Promise<number> {
+      const rows = await repo.listActiveByNeglect();
+      const row = rows.find((r) => r.task.id === taskId);
+      if (!row) throw new Error('task not found in neglect list');
+      return row.weeksNeglected;
+    }
+
+    it('working a task re-anchors the clock: worked yesterday reads ≈1/7 wk regardless of created_at', async () => {
+      const task = await repo.create({ title: 'Long project', estimatedDuration: 180 });
+      // Created 100 days ago (would be ~14 weeks neglected) but WORKED yesterday.
+      conn.raw
+        .prepare(
+          `UPDATE tasks SET created_at = datetime('now', '-100 days'),
+             last_worked_at = datetime('now', '-1 day') WHERE id = ?`,
+        )
+        .run(task.id);
+      const weeks = await weeksFor(task.id);
+      expect(weeks).toBeCloseTo(1 / 7, 1); // anchored on the work, not creation
+      expect(weeks).toBeLessThan(1); // definitely not ~14
+    });
+
+    it('the three-way max takes the LATEST of created/completed/worked', async () => {
+      const task = await repo.create({ title: 'T', estimatedDuration: 30 });
+      // completed 30 days ago, but worked only 3 days ago → anchor is the more recent work.
+      conn.raw
+        .prepare(
+          `UPDATE tasks SET created_at = datetime('now', '-60 days'),
+             last_completed_at = datetime('now', '-30 days'),
+             last_worked_at = datetime('now', '-3 days') WHERE id = ?`,
+        )
+        .run(task.id);
+      expect(await weeksFor(task.id)).toBeCloseTo(3 / 7, 1);
+    });
+
+    it('a NULL last_worked_at falls back to the other anchors (no NaN, no surprise)', async () => {
+      const task = await repo.create({ title: 'T', estimatedDuration: 30 });
+      conn.raw
+        .prepare("UPDATE tasks SET created_at = datetime('now', '-14 days') WHERE id = ?")
+        .run(task.id);
+      // last_worked_at and last_completed_at are NULL → anchor is created_at (2 weeks).
+      expect(await weeksFor(task.id)).toBeCloseTo(2, 1);
+    });
+
+    it('re-anchor composes with the R8 gate: a recurring task worked recently is inside its gap', async () => {
+      const task = await repo.create({ title: 'Weekly chore', estimatedDuration: 30 });
+      const recurrence = createRecurrenceRepository(conn);
+      await recurrence.create(task.id, { type: 'scheduled', scheduledDays: ['monday'] });
+      // Old task, but worked 1 day ago. Anchor = 1 day ago; gap 3.5 d → accrualStart is in the
+      // future → weeksNeglected clamps to 0.
+      conn.raw
+        .prepare(
+          `UPDATE tasks SET created_at = datetime('now', '-200 days'),
+             last_worked_at = datetime('now', '-1 day') WHERE id = ?`,
+        )
+        .run(task.id);
+      expect(await weeksFor(task.id)).toBe(0);
     });
   });
 });

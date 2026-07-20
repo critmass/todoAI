@@ -30,6 +30,14 @@ export interface TaskCompletionDeps {
   >;
 }
 
+/** Options for completeTask (task 28 §2.1). */
+export interface CompleteTaskOptions {
+  /** Minutes worked in the episode that ENDED in this completion. Folds together with any
+   *  accumulated_minutes from earlier parked sittings into ONE actual_duration_history entry.
+   *  Omit (coaching check-offs, R7 breakdown_complete confirmations) → 0: only accumulated folds. */
+  episodeMinutes?: number;
+}
+
 /** What completion did, discriminated by recurrence category. `closed` says whether the task
  *  transitioned to 'completed' (dropping out of the active pool); everything else stays active. */
 export type CompletionOutcome =
@@ -58,7 +66,9 @@ async function requireTask(deps: TaskCompletionDeps, taskId: number): Promise<Ta
 }
 
 /**
- * Completes `taskId`, choosing the correct primitive by recurrence type (spec §4.2).
+ * Completes `taskId`, choosing the correct primitive by recurrence type (spec §4.2). First folds
+ * cumulative work time (accumulated parked minutes + this episode's `opts.episodeMinutes`) into a
+ * single actual_duration_history entry (task 28 §2.1), then dispatches:
  *
  * - one-off (no recurrence row): close permanently.
  * - unscheduled: reset the neglect clock, stay active.
@@ -71,8 +81,32 @@ async function requireTask(deps: TaskCompletionDeps, taskId: number): Promise<Ta
 export async function completeTask(
   deps: TaskCompletionDeps,
   taskId: number,
+  opts?: CompleteTaskOptions,
 ): Promise<CompletionResult> {
-  await requireTask(deps, taskId);
+  const existing = await requireTask(deps, taskId);
+
+  // The cumulative-duration FOLD (task 28 §2.1), at the single choke point BEFORE recurrence
+  // dispatch, so it is identical across all six branches (constraint #7 untouched — the fold is
+  // orthogonal to which primitive closes or keeps the task). total = accumulated (earlier parked
+  // sittings) + this episode. A completion with zero recorded work adds NO history entry — a 0 is
+  // censored/no-data, not a "0-minute task", and would bias average_actual_duration low. It still
+  // clears any parked state. This satisfies the invariant "one actual_duration_history entry per
+  // completion equal to the total minutes worked toward it, every recurrence type".
+  const total = existing.accumulatedMinutes + (opts?.episodeMinutes ?? 0);
+  if (total > 0) {
+    const history = [...existing.actualDurationHistory, total];
+    const average = history.reduce((sum, minutes) => sum + minutes, 0) / history.length;
+    await deps.tasks.update(taskId, {
+      actualDurationHistory: history,
+      averageActualDuration: average,
+      accumulatedMinutes: 0,
+      workState: 'none',
+    });
+  } else if (existing.accumulatedMinutes !== 0 || existing.workState !== 'none') {
+    // Nothing to fold, but never leave parked state dangling on a completed task.
+    await deps.tasks.update(taskId, { accumulatedMinutes: 0, workState: 'none' });
+  }
+
   const recurrence = await deps.recurrence.getByTaskId(taskId);
 
   // true one-off: no task_recurrence row → close permanently. Dependents unblock implicitly

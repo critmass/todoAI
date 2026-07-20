@@ -36,6 +36,10 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     skipReasons: [],
     lastCompletedAt: null,
     successRate: 0,
+    durationType: 'estimate',
+    workState: 'none',
+    accumulatedMinutes: 0,
+    lastWorkedAt: null,
     ...overrides,
   };
 }

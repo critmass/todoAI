@@ -180,6 +180,28 @@ export function createTasksRepository(db: SqliteConnection) {
     return updated;
   }
 
+  /** The PARK primitive (task 28 §1.3/§7.1): records a progress episode — accumulates `minutes`
+   *  toward the current completion, stamps last_worked_at (which re-anchors the neglect clock,
+   *  §5), and marks the task in_progress. It NEVER writes skip_count and NEVER touches success_rate
+   *  — parking is structurally not a skip and not a failure. The task stays status='active'
+   *  throughout, so every pool query works unchanged. The accumulated minutes fold into ONE
+   *  actual_duration_history entry when the task is finally completed (see completeTask). */
+  async function recordProgressEpisode(id: number, minutes: number): Promise<Task> {
+    await db.execute(
+      `UPDATE tasks
+         SET accumulated_minutes = accumulated_minutes + ?,
+             last_worked_at = CURRENT_TIMESTAMP,
+             work_state = 'in_progress'
+       WHERE id = ?`,
+      [minutes, id],
+    );
+    const updated = await getById(id);
+    if (!updated) {
+      throw new NotFoundError('task', id);
+    }
+    return updated;
+  }
+
   async function listActive(): Promise<Task[]> {
     const result = await db.execute("SELECT * FROM tasks WHERE status = 'active' ORDER BY id");
     return (result.rows as unknown as TaskRow[]).map(taskRowToDomain);
@@ -191,21 +213,30 @@ export function createTasksRepository(db: SqliteConnection) {
    *  The neglect clock (spec §5.2):
    *    weeksNeglected = max(0, (now - accrualStart) / 7 days)
    *    accrualStart   = anchor + R8 gap(recurrence)
-   *    anchor         = COALESCE(last_completed_at, created_at)
+   *    anchor         = MAX(created_at, last_completed_at, last_worked_at)   -- latest attention
    *
-   *  R8 (task 25): recurring tasks don't accrue neglect until half the occurrence gap has
-   *  elapsed (see `neglectAccrualGapDays`) — a task inside its gap reads weeksNeglected 0
-   *  (multiplier 1.0, scored on merit), then accrues linearly and WITHOUT BOUND from accrualStart.
-   *  This is a start condition, not a cap; constraint #5 is untouched. The gap needs recurrence
-   *  data, so this LEFT JOINs task_recurrence in the same read (the simplest correct option — one
-   *  query, no N+1) and reconstructs the Recurrence via the existing domain mapper. The
-   *  `POWER()`-free elapsed arithmetic stays in SQL (op-sqlite has no POWER()); the gate subtracts
-   *  in TypeScript. NOTE for task 33: this anchor becomes a three-way max that also folds in
-   *  `last_worked_at` — the one-line merge lands there. */
+   *  Two composed rulings, both START CONDITIONS not caps (constraint #5 — growth after the anchor
+   *  is linear and unbounded, nothing saturates):
+   *   • R8 (task 25): recurring tasks don't accrue neglect until half the occurrence gap has
+   *     elapsed (`neglectAccrualGapDays`) — a task inside its gap reads weeksNeglected 0
+   *     (multiplier 1.0, scored on merit).
+   *   • task 33 (§5): working a task re-anchors its clock. `last_worked_at` joins the anchor as a
+   *     third input via SQLite's scalar `MAX()` (a core function — NOT the POWER()-class math
+   *     extension, so it's safe on op-sqlite). A parked task accrues neglect from the moment it was
+   *     last worked and MUST resurface; it can only stay quiet by being worked again, which is a
+   *     surfacing loop, not hiding.
+   *
+   *  The gap needs recurrence data, so this LEFT JOINs task_recurrence in the same read (one query,
+   *  no N+1) and reconstructs the Recurrence via the existing domain mapper. The POWER()-free
+   *  elapsed arithmetic stays in SQL; the R8 gate subtracts in TypeScript. */
   async function listActiveByNeglect(): Promise<TaskWithNeglect[]> {
     const result = await db.execute(
       `SELECT t.*,
-         (julianday('now') - julianday(COALESCE(t.last_completed_at, t.created_at))) / 7.0
+         (julianday('now') - MAX(
+            julianday(t.created_at),
+            julianday(COALESCE(t.last_completed_at, t.created_at)),
+            julianday(COALESCE(t.last_worked_at,    t.created_at))
+         )) / 7.0
            AS weeks_from_anchor,
          tr.id                       AS rec_id,
          tr.task_id                  AS rec_task_id,
@@ -242,6 +273,7 @@ export function createTasksRepository(db: SqliteConnection) {
     update,
     softDelete,
     recordUnscheduledCompletion,
+    recordProgressEpisode,
     listActive,
     listActiveByNeglect,
   };

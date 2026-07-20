@@ -19,6 +19,7 @@ import type {
   ContextEffectivenessRow,
   DataRetentionRow,
   DurationSource,
+  DurationType,
   EnergyPatternRow,
   EvidenceType,
   ExternalDependencyRow,
@@ -46,6 +47,7 @@ import type {
   TaskRecurrenceRow,
   TaskRow,
   TaskStatus,
+  WorkState,
 } from './db';
 
 // =====================================================================
@@ -229,6 +231,11 @@ export interface Task {
   skipReasons: string[];
   lastCompletedAt: string | null;
   successRate: number;
+  // Task 28 / migration 003 — multi-session work.
+  durationType: DurationType; // 'estimate' | 'floor'; for 'floor', estimatedDuration holds the floor
+  workState: WorkState; // 'none' | 'in_progress'; orthogonal to status (a parked task stays active)
+  accumulatedMinutes: number; // minutes worked toward the current completion; folds to history at completion
+  lastWorkedAt: string | null; // re-anchors the neglect clock (working a task is attention)
 }
 
 export function taskRowToDomain(row: TaskRow): Task {
@@ -256,6 +263,10 @@ export function taskRowToDomain(row: TaskRow): Task {
     skipReasons: parseJsonArray<string>(row.skip_reasons),
     lastCompletedAt: row.last_completed_at,
     successRate: row.success_rate ?? 0,
+    durationType: row.duration_type ?? 'estimate', // mirrors the migration-003 DEFAULT
+    workState: row.work_state ?? 'none', // mirrors the migration-003 DEFAULT
+    accumulatedMinutes: row.accumulated_minutes ?? 0,
+    lastWorkedAt: row.last_worked_at,
   };
 }
 
@@ -294,6 +305,10 @@ export function taskDomainToRow(
   if (task.parentTaskId !== undefined) row.parent_task_id = task.parentTaskId;
   if (task.skipReasons !== undefined) row.skip_reasons = JSON.stringify(task.skipReasons);
   if (task.lastCompletedAt !== undefined) row.last_completed_at = task.lastCompletedAt;
+  if (task.durationType !== undefined) row.duration_type = task.durationType;
+  if (task.workState !== undefined) row.work_state = task.workState;
+  if (task.accumulatedMinutes !== undefined) row.accumulated_minutes = task.accumulatedMinutes;
+  if (task.lastWorkedAt !== undefined) row.last_worked_at = task.lastWorkedAt;
   return row;
 }
 
@@ -454,6 +469,7 @@ export interface Session {
   status: SessionStatus;
   tasksCompleted: number;
   tasksSkipped: number;
+  tasksProgressed: number; // task 28 / migration 003: parked tasks counted here, not completed/skipped
   escapeValveUsed: boolean;
   extended: boolean;
   modelTier: ModelTier | null;
@@ -472,6 +488,7 @@ export function sessionRowToDomain(row: SessionRow): Session {
     status: row.status,
     tasksCompleted: row.tasks_completed ?? 0,
     tasksSkipped: row.tasks_skipped ?? 0,
+    tasksProgressed: row.tasks_progressed ?? 0,
     escapeValveUsed: boolFromRow(row.escape_valve_used, false),
     extended: boolFromRow(row.extended, false),
     modelTier: row.model_tier,
@@ -496,6 +513,7 @@ export function sessionDomainToRow(input: SessionWriteInput): Partial<SessionRow
   if (input.userEnergyEnd !== undefined) row.user_energy_end = input.userEnergyEnd;
   if (input.tasksCompleted !== undefined) row.tasks_completed = input.tasksCompleted;
   if (input.tasksSkipped !== undefined) row.tasks_skipped = input.tasksSkipped;
+  if (input.tasksProgressed !== undefined) row.tasks_progressed = input.tasksProgressed;
   if (input.escapeValveUsed !== undefined) row.escape_valve_used = boolToRow(input.escapeValveUsed);
   if (input.extended !== undefined) row.extended = boolToRow(input.extended);
   if (input.modelTier !== undefined) row.model_tier = input.modelTier;

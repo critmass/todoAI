@@ -132,4 +132,58 @@ describe('completeTask (six-way completion-primitive dispatch)', () => {
   it('throws NotFoundError for a task that does not exist', async () => {
     await expect(completeTask(deps, 9999)).rejects.toBeInstanceOf(NotFoundError);
   });
+
+  describe('cumulative-duration fold (task 28 §2)', () => {
+    it('folds multi-sitting time into exactly ONE actual_duration_history entry equal to the sum', async () => {
+      const id = await makeTask(); // one-off
+      // Five parked sittings, then a final completing episode.
+      for (const m of [10, 20, 5, 15, 30]) await tasks.recordProgressEpisode(id, m); // 80 accumulated
+      const result = await completeTask(deps, id, { episodeMinutes: 20 }); // + 20 = 100 total
+
+      expect(result.task.actualDurationHistory).toEqual([100]); // ONE entry, the sum
+      expect(result.task.averageActualDuration).toBe(100);
+      expect(result.task.accumulatedMinutes).toBe(0); // reset
+      expect(result.task.workState).toBe('none'); // parked state cleared
+      expect(result.task.status).toBe('completed'); // one-off still closes
+    });
+
+    it('averages across completions (an unscheduled task worked in sittings each fold once)', async () => {
+      const id = await makeTask({ type: 'unscheduled' });
+      // First occurrence: 60 min across two sittings.
+      await tasks.recordProgressEpisode(id, 40);
+      await completeTask(deps, id, { episodeMinutes: 20 });
+      // Second occurrence: 30 min in one go.
+      const second = await completeTask(deps, id, { episodeMinutes: 30 });
+
+      expect(second.task.actualDurationHistory).toEqual([60, 30]);
+      expect(second.task.averageActualDuration).toBe(45); // mean of totals, not sittings
+      expect(second.task.status).toBe('active'); // unscheduled stays active
+    });
+
+    it('count folds per increment: each increment records its own multi-sitting total', async () => {
+      const id = await makeTask({ type: 'count', target: 3, progress: 0 });
+      await tasks.recordProgressEpisode(id, 12);
+      const first = await completeTask(deps, id, { episodeMinutes: 3 }); // increment 1: 15 min
+      expect(first.task.actualDurationHistory).toEqual([15]);
+      expect(first.task.accumulatedMinutes).toBe(0);
+
+      await tasks.recordProgressEpisode(id, 20);
+      const second = await completeTask(deps, id, { episodeMinutes: 0 }); // increment 2: 20 min
+      expect(second.task.actualDurationHistory).toEqual([15, 20]);
+    });
+
+    it('omitting episodeMinutes folds only the accumulated time (R7 check-off path)', async () => {
+      const id = await makeTask({ type: 'unscheduled' });
+      await tasks.recordProgressEpisode(id, 45);
+      const result = await completeTask(deps, id); // no opts → episodeMinutes 0
+      expect(result.task.actualDurationHistory).toEqual([45]);
+    });
+
+    it('a zero-work completion adds no history entry (no false 0-minute observation)', async () => {
+      const id = await makeTask(); // never worked
+      const result = await completeTask(deps, id); // no accumulated, no episode
+      expect(result.task.actualDurationHistory).toEqual([]);
+      expect(result.task.averageActualDuration).toBeNull();
+    });
+  });
 });

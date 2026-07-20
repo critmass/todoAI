@@ -191,8 +191,8 @@ describe('filterDependencyBlocked (task 10 U1 — dependency-blocked pre-filter)
       // deterministic pseudo-rng seeded off the iteration so the shuffle actually varies
       let state = seed + 1;
       const rng = () => {
-        state = (state * 1103515245 + 12345) & 0x7fffffff;
-        return state / 0x7fffffff;
+        state = (state * 1103515245 + 12345) % 2147483648;
+        return state / 2147483648;
       };
       const ranked = rankWithContextNovelty(eligible, checkIn, NOW, rng);
       // Only step 1 is ever eligible, so a chain can never be served out of order.

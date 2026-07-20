@@ -578,7 +578,8 @@ export function algorithmWeightRowToDomain(row: AlgorithmWeightRow): AlgorithmWe
 
 /** Fully partial - the learning repository's create() adds the factorName/weightPercentage-
  *  required constraint at its own boundary so this one mapper serves both create and update.
- *  In practice migration 001 seeds all five rows already; update() is the common path. */
+ *  In practice migration 001 seeds all four surviving rows already (a fifth, context_fit, was
+ *  seeded through v2.4 and removed by migration 004); update() is the common path. */
 export type AlgorithmWeightWriteInput = Partial<Omit<AlgorithmWeight, 'id' | 'createdAt'>>;
 
 export function algorithmWeightDomainToRow(

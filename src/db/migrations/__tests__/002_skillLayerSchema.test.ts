@@ -56,9 +56,9 @@ describe('migration 002 - skill layer schema (v2.2 -> v2.3)', () => {
 
     await runMigrations(conn);
 
-    // runMigrations walks the whole list, so the DB lands at the latest version (003 rides along).
-    // The row-preservation assertions below are what this test is really about for 002.
-    expect(await getCurrentSchemaVersion(conn)).toBe('2.4.0');
+    // runMigrations walks the whole list, so the DB lands at the latest version (003 and 004 ride
+    // along). The row-preservation assertions below are what this test is really about for 002.
+    expect(await getCurrentSchemaVersion(conn)).toBe('2.5.0');
 
     expect(conn.raw.prepare('SELECT * FROM tasks WHERE id = 1').get()).toMatchObject({
       title: 'Write report',
@@ -82,8 +82,9 @@ describe('migration 002 - skill layer schema (v2.2 -> v2.3)', () => {
   it('recreates fireable_skills, coaching_priority_queue, and both rebuilt tables\' indexes; leaves triggers untouched', async () => {
     await runMigrations(conn);
 
+    // runMigrations walks past 002 to the latest version; active_tasks_with_neglect is dropped by
+    // 004 (v2.5), so it is correctly absent here even though this test targets 002's changes.
     expect(names(conn.raw, 'view')).toEqual([
-      'active_tasks_with_neglect',
       'coaching_priority_queue',
       'fireable_skills',
       'recent_session_performance',
@@ -241,6 +242,6 @@ describe('migration 002 - skill layer schema (v2.2 -> v2.3)', () => {
   it('is idempotent: running twice does not reapply 002 or throw', async () => {
     await runMigrations(conn);
     await expect(runMigrations(conn)).resolves.toBeUndefined();
-    expect(await getCurrentSchemaVersion(conn)).toBe('2.4.0');
+    expect(await getCurrentSchemaVersion(conn)).toBe('2.5.0');
   });
 });

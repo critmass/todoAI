@@ -48,8 +48,8 @@ describe('runMigrations', () => {
     await runMigrations(conn);
 
     // A fresh DB walks the whole MIGRATIONS list, not just 001 - it should land on the latest
-    // recorded version (003 bumps schema_metadata to 2.4.0), with each migration's additions present.
-    expect(await getCurrentSchemaVersion(conn)).toBe('2.4.0');
+    // recorded version (004 bumps schema_metadata to 2.5.0), with each migration's additions present.
+    expect(await getCurrentSchemaVersion(conn)).toBe('2.5.0');
     expect(tableNames(conn.raw)).toEqual(
       expect.arrayContaining([
         'tasks',
@@ -59,8 +59,8 @@ describe('runMigrations', () => {
         'learning_state',
       ]),
     );
+    // active_tasks_with_neglect is dropped by migration 004 (see its migration comment for why).
     expect(viewNames(conn.raw)).toEqual([
-      'active_tasks_with_neglect',
       'coaching_priority_queue',
       'fireable_skills',
       'recent_session_performance',
@@ -78,8 +78,9 @@ describe('runMigrations', () => {
     const conn = createTestConnection();
     await runMigrations(conn);
 
+    // 5 seeded by 001, then context_fit removed by 004 - see 004's migration comment.
     const weights = conn.raw.prepare('SELECT factor_name FROM algorithm_weights').all();
-    expect(weights).toHaveLength(5);
+    expect(weights).toHaveLength(4);
 
     const retention = conn.raw.prepare('SELECT table_name FROM data_retention').all();
     expect(retention.length).toBeGreaterThan(0);
@@ -92,7 +93,7 @@ describe('runMigrations', () => {
     await runMigrations(conn);
     await expect(runMigrations(conn)).resolves.toBeUndefined();
     const weights = conn.raw.prepare('SELECT factor_name FROM algorithm_weights').all();
-    expect(weights).toHaveLength(5); // not re-seeded/duplicated
+    expect(weights).toHaveLength(4); // not re-seeded/duplicated
     conn.close();
   });
 

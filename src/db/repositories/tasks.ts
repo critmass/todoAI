@@ -59,11 +59,12 @@ export function neglectAccrualGapDays(recurrence: Recurrence | undefined): numbe
 
 /** A task from the active pool, annotated with its neglect standing (spec §5.2).
  *
- *  Deliberately NOT sourced from the `active_tasks_with_neglect` view: that view historically
- *  called SQLite's POWER(), and op-sqlite's Android build compiles SQLite without
- *  SQLITE_ENABLE_MATH_FUNCTIONS (see android/build.gradle's defaultSqliteFlags - FTS5 and RTREE
- *  are explicitly enabled there; math functions are not), so POWER() was unavailable on-device.
- *  weeksNeglected uses the same pure-arithmetic formula as the view. `neglectMultiplier` here is
+ *  Deliberately NOT sourced from a SQL view. An `active_tasks_with_neglect` view existed through
+ *  schema v2.4 but is DROPPED as of migration 004 (v2.5) — it called SQLite's POWER(), and
+ *  op-sqlite's Android build compiles SQLite without SQLITE_ENABLE_MATH_FUNCTIONS (see
+ *  android/build.gradle's defaultSqliteFlags - FTS5 and RTREE are explicitly enabled there; math
+ *  functions are not), so POWER() was unavailable on-device and the view could never actually
+ *  run. weeksNeglected uses the same pure-arithmetic formula the view used to. `neglectMultiplier` here is
  *  the raw weeksNeglected value (task 10, R1: the curve is LINEAR, not squared — see
  *  `../../scoring/score.ts`'s `neglectCurve`, the actual swappable seam scoring routes through).
  *  Still uncapped by design (constraint: never cap this - spec §5.2 fail-safe).

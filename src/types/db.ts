@@ -36,12 +36,9 @@ export type CompletionStatus = 'completed' | 'skipped' | 'ended_early' | 'abando
 export type SessionType = 'quick' | 'moderate' | 'deep_focus';
 export type SessionStatus = 'completed' | 'abandoned';
 export type ModelTier = '8B' | '4B' | '1.7B';
-export type AlgorithmFactorName =
-  | 'importance'
-  | 'urgency'
-  | 'energy_match'
-  | 'context_fit'
-  | 'historical_success';
+// context_fit removed by migration 004 (v2.5): R3 dropped it from the weighted sum in favor of
+// a hard pre-filter (src/scoring/filter.ts), and the table CHECK no longer accepts it either.
+export type AlgorithmFactorName = 'importance' | 'urgency' | 'energy_match' | 'historical_success';
 export type PatternType = 'hourly' | 'daily' | 'weekly' | 'monthly';
 export type SkillScope = 'coaching' | 'planning' | 'both';
 export type ConditionOp = 'eq' | 'neq' | 'in' | 'gte' | 'lte';
@@ -341,10 +338,11 @@ export interface InteractionExternalDependencyRow {
 // =====================================================================
 
 /**
- * active_tasks_with_neglect is NOT queried directly — its neglect_multiplier column
- * depends on SQLite's POWER(), which op-sqlite's Android build does not compile in
- * (see repositories/tasks.ts). The repository replicates weeks_neglected in SQL and
- * computes neglect_multiplier in TypeScript instead.
+ * There is no row type here for active_tasks_with_neglect: migration 004 (v2.5) dropped that
+ * view outright (it computed the retired weeks^2 curve via POWER(), which op-sqlite's Android
+ * build does not compile in, and had been dead code since task 10's linear curve landed). See
+ * repositories/tasks.ts's TaskWithNeglect doc comment — weeksNeglected/neglectMultiplier are
+ * computed in TypeScript instead, and always were even before the view was removed.
  */
 export interface CoachingPriorityQueueRow extends CoachingQueueRow {
   related_task_ids: string | null;

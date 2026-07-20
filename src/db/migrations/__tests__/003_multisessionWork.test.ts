@@ -40,7 +40,7 @@ describe('migration 003 - multi-session work (v2.3 -> v2.4)', () => {
     });
     afterEach(() => conn.close());
 
-    it('lands at 2.4.0 with the new task columns and their defaults', () => {
+    it('creates the new task columns with their defaults', () => {
       conn.raw.prepare('INSERT INTO tasks (title, estimated_duration) VALUES (?, ?)').run('T', 30);
       const row = conn.raw.prepare('SELECT * FROM tasks WHERE id = 1').get() as any;
       expect(row.duration_type).toBe('estimate');
@@ -102,10 +102,12 @@ describe('migration 003 - multi-session work (v2.3 -> v2.4)', () => {
       );
     });
 
-    it('leaves the five schema views intact (none depends on interactions)', () => {
+    it('leaves the schema views intact (none depends on interactions)', () => {
+      // runMigrations walks past 003 to the latest version; active_tasks_with_neglect is dropped
+      // by 004 (v2.5, unrelated to interactions), so it is correctly absent here even though this
+      // test targets 003's changes.
       expect(names(conn.raw, 'view')).toEqual(
         expect.arrayContaining([
-          'active_tasks_with_neglect',
           'tasks_due_soon',
           'recent_session_performance',
           'coaching_priority_queue',
@@ -136,7 +138,8 @@ describe('migration 003 - multi-session work (v2.3 -> v2.4)', () => {
       conn.raw.prepare('DELETE FROM interactions WHERE id = 2').run();
 
       await runMigrations(conn);
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.4.0');
+      // runMigrations walks past 003 to the latest version (004 rides along).
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.5.0');
 
       const rows = conn.raw.prepare('SELECT id, interaction_type FROM interactions ORDER BY id').all();
       expect(rows).toEqual([{ id: 1, interaction_type: 'task_completion' }]);

@@ -16,12 +16,12 @@ describe('learningRepository', () => {
     conn.close();
   });
 
-  it('algorithm_weights are seeded by migration 001 and readable/updatable', async () => {
+  it('algorithm_weights are seeded by migration 001 and reconciled to 31/23/23/23 by migration 004', async () => {
     const all = await repo.listAlgorithmWeights();
-    expect(all).toHaveLength(5);
+    expect(all).toHaveLength(4); // context_fit removed by migration 004
 
     const importance = await repo.getAlgorithmWeightByFactor('importance');
-    expect(importance?.weightPercentage).toBe(25);
+    expect(importance?.weightPercentage).toBe(31);
 
     const updated = await repo.updateAlgorithmWeight('importance', {
       weightPercentage: 30,

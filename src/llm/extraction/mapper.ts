@@ -52,6 +52,7 @@ export function extractionToTaskWrite(valid: TaskExtractionV1, todayISO: string)
     description: valid.description,
     estimatedDuration: valid.estimated_duration_minutes,
     durationSource: valid.duration_from_user ? 'user' : 'model_guess',
+    durationType: valid.duration_type, // task 28 §3.1; for 'floor', estimatedDuration is the minimum
     nextDueAt: resolveDue(valid.due, todayISO),
     contextTags: valid.context_tags,
     toolRequirements: valid.tool_requirements,

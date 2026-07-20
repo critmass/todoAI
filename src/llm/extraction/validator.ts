@@ -53,6 +53,7 @@ export const taskExtractionSchema = z.strictObject({
   description: z.string().min(1).max(200).nullable(),
   estimated_duration_minutes: z.number().int().min(1).max(1440),
   duration_from_user: z.boolean(),
+  duration_type: z.enum(['estimate', 'floor']), // task 28 §3.1: 'floor' = open-ended (min block size)
   due: dueSpecSchema,
   context_tags: z.array(z.string().min(1).max(20)).min(0).max(5),
   tool_requirements: z.array(z.string().min(1).max(20)).min(0).max(5),

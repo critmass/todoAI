@@ -50,6 +50,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 10,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: ['home'],
     tool_requirements: [],
@@ -62,6 +63,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 60,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -74,6 +76,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 60,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -86,6 +89,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 30,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -98,6 +102,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 30,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -110,6 +115,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 60,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -122,6 +128,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 2,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -134,6 +141,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 30,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -151,6 +159,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 45,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -163,6 +172,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 15,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: { kind: 'weekday', day: 'friday', which: 'this' },
     context_tags: ['phone'],
     tool_requirements: [],
@@ -175,6 +185,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 20,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: { kind: 'in_days', days: 14 },
     context_tags: ['computer'],
     tool_requirements: [],
@@ -187,6 +198,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 60,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: { kind: 'on_date', date: '2026-12-03' },
     context_tags: [],
     tool_requirements: [],
@@ -199,6 +211,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 10,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: ['phone'],
     tool_requirements: [],
@@ -211,6 +224,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 45,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: ['computer'],
     tool_requirements: [],
@@ -223,6 +237,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 60,
     duration_from_user: true,
+    duration_type: 'floor', // "at least an hour" open-ended work — the mokRadio case (task 28 §3.1)
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -235,6 +250,7 @@ const RAW_EXTRACTIONS: Record<string, Record<string, unknown>> = {
     description: null,
     estimated_duration_minutes: 120,
     duration_from_user: true,
+    duration_type: 'estimate',
     due: null,
     context_tags: ['home'],
     tool_requirements: [],
@@ -265,6 +281,24 @@ describe('extractionToTaskWrite over the seed fixtures', () => {
     const { taskWrite } = extractionToTaskWrite(valid, fixture.today);
     expect(taskWrite.importance).toBe(500);
     expect(taskWrite.energyRequirement).toBe(3);
+  });
+
+  it('maps duration_type through: floor for open-ended work, estimate otherwise (task 28 §3.1)', () => {
+    const floorFixture = fixtureById('floor-duration-01');
+    const floor = extractionToTaskWrite(
+      validate(RAW_EXTRACTIONS['floor-duration-01'], floorFixture.today),
+      floorFixture.today,
+    );
+    expect(floor.taskWrite.durationType).toBe('floor');
+    // a floor task keeps its estimated_duration — it holds the floor value, not a lie
+    expect(floor.taskWrite.estimatedDuration).toBe(60);
+
+    const estFixture = fixtureById('oneoff-null-01');
+    const est = extractionToTaskWrite(
+      validate(RAW_EXTRACTIONS['oneoff-null-01'], estFixture.today),
+      estFixture.today,
+    );
+    expect(est.taskWrite.durationType).toBe('estimate');
   });
 
   it('a stated energy/importance projects through scales.ts (not the raw user-scale value)', () => {

@@ -104,6 +104,7 @@ describe('runConstrained — with a real task-5 validator', () => {
     description: null,
     estimated_duration_minutes: 5,
     duration_from_user: true,
+    duration_type: 'estimate',
     due: null,
     context_tags: ['home'],
     tool_requirements: [],

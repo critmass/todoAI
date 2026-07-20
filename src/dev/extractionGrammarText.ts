@@ -23,7 +23,7 @@ export const TASK_EXTRACTION_V1_GBNF = `# task_extraction.v1.gbnf
 # identifiers are renamed to camelCase. (Q1b's earlier "rule name must match its own JSON key"
 # theory is retracted - it was a confound; see the Q1c report.)
 
-root ::= "{\\"title\\":" title ",\\"description\\":" description ",\\"estimated_duration_minutes\\":" estimatedDurationMinutes ",\\"duration_from_user\\":" durationFromUser ",\\"due\\":" due ",\\"context_tags\\":" contextTags ",\\"tool_requirements\\":" toolRequirements ",\\"energy\\":" energy ",\\"importance_user\\":" importanceUser ",\\"recurrence\\":" recurrence "}"
+root ::= "{\\"title\\":" title ",\\"description\\":" description ",\\"estimated_duration_minutes\\":" estimatedDurationMinutes ",\\"duration_from_user\\":" durationFromUser ",\\"duration_type\\":" durationType ",\\"due\\":" due ",\\"context_tags\\":" contextTags ",\\"tool_requirements\\":" toolRequirements ",\\"energy\\":" energy ",\\"importance_user\\":" importanceUser ",\\"recurrence\\":" recurrence "}"
 
 # --- title, description ---
 title ::= "\\"" jchar{1,80} "\\""
@@ -34,6 +34,9 @@ description ::= "null" | "\\"" jchar{1,200} "\\""
 # without enumeration. The zod validator enforces the exact [1,1440] range (D10).
 estimatedDurationMinutes ::= [1-9] [0-9]{0,3}
 durationFromUser ::= "true" | "false"
+# duration_type (task 28 §3.1): 'floor' = open-ended work; estimated_duration holds the minimum.
+# Key keeps its underscore (JSON key, not a rule name); the rule name durationType has none (Q1c).
+durationType ::= "\\"estimate\\"" | "\\"floor\\""
 
 # --- due (DueSpec union, D5 - model transcribes, code resolves via due/dueSpec.ts) ---
 due ::= "null" | dueOnDate | dueInDays | dueWeekday

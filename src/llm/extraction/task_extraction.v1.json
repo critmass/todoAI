@@ -10,6 +10,7 @@
     "description",
     "estimated_duration_minutes",
     "duration_from_user",
+    "duration_type",
     "due",
     "context_tags",
     "tool_requirements",
@@ -35,6 +36,9 @@
     },
     "duration_from_user": {
       "type": "boolean"
+    },
+    "duration_type": {
+      "enum": ["estimate", "floor"]
     },
     "due": {
       "$ref": "#/$defs/DueSpec"

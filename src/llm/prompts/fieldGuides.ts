@@ -44,6 +44,7 @@ export const EXTRACTION_FIELD_GUIDE = [
   '- description: extra detail the user gave, or null.',
   '- estimated_duration_minutes: a REALISTIC estimate of how long THIS task itself takes. This is the ONLY field you may guess — think about the actual work (taking out the trash is 5, cleaning a garage is 120). Never emit a placeholder value.',
   '- duration_from_user: did the USER say how long it takes? Only true if their words contain a length ("an hour", "at least an hour", "20 minutes"). If the length is your own estimate → false. Most tasks → false.',
+  '- duration_type: "floor" only when the work is open-ended with no real ceiling ("at least an hour", "a couple hours minimum", "work on it until done") — then estimated_duration_minutes is the MINIMUM. Otherwise "estimate". Most tasks → "estimate".',
   '- due: null unless the user gave a deadline; else {"kind":"on_date","date":"YYYY-MM-DD"} | {"kind":"in_days","days":N} | {"kind":"weekday","day":"friday","which":"this"|"next"}. Transcribe what was said; do not do calendar math. No deadline mentioned → null.',
   '- context_tags: where/how THIS task is actually done. Pick only tags that genuinely apply — usually 0–2. Never list every tag; taking out the trash is ["home"], not ["home","office","phone"]. Each element is ONE plain lowercase phrase — never punctuation, fragments, or non-English text. Nothing clearly fits → [].',
   '- tool_requirements: 0–5 real things needed; same element rules. Usually [].',

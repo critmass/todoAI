@@ -9,6 +9,7 @@ function baseValid() {
     description: null,
     estimated_duration_minutes: 10,
     duration_from_user: false,
+    duration_type: 'estimate',
     due: null,
     context_tags: [],
     tool_requirements: [],
@@ -21,6 +22,16 @@ function baseValid() {
 describe('validate - accepts well-formed objects', () => {
   it('accepts the minimal all-null-where-optional object', () => {
     expect(() => validate(baseValid(), TODAY)).not.toThrow();
+  });
+
+  it('accepts duration_type "floor" for open-ended work (task 28 §3.1)', () => {
+    expect(() => validate({ ...baseValid(), duration_type: 'floor' }, TODAY)).not.toThrow();
+  });
+
+  it('rejects a duration_type outside the enum', () => {
+    expect(() => validate({ ...baseValid(), duration_type: 'guess' }, TODAY)).toThrow(
+      LlmOutputValidationError,
+    );
   });
 
   it('accepts every field populated, including a DueSpec and each recurrence type', () => {

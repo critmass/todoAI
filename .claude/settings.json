@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(adb -s R5CWC240D5H logcat *)"
+      "Bash(adb -s R5CWC240D5H logcat *)",
+      "Bash(adb exec-out screencap *)",
+      "Bash(npx tsc *)",
+      "Bash(adb logcat *)",
+      "Bash(npx jest *)",
+      "Bash(adb -s R5CWC240D5H exec-out screencap *)",
+      "Bash(adb devices *)",
+      "Bash(adb devices)"
     ]
   }
 }

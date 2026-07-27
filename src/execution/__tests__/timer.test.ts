@@ -17,12 +17,11 @@ import {
 } from '../timer';
 
 // The planner produces the block kind, the runtime table stores it, and types/ may not import
-// from planning/ — so the two unions are declared separately. These two assignments are the
-// compile-time proof that they have not drifted apart.
-const _plannerKindIsStorable: EpisodeBlockKind = 'openBlock' as BlockKind;
-const _storedKindIsPlannable: BlockKind = 'openBlock' as EpisodeBlockKind;
-void _plannerKindIsStorable;
-void _storedKindIsPlannable;
+// from planning/ — so the two unions are declared separately. This is the compile-time proof
+// that they have not drifted apart: if either gains a member, `blockKindsAgree` stops typing.
+type Extends<A, B> = A extends B ? true : false;
+type BlockKindsAgree = Extends<EpisodeBlockKind, BlockKind> & Extends<BlockKind, EpisodeBlockKind>;
+const blockKindsAgree: BlockKindsAgree = true;
 
 const T0 = Date.UTC(2026, 6, 26, 9, 0, 0);
 const min = (n: number) => n * MS_PER_MINUTE;
@@ -76,6 +75,12 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     ...overrides,
   };
 }
+
+describe('the block-kind vocabulary', () => {
+  it("keeps the planner's BlockKind and the stored EpisodeBlockKind identical", () => {
+    expect(blockKindsAgree).toBe(true);
+  });
+});
 
 describe('minutesFromMs', () => {
   it('rounds to the nearest minute so every consumer reports the same number', () => {

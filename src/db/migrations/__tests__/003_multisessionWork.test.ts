@@ -138,8 +138,8 @@ describe('migration 003 - multi-session work (v2.3 -> v2.4)', () => {
       conn.raw.prepare('DELETE FROM interactions WHERE id = 2').run();
 
       await runMigrations(conn);
-      // runMigrations walks past 003 to the latest version (004 rides along).
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.5.0');
+      // runMigrations walks past 003 to the latest version (004 and 005 ride along).
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.6.0');
 
       const rows = conn.raw.prepare('SELECT id, interaction_type FROM interactions ORDER BY id').all();
       expect(rows).toEqual([{ id: 1, interaction_type: 'task_completion' }]);

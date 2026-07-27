@@ -42,9 +42,11 @@ describe('migration 004 - algorithm_weights reconciliation (v2.4 -> v2.5)', () =
     });
     afterEach(() => conn.close());
 
-    it('lands at 2.5.0 with algorithm_weights seeded 31/23/23/23 and no context_fit', () => {
+    it('applies 004 with algorithm_weights seeded 31/23/23/23 and no context_fit', () => {
+      // A fresh install walks the whole list, so the recorded version is the LATEST (005 rides
+      // along), not 004's own 2.5.0. 004's effects are what this test asserts.
       expect(conn.raw.prepare('SELECT value FROM schema_metadata WHERE key = ?').get('version')).toEqual({
-        value: '2.5.0',
+        value: '2.6.0',
       });
       const rows = conn.raw
         .prepare('SELECT factor_name, weight_percentage FROM algorithm_weights ORDER BY factor_name')
@@ -165,7 +167,7 @@ describe('migration 004 - algorithm_weights reconciliation (v2.4 -> v2.5)', () =
     it('is idempotent: running twice does not reapply 004 or throw', async () => {
       await runMigrations(conn);
       await expect(runMigrations(conn)).resolves.toBeUndefined();
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.5.0');
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.6.0');
       const all = conn.raw.prepare('SELECT factor_name FROM algorithm_weights').all();
       expect(all).toHaveLength(4);
     });

@@ -48,8 +48,8 @@ describe('runMigrations', () => {
     await runMigrations(conn);
 
     // A fresh DB walks the whole MIGRATIONS list, not just 001 - it should land on the latest
-    // recorded version (004 bumps schema_metadata to 2.5.0), with each migration's additions present.
-    expect(await getCurrentSchemaVersion(conn)).toBe('2.5.0');
+    // recorded version (005 bumps schema_metadata to 2.6.0), with each migration's additions present.
+    expect(await getCurrentSchemaVersion(conn)).toBe('2.6.0');
     expect(tableNames(conn.raw)).toEqual(
       expect.arrayContaining([
         'tasks',
@@ -57,6 +57,9 @@ describe('runMigrations', () => {
         'sessions',
         'schema_metadata',
         'learning_state',
+        'session_runtime',
+        'active_episode',
+        'session_task_extension',
       ]),
     );
     // active_tasks_with_neglect is dropped by migration 004 (see its migration comment for why).

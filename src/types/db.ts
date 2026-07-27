@@ -34,6 +34,11 @@ export type InteractionType =
   | 'task_progress'; // task 28 §1.1: the park episode's interaction row (migration 003)
 export type CompletionStatus = 'completed' | 'skipped' | 'ended_early' | 'abandoned' | 'progress'; // 'progress' = parked (task 28, migration 003)
 export type SessionType = 'quick' | 'moderate' | 'deep_focus';
+/** Which timer face the open episode runs (migration 005's active_episode.block_kind CHECK).
+ *  Structurally identical to planning's `BlockKind` (src/planning/agenda.ts) and asserted equal
+ *  to it at compile time in src/execution/ - the planner produces it, the timer stores it, and
+ *  types/ must not import from planning/. */
+export type EpisodeBlockKind = 'countdown' | 'openBlock';
 export type SessionStatus = 'completed' | 'abandoned';
 export type ModelTier = '8B' | '4B' | '1.7B';
 // context_fit removed by migration 004 (v2.5): R3 dropped it from the weighted sum in favor of
@@ -213,6 +218,49 @@ export interface SessionRow {
   model_tier: ModelTier | null;
   started_at: string | null;
   completed_at: string | null;
+}
+
+// ---------------------------------------------------------------------
+// Session runtime (migration 005, task 13). All *_at_ms columns are epoch
+// MILLISECONDS, not DATETIME text - see 005_session_runtime.sql's header for why this one
+// deviation from the schema's house style is deliberate and confined to these three tables.
+// ---------------------------------------------------------------------
+
+/** The movable planned end of a currently-running session (task 28 design §4.1.2). One row per
+ *  running session; deleted when the session closes. */
+export interface SessionRuntimeRow {
+  session_id: string;
+  planned_end_at_ms: number;
+  updated_at: string | null;
+}
+
+/** The OPEN episode - zero or one row, ever (`CHECK (id = 1)`). A row that survives into the next
+ *  launch is precisely task 28 design §1.4's crash signal: a stored start + pause ledger with no
+ *  recorded outcome. `paused_at_ms` non-null means the timer is paused right now. */
+export interface ActiveEpisodeRow {
+  id: number;
+  session_id: string;
+  task_id: number;
+  block_kind: EpisodeBlockKind;
+  planned_minutes: number;
+  started_at_ms: number;
+  block_end_at_ms: number;
+  paused_at_ms: number | null;
+  paused_ms: number;
+  pause_count: number;
+  hyperfocus_quanta: number;
+  long_extend_enqueued: SqliteBoolean;
+}
+
+/** The `+5 minutes` ledger at the `repeated_extension` trigger's own grain: within one session,
+ *  on one task (task 28 amendment §3). Outlives the episodes it spans - a task parked and resumed
+ *  in the same session keeps accumulating presses. */
+export interface SessionTaskExtensionRow {
+  session_id: string;
+  task_id: number;
+  presses: number;
+  minutes: number;
+  coaching_enqueued: SqliteBoolean;
 }
 
 export interface AlgorithmWeightRow {

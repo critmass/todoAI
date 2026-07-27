@@ -2,6 +2,7 @@ import { createTestConnection, type TestSqliteConnection } from '../../testUtils
 import { runMigrations } from '../../migrations';
 import { createInteractionsRepository, type InteractionsRepository } from '../interactions';
 import { createSessionsRepository } from '../sessions';
+import { createTasksRepository } from '../tasks';
 
 describe('interactionsRepository', () => {
   let conn: TestSqliteConnection;
@@ -58,6 +59,24 @@ describe('interactionsRepository', () => {
     const forSession = await repo.listBySession('sess-1');
     expect(forSession).toHaveLength(2);
     expect(forSession.every((i) => i.sessionId === 'sess-1')).toBe(true);
+  });
+
+  it('linkTask records which task an episode row was about (task 13)', async () => {
+    const tasks = createTasksRepository(conn);
+    const task = await tasks.create({ title: 'Mix track', estimatedDuration: 60 });
+    const episode = await repo.create({
+      interactionType: 'task_progress',
+      completionStatus: 'progress',
+      durationMinutes: 25,
+    });
+
+    const link = await repo.linkTask(episode.id, task.id);
+    expect(link).toMatchObject({ interactionId: episode.id, taskId: task.id });
+
+    const rows = conn.raw
+      .prepare('SELECT task_id FROM interaction_tasks WHERE interaction_id = ?')
+      .all(episode.id);
+    expect(rows).toEqual([{ task_id: task.id }]);
   });
 
   it('defaults JSON array fields to [] and learningData to null when absent', async () => {

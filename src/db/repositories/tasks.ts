@@ -203,6 +203,38 @@ export function createTasksRepository(db: SqliteConnection) {
     return updated;
   }
 
+  /** The SKIP primitive (task 13; the counterpart the park primitive above must never be confused
+   *  with). The user was served this task and declined it: `skip_count` goes up and the optional
+   *  one-word reason chip (spec §7.2) is appended to `skip_reasons`. Nothing else moves -
+   *  `accumulated_minutes` and `work_state` are untouched, so skipping an in-progress task RETAINS
+   *  its time (task 28 design §1.3's transition table), and `success_rate` is not recomputed here
+   *  (no writer for it exists yet anywhere in the codebase - flagged, not silently invented).
+   *
+   *  This exists as a repository primitive rather than a `tasks.update` call because
+   *  TaskWriteInput deliberately omits `skipCount`: counters are incremented, never set. Keeping
+   *  the two outcomes on separate primitives is the structural half of "a park is never a skip"
+   *  (constraint #11) - there is no code path where one can reach the other's columns. */
+  async function recordSkipEpisode(id: number, reason?: string): Promise<Task> {
+    const existing = await getById(id);
+    if (!existing) {
+      throw new NotFoundError('task', id);
+    }
+    if (reason === undefined) {
+      await db.execute('UPDATE tasks SET skip_count = skip_count + 1 WHERE id = ?', [id]);
+    } else {
+      const reasons = JSON.stringify([...existing.skipReasons, reason]);
+      await db.execute(
+        'UPDATE tasks SET skip_count = skip_count + 1, skip_reasons = ? WHERE id = ?',
+        [reasons, id],
+      );
+    }
+    const updated = await getById(id);
+    if (!updated) {
+      throw new NotFoundError('task', id);
+    }
+    return updated;
+  }
+
   async function listActive(): Promise<Task[]> {
     const result = await db.execute("SELECT * FROM tasks WHERE status = 'active' ORDER BY id");
     return (result.rows as unknown as TaskRow[]).map(taskRowToDomain);
@@ -275,6 +307,7 @@ export function createTasksRepository(db: SqliteConnection) {
     softDelete,
     recordUnscheduledCompletion,
     recordProgressEpisode,
+    recordSkipEpisode,
     listActive,
     listActiveByNeglect,
   };

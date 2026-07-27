@@ -2,6 +2,7 @@
 // and energy (1-5) values are carried through unconverted — see scales.ts for the user-facing
 // projection; that conversion happens at the input/display boundary, not here.
 import type {
+  ActiveEpisodeRow,
   AlgorithmFactorName,
   AlgorithmWeightRow,
   BackupLogRow,
@@ -21,6 +22,7 @@ import type {
   DurationSource,
   DurationType,
   EnergyPatternRow,
+  EpisodeBlockKind,
   EvidenceType,
   ExternalDependencyRow,
   ExternalDependencyStatus,
@@ -34,7 +36,9 @@ import type {
   RecentSessionPerformanceRow,
   RetentionPolicy,
   SessionRow,
+  SessionRuntimeRow,
   SessionStatus,
+  SessionTaskExtensionRow,
   SessionType,
   SkillConditionRow,
   SkillEvidenceRow,
@@ -518,6 +522,86 @@ export function sessionDomainToRow(input: SessionWriteInput): Partial<SessionRow
   if (input.extended !== undefined) row.extended = boolToRow(input.extended);
   if (input.modelTier !== undefined) row.model_tier = input.modelTier;
   return row;
+}
+
+// =====================================================================
+// Session runtime (migration 005, task 13) - the live timer state that must survive a process
+// kill. Epoch-millisecond fields keep the `Ms` suffix in the domain shape too: they are the same
+// unit the engine's injected clock computes in, and hiding that behind a bare name would invite
+// someone to pass a DATETIME string. See 005_session_runtime.sql for the format decision.
+// =====================================================================
+
+export interface SessionRuntime {
+  sessionId: string;
+  /** The session's planned end. MOVABLE - a hyperfocus extend that crosses it moves it (task 28
+   *  design §4.1.2), and a `+5` moves it only when the block end itself passes it. */
+  plannedEndAtMs: number;
+  updatedAt: string | null;
+}
+
+export function sessionRuntimeRowToDomain(row: SessionRuntimeRow): SessionRuntime {
+  return {
+    sessionId: row.session_id,
+    plannedEndAtMs: row.planned_end_at_ms,
+    updatedAt: row.updated_at,
+  };
+}
+
+export interface ActiveEpisode {
+  sessionId: string;
+  taskId: number;
+  blockKind: EpisodeBlockKind;
+  /** The ORIGINAL block size. Never mutated by an extension - the guardrail's "beyond 2x the
+   *  original block" test needs a fixed reference after blockEndAtMs has moved. */
+  plannedMinutes: number;
+  startedAtMs: number;
+  /** Mutated by both extension paths and by resuming from a pause (a pause pushes the end out so
+   *  the interruption does not eat the block). */
+  blockEndAtMs: number;
+  /** Non-null iff the timer is paused right now, recording when the pause began. */
+  pausedAtMs: number | null;
+  /** Total CLOSED pause time. The open pause (if any) is not included here. */
+  pausedMs: number;
+  pauseCount: number;
+  /** "Keep going" presses only. `+5` never counts here - the guardrail must not reach it. */
+  hyperfocusQuanta: number;
+  longExtendEnqueued: boolean;
+}
+
+export function activeEpisodeRowToDomain(row: ActiveEpisodeRow): ActiveEpisode {
+  return {
+    sessionId: row.session_id,
+    taskId: row.task_id,
+    blockKind: row.block_kind,
+    plannedMinutes: row.planned_minutes,
+    startedAtMs: row.started_at_ms,
+    blockEndAtMs: row.block_end_at_ms,
+    pausedAtMs: row.paused_at_ms,
+    pausedMs: row.paused_ms,
+    pauseCount: row.pause_count,
+    hyperfocusQuanta: row.hyperfocus_quanta,
+    longExtendEnqueued: boolFromRow(row.long_extend_enqueued, false),
+  };
+}
+
+export interface SessionTaskExtension {
+  sessionId: string;
+  taskId: number;
+  presses: number;
+  minutes: number;
+  /** Set once the `repeated_extension` row has been enqueued for this (session, task) - the
+   *  "one row per task per session" deduplication (task 28 amendment §3). */
+  coachingEnqueued: boolean;
+}
+
+export function sessionTaskExtensionRowToDomain(row: SessionTaskExtensionRow): SessionTaskExtension {
+  return {
+    sessionId: row.session_id,
+    taskId: row.task_id,
+    presses: row.presses,
+    minutes: row.minutes,
+    coachingEnqueued: boolFromRow(row.coaching_enqueued, false),
+  };
 }
 
 /** Aggregated stats from the recent_session_performance view (last 30 days, grouped by

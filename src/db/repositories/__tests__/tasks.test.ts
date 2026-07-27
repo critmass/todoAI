@@ -130,6 +130,41 @@ describe('tasksRepository', () => {
     expect(afterSecond.successRate).toBe(0);
   });
 
+  it('recordSkipEpisode increments skip_count and appends the reason chip (task 13)', async () => {
+    const created = await repo.create({ title: 'Email inbox', estimatedDuration: 20 });
+    expect(created.skipCount).toBe(0);
+
+    const first = await repo.recordSkipEpisode(created.id);
+    expect(first.skipCount).toBe(1);
+    expect(first.skipReasons).toEqual([]); // the chip is optional
+
+    const second = await repo.recordSkipEpisode(created.id, 'too boring');
+    expect(second.skipCount).toBe(2);
+    expect(second.skipReasons).toEqual(['too boring']);
+  });
+
+  it('recordSkipEpisode RETAINS an in-progress task’s accumulated time (design §1.3)', async () => {
+    const created = await repo.create({ title: 'Big project', estimatedDuration: 120 });
+    await repo.recordProgressEpisode(created.id, 40);
+
+    const skipped = await repo.recordSkipEpisode(created.id);
+    expect(skipped.skipCount).toBe(1);
+    expect(skipped.workState).toBe('in_progress'); // skipping does not un-park
+    expect(skipped.accumulatedMinutes).toBe(40); // and does not discard the work
+  });
+
+  it('the park and skip primitives cannot reach each other’s columns (constraint #11)', async () => {
+    const created = await repo.create({ title: 'Mix track', estimatedDuration: 60 });
+
+    const parked = await repo.recordProgressEpisode(created.id, 30);
+    expect(parked.skipCount).toBe(0);
+    expect(parked.skipReasons).toEqual([]);
+
+    const skipped = await repo.recordSkipEpisode(created.id, 'not now');
+    expect(skipped.accumulatedMinutes).toBe(30); // unchanged by the skip
+    expect(skipped.lastWorkedAt).toBe(parked.lastWorkedAt); // skip is not attention
+  });
+
   it('listActive only returns active tasks', async () => {
     const a = await repo.create({ title: 'A', estimatedDuration: 10 });
     const b = await repo.create({ title: 'B', estimatedDuration: 10 });

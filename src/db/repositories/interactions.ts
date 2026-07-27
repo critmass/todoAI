@@ -3,10 +3,12 @@ import { NotFoundError } from '../errors';
 import {
   interactionDomainToRow,
   interactionRowToDomain,
+  interactionTaskRowToDomain,
   type Interaction,
+  type InteractionTaskLink,
   type InteractionWriteInput,
 } from '../../types/domain';
-import type { InteractionRow, InteractionType } from '../../types/db';
+import type { InteractionRow, InteractionTaskRow, InteractionType } from '../../types/db';
 
 export type CreateInteractionInput = InteractionWriteInput & { interactionType: InteractionType };
 
@@ -53,6 +55,23 @@ export function createInteractionsRepository(db: SqliteConnection) {
     return updated;
   }
 
+  /** Links an interaction to the task it was about, via interaction_tasks. Episode rows (task 13)
+   *  need this: `interaction_type='task_completion'` alone does not say WHICH task was completed,
+   *  and per-episode history is the sitting-level data the fold deliberately does not keep
+   *  (task 28 design §2.1: "future learning that wants sitting-level data reads interactions"). */
+  async function linkTask(interactionId: number, taskId: number): Promise<InteractionTaskLink> {
+    const result = await db.execute(
+      'INSERT INTO interaction_tasks (interaction_id, task_id) VALUES (?, ?)',
+      [interactionId, taskId],
+    );
+    const id = result.insertId;
+    if (id == null) {
+      throw new Error('interactionsRepository.linkTask: insert did not return an id');
+    }
+    const linkResult = await db.execute('SELECT * FROM interaction_tasks WHERE id = ?', [id]);
+    return interactionTaskRowToDomain(linkResult.rows[0] as unknown as InteractionTaskRow);
+  }
+
   async function listBySession(sessionId: string): Promise<Interaction[]> {
     const result = await db.execute(
       'SELECT * FROM interactions WHERE session_id = ? ORDER BY timestamp',
@@ -61,7 +80,7 @@ export function createInteractionsRepository(db: SqliteConnection) {
     return (result.rows as unknown as InteractionRow[]).map(interactionRowToDomain);
   }
 
-  return { getById, create, update, listBySession };
+  return { getById, create, update, linkTask, listBySession };
 }
 
 export type InteractionsRepository = ReturnType<typeof createInteractionsRepository>;

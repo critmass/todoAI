@@ -28,6 +28,9 @@ import Task7PromptScreen from './src/dev/Task7PromptScreen';
 // Phase B: Task 12 on-device — the DB de-risk spike, the three triggers, and real dispatch
 // through real repositories. See src/dev/Task12DeviceScreen.tsx.
 import Task12DeviceScreen from './src/dev/Task12DeviceScreen';
+// Phase B: Task 13 on-device — the timer engine, the episode lifecycle, and the force-kill
+// recovery path (docs/briefs/timer_crash_recovery_task_13.md §5). See src/dev/Task13DeviceScreen.tsx.
+import Task13DeviceScreen from './src/dev/Task13DeviceScreen';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -41,7 +44,12 @@ function App() {
 }
 
 function AppContent() {
-  const [screen, setScreen] = useState<'task12' | 'task7' | 'task6' | 'q1' | 'dateStr' | 'ruleName'>('task12');
+  // Defaults to task13: the crash-recovery pass needs the app to relaunch STRAIGHT into the
+  // harness after `adb shell am force-stop`, with no tap in between that could be mistaken for
+  // the thing under test.
+  const [screen, setScreen] = useState<
+    'task13' | 'task12' | 'task7' | 'task6' | 'q1' | 'dateStr' | 'ruleName'
+  >('task13');
   // Bug fixed live (2026-07-13): this switcher was rendering under the status bar with no
   // top inset - the "date_str Probes" button was visible on-screen but its taps were being
   // intercepted by the status bar area instead of reaching the Button, so switching never
@@ -51,6 +59,7 @@ function AppContent() {
   return (
     <View style={styles.container}>
       <View style={[styles.switcher, { paddingTop: insets.top + 8 }]}>
+        <Button title="Task 13" onPress={() => setScreen('task13')} disabled={screen === 'task13'} />
         <Button title="Task 12" onPress={() => setScreen('task12')} disabled={screen === 'task12'} />
         <Button title="Task 7" onPress={() => setScreen('task7')} disabled={screen === 'task7'} />
         <Button title="Task 6" onPress={() => setScreen('task6')} disabled={screen === 'task6'} />
@@ -66,6 +75,7 @@ function AppContent() {
           disabled={screen === 'ruleName'}
         />
       </View>
+      {screen === 'task13' && <Task13DeviceScreen />}
       {screen === 'task12' && <Task12DeviceScreen />}
       {screen === 'task7' && <Task7PromptScreen />}
       {screen === 'task6' && <Task6DeviceScreen />}

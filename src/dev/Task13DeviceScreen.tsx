@@ -54,9 +54,13 @@ import type { ActiveEpisode, Task } from '../types/domain';
 
 const SESSION_ID = 't13-device-session';
 /** Short on purpose: a 25-minute block is untestable by hand. The arithmetic is scale-free (Phase
- *  A proves that); what this screen is for is the process/OS behavior around it. */
+ *  A proves that); what this screen is for is the process/OS behavior around it.
+ *
+ *  ONE ARTIFACT TO EXPECT, so it isn't misread as a bug: the guardrail's "beyond 2x the original
+ *  block" threshold compares a 25-minute hyperfocus quantum against a block this short, so the
+ *  FIRST "Keep going" press trips `long_extend` here. At a real 25-minute block it takes two. */
 const BLOCK_MINUTES = 2;
-const SESSION_MINUTES = 10;
+const SESSION_MINUTES = 6;
 
 /**
  * The data layer is LAZY-LOADED, not statically imported — same reason as Task12DeviceScreen:
@@ -258,17 +262,12 @@ export default function Task13DeviceScreen() {
   });
 
   return (
+    // LAYOUT IS DELIBERATELY CONTROLS-FIRST. Everything below the buttons changes length as the
+    // run proceeds (the timer line grows a "BOUNDARY" segment, the crash banner appears, the log
+    // fills) — and anything variable ABOVE a button reflows it, which silently moves the target
+    // out from under `adb shell input tap`. Two taps were swallowed that way before this was
+    // fixed. Buttons first means their coordinates are constant for the whole session.
     <ScrollView contentContainerStyle={styles.body}>
-      <Text style={styles.h1}>Task 13 — timer / episode / crash recovery</Text>
-      <Text style={styles.mono}>{ready ? tick : 'booting ...'}</Text>
-      {alarm != null && <Text style={styles.alarm}>{alarm}</Text>}
-      {survivor !== null && survivor !== 'none' && (
-        <Text style={styles.crash}>
-          CRASH SIGNAL: open episode on task {survivor.taskId}, block end{' '}
-          {new Date(survivor.blockEndAtMs).toISOString().slice(11, 19)} — inspect, then recover.
-        </Text>
-      )}
-
       <Text style={styles.h2}>Lifecycle</Text>
       <View style={styles.row}>
         <Button title="Start" onPress={startAll} />
@@ -303,6 +302,16 @@ export default function Task13DeviceScreen() {
         />
         <Button title="Wipe" onPress={wipe} />
       </View>
+
+      <Text style={styles.h1}>Task 13 — timer / episode / crash recovery</Text>
+      <Text style={styles.mono}>{ready ? tick : 'booting ...'}</Text>
+      {alarm != null && <Text style={styles.alarm}>{alarm}</Text>}
+      {survivor !== null && survivor !== 'none' && (
+        <Text style={styles.crash}>
+          CRASH SIGNAL: open episode on task {survivor.taskId}, block end{' '}
+          {new Date(survivor.blockEndAtMs).toISOString().slice(11, 19)} — inspect, then recover.
+        </Text>
+      )}
 
       <Text style={styles.h2}>Log</Text>
       {log.map((line, i) => (

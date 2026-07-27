@@ -1,9 +1,15 @@
-# Task 13 Findings — Timer + episode lifecycle + crash recovery (Phase A)
+# Task 13 Findings — Timer + episode lifecycle + crash recovery
 
-**Status: Phase A complete. TASK 13 IS NOT DONE.** Phase B (the S23 FE device pass) is what closes
-the `P`, and nothing in this report substitutes for it. The headless build landed on
-`opus/batch-a-headless`: full suite + `tsc --noEmit` + `eslint .` clean, **531 → 636 tests**, eslint
-back to the same 55 pre-existing warnings (all `react-native/no-inline-styles` in `src/dev/`).
+**Status: Phase A complete; Phase B run on the S23 FE, with one item outstanding (overnight doze)
+and one finding that hands a hard requirement to task 24.** The engine is confirmed on hardware —
+including the thing the whole task exists for, a force-kill mid-episode — and the `P` is closed
+except for the overnight case. Full suite + `tsc --noEmit` + `eslint .` clean, **531 → 636 tests**,
+eslint back to the same pre-existing `react-native/no-inline-styles` warnings in `src/dev/`.
+
+**The one finding that changes someone else's work:** a JS `setTimeout` does **not** fire while the
+app is backgrounded or dozing — it is deferred until the app returns to the foreground. The engine
+is unaffected (the timer is timestamp-based, so state was correct every time), but **task 24 cannot
+implement the alarm-style focus with a JS timer.** Details in §9.4.
 
 **Merged-branch precondition, checked first as instructed:** the tree was already green before I
 touched it — 531 tests, `tsc` 0, eslint 0 errors. Tasks 11 and 34 do compose. No finding there.
@@ -17,7 +23,8 @@ touched it — 531 tests, `tsc` 0, eslint 0 errors. Tasks 11 and 34 do compose. 
 | `7a00775` | `src/execution/` — constants, pure timer, episode service, tail executor |
 | `5e505ae` | timer arithmetic suite (28 cases, pure, injected clock) |
 | `b46acc0` | episode lifecycle + tail suites (50 cases, real SQLite) |
-| *(last)* | `sessions.completed_at` gets a writer |
+| `75af5d1` | `sessions.completed_at` gets a writer |
+| *(Phase B)* | `src/dev/Task13DeviceScreen.tsx` — the on-device harness |
 
 ---
 
@@ -257,10 +264,10 @@ exactly 20% does not queue, since the spec says *more than* 20%).
 
 ## 7. Consciously left open
 
-- **PHASE B HAS NOT RUN.** Crash, background, process-kill, doze and alarm-focus behavior are only
-  observable on the S23 FE. Everything above is simulated with an injected clock and a runtime row
-  written by hand. **Task 13 is not done until Phase B runs**, per its own brief; the checklist is
-  brief §5, and batching it with task 32's residue sweep is still the cheap option.
+- **Overnight doze is the one Phase B item not run.** §9 covers a *forced* deep-idle pass
+  (`dumpsys deviceidle force-idle`, device confirmed `mState=IDLE`), which is the standard proxy
+  and came through clean. A real overnight with a session left open is still unrun, and the
+  §9.4 alarm finding makes it the case most likely to behave differently.
 - **The close-ordering window (§5.8).** A crash between `closeEpisode()` and the outcome write loses
   that episode's bookkeeping. The fix is a real transaction spanning both, which needs the
   repositories to accept a transaction handle — a data-layer change, not a task 13 change. Named so
@@ -306,4 +313,99 @@ checkSessionLapse / closeSession
 Three things not to get wrong: **backgrounding must not call `pauseEpisode`** (it is normal, not
 abandonment — only an explicit user pause stops the timer); **`parkEpisode` throws inside 60
 seconds**, so read `parkAvailable` and offer skip instead; and the **expiry alarm** is an injected
-`EpisodeExpiryScheduler` — this module decides *when*, task 24 supplies the platform call.
+`EpisodeExpiryScheduler` — this module decides *when*, task 24 supplies the platform call, **and
+per §9.4 that call cannot be a JS timer.**
+
+---
+
+## 9. Phase B — on the S23 FE
+
+Run 2026-07-27 against a debug build on the real device (`SM-S711U`, `adb` over USB). Driven
+through `src/dev/Task13DeviceScreen.tsx`, with every claim below **re-checked by pulling
+`databases/todoai.db` off the device and querying it directly** — the on-screen log alone would
+only prove what the app believed, not what it wrote.
+
+### 9.1 The data layer, first time on hardware
+
+Migration 005 applies cleanly on op-sqlite: `schema version = 2.6.0`,
+`last_migration = v2_6_session_runtime`, all three runtime tables present. Nothing in the
+§2 shape decisions turned out to be desktop-only — the `CHECK (id = 1)` singleton, the epoch-ms
+`INTEGER` columns and the `ON CONFLICT` upserts all behave as they do under better-sqlite3.
+
+### 9.2 The force-kill, which is the whole point
+
+`adb shell am force-stop com.todoai` mid-episode, then relaunch. Confirmed by DB query, not by log:
+
+| Checked | Result |
+|---|---|
+| Crash signal survives the process | new PID, `active_episode` row found and reported at launch |
+| Episode closes as abandoned | `interaction_type='task_progress'`, `completion_status='abandoned'`, with the recovery note |
+| Time credited | `accumulated_minutes = 2`, `work_state = 'in_progress'`, `last_worked_at` stamped |
+| **No skip written** | **`skip_count = 0`, `skip_reasons = NULL`** |
+| **No coaching queued** | **zero `coaching_queue` rows linked to the session** (the three in the DB are task 12's `{"probe":true}` rows from 2026-07-16) |
+| Task not abandoned by inference | `status = 'active'` |
+| Nothing folded | `actual_duration_history = NULL` — correct, it wasn't completed |
+
+**The credit bound held on device.** The episode was killed ~50 s into a 2-minute block and
+recovered ~7.5 minutes later; it credited **2 minutes, not 7** — `{"creditedMinutes":2,
+"directive":{"kind":"block_expired"}}`. Both the `resume_block` and `block_expired` directives were
+observed across runs.
+
+**The timer really does keep running while the app is dead.** Mid-run readout after a kill and
+relaunch: `countdown rem 00:06 · worked 01:53`, with the process absent for five of those seconds.
+Nothing ticks; remaining is arithmetic against the stored end-time, exactly as spec §8.2 requires.
+
+### 9.3 The rest of the checklist
+
+- **Backgrounding is not abandonment.** `KEYCODE_HOME`, 70 s away, return: same PID, no boot, no
+  recovery, and the timer correct on return (`worked 01:45`) — the time away counted as worked,
+  because backgrounding is not a pause.
+- **Extend across the session boundary survives a kill.** One `Keep going` → `sessionEndMoved:true`,
+  `sessionExtended:true`. Force-kill and relaunch: `blockEndAtMs` and `session_runtime.
+  plannedEndAtMs` both still at start+27 min, `sessions.extended = 1`, `hyperfocusQuanta = 1`, and
+  the `long_extend` row still queued at `next_start`.
+- **`+5` behaved as ruled.** Three presses: session end moved, **`sessionExtended:false`**, nothing
+  queued at press time; `repeated_extension` queued only at task close. The zero-work guard also
+  showed up live — an 11-second episode completed with `episodeMinutes: 0` and wrote **no**
+  `actual_duration_history` entry.
+- **Session lapse** fires once (`lapsed:true` + `session_lapsed`) and dedupes on the second poll
+  (`lapsed:true, coaching:[]`).
+- **Forced deep doze** (`dumpsys deviceidle force-idle`, confirmed `mState=IDLE`) left the episode
+  row, the session runtime and the prompt state intact.
+- All three coaching kinds reached the queue as `pattern_detected` at `next_start`:
+  `long_extend`, `session_lapsed`, `repeated_extension`. No migration was needed for any of them,
+  as constraint #12 says.
+
+### 9.4 ⚠ The finding: a JS timer is not an alarm
+
+**Task 24 must not implement the expiry alarm with `setTimeout`.**
+
+Twice, deliberately: with the app backgrounded, and again under forced deep doze. Both times the
+alarm was scheduled correctly for the block end and **did not fire at that instant** — it fired on
+return to the foreground, 38 s and 45 s late respectively. Android suspends the JS thread; a
+pending timer just waits for the app to come back.
+
+What this does *and does not* mean:
+
+- **The engine is unaffected, and this is exactly why the design is timestamp-based.** In both
+  runs the state on return was correct: `boundaryReached` true, the five-option prompt available,
+  worked minutes right. Nothing depends on the alarm having fired.
+- **The user-facing requirement is not met by the harness's mechanism.** Spec §6.2's "the app
+  takes focus like an alarm" needs a real platform primitive — `AlarmManager`, a scheduled
+  notification (notifee), or a foreground service — scheduled at `blockEndAtMs`. The
+  `EpisodeExpiryScheduler` seam is already the right shape for it; only the implementation behind
+  it changes, and it is task 24's to supply.
+
+This is precisely the class of thing Phase A could not have found, and it is the reason the phase
+split exists.
+
+### 9.5 Two notes on the harness itself
+
+- **Layout reflow silently swallows `adb input tap`.** Variable-length text above a button (the
+  timer line gaining a `BOUNDARY` segment; the crash banner appearing) moved the targets and two
+  taps landed on the wrong control — one of them parking an episode that was meant to be recovered,
+  which cost a re-run. The screen is now **controls-first**, with every changing readout below the
+  buttons, so coordinates are stable for a whole session. Worth copying for future device passes.
+- **Test rows are left on the device** (`tasks` 13–18, session `t13-device-session`). The runtime
+  tables were wiped clean afterwards — verified `0/0/0` — so no phantom crash signal survives, and
+  `screen_off_timeout`, `stayon` and the battery/doze overrides were all restored.

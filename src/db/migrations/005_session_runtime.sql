@@ -42,12 +42,18 @@
 -- =====================================================================
 -- One row per session that is currently running. The planner deliberately never assumes a fixed
 -- session end (src/planning/agenda.ts: "The session's planned END is movable"); a hyperfocus
--- extend that crosses it moves it, and that mutation has to outlive a process kill. Task 24 owns
--- the `sessions` row itself; this row is the session's live runtime and is DELETEd when the
--- session closes.
+-- extend that crosses it moves it, and that mutation has to outlive a process kill. Task 24
+-- CREATES the `sessions` row (it owns the check-in data); this row is the session's live runtime
+-- and is DELETEd when the session closes.
+--
+-- started_at_ms is kept here beside the movable end, in the same injected-clock unit, so that
+-- `sessions.actual_duration` can be computed at close from two numbers the engine itself wrote.
+-- `sessions.started_at` is a second-granular DATETIME set by a column DEFAULT, which would have
+-- to be re-parsed - and it is written by a different owner at a different moment.
 
 CREATE TABLE session_runtime (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    started_at_ms INTEGER NOT NULL,
     planned_end_at_ms INTEGER NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

@@ -230,6 +230,7 @@ export interface SessionRow {
  *  running session; deleted when the session closes. */
 export interface SessionRuntimeRow {
   session_id: string;
+  started_at_ms: number;
   planned_end_at_ms: number;
   updated_at: string | null;
 }

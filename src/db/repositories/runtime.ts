@@ -63,16 +63,34 @@ export function createRuntimeRepository(db: SqliteConnection) {
     return row ? sessionRuntimeRowToDomain(row) : undefined;
   }
 
-  /** Creates or moves the session's planned end. Called once at session start and again by every
-   *  extension that crosses it (task 28 design §4.1.2 / amendment §1). */
+  /** Opens the session's runtime row with its start and its first planned end. */
+  async function startSession(
+    sessionId: string,
+    startedAtMs: number,
+    plannedEndAtMs: number,
+  ): Promise<SessionRuntime> {
+    await db.execute(
+      `INSERT INTO session_runtime (session_id, started_at_ms, planned_end_at_ms, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (session_id)
+         DO UPDATE SET started_at_ms = excluded.started_at_ms,
+                       planned_end_at_ms = excluded.planned_end_at_ms,
+                       updated_at = CURRENT_TIMESTAMP`,
+      [sessionId, startedAtMs, plannedEndAtMs],
+    );
+    const runtime = await getSessionRuntime(sessionId);
+    if (!runtime) {
+      throw new NotFoundError('session_runtime', sessionId);
+    }
+    return runtime;
+  }
+
+  /** Moves the session's planned end - every extension that crosses it lands here (task 28 design
+   *  §4.1.2 / amendment §1). The start is never touched. */
   async function setSessionEnd(sessionId: string, plannedEndAtMs: number): Promise<SessionRuntime> {
     await db.execute(
-      `INSERT INTO session_runtime (session_id, planned_end_at_ms, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT (session_id)
-         DO UPDATE SET planned_end_at_ms = excluded.planned_end_at_ms,
-                       updated_at = CURRENT_TIMESTAMP`,
-      [sessionId, plannedEndAtMs],
+      'UPDATE session_runtime SET planned_end_at_ms = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?',
+      [plannedEndAtMs, sessionId],
     );
     const runtime = await getSessionRuntime(sessionId);
     if (!runtime) {
@@ -214,6 +232,7 @@ export function createRuntimeRepository(db: SqliteConnection) {
 
   return {
     getSessionRuntime,
+    startSession,
     setSessionEnd,
     clearSessionRuntime,
     getActiveEpisode,

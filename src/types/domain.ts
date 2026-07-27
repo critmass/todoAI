@@ -533,6 +533,9 @@ export function sessionDomainToRow(input: SessionWriteInput): Partial<SessionRow
 
 export interface SessionRuntime {
   sessionId: string;
+  /** When the session started, in the engine's own clock unit - the other half of the
+   *  `sessions.actual_duration` computation at close. */
+  startedAtMs: number;
   /** The session's planned end. MOVABLE - a hyperfocus extend that crosses it moves it (task 28
    *  design §4.1.2), and a `+5` moves it only when the block end itself passes it. */
   plannedEndAtMs: number;
@@ -542,6 +545,7 @@ export interface SessionRuntime {
 export function sessionRuntimeRowToDomain(row: SessionRuntimeRow): SessionRuntime {
   return {
     sessionId: row.session_id,
+    startedAtMs: row.started_at_ms,
     plannedEndAtMs: row.planned_end_at_ms,
     updatedAt: row.updated_at,
   };

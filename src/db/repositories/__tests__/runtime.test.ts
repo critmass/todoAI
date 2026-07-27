@@ -25,14 +25,19 @@ describe('runtimeRepository', () => {
   afterEach(() => conn.close());
 
   describe('session_runtime', () => {
-    it('sets and then MOVES the session end (the same row, not a second one)', async () => {
+    it('starts, then MOVES the session end (the same row, not a second one)', async () => {
       expect(await repo.getSessionRuntime('s1')).toBeUndefined();
 
-      const created = await repo.setSessionEnd('s1', T0 + 90 * 60_000);
-      expect(created).toMatchObject({ sessionId: 's1', plannedEndAtMs: T0 + 90 * 60_000 });
+      const created = await repo.startSession('s1', T0, T0 + 90 * 60_000);
+      expect(created).toMatchObject({
+        sessionId: 's1',
+        startedAtMs: T0,
+        plannedEndAtMs: T0 + 90 * 60_000,
+      });
 
       const moved = await repo.setSessionEnd('s1', T0 + 115 * 60_000);
       expect(moved.plannedEndAtMs).toBe(T0 + 115 * 60_000);
+      expect(moved.startedAtMs).toBe(T0); // the start never moves
       const rows = conn.raw.prepare('SELECT COUNT(*) AS n FROM session_runtime').get();
       expect(rows).toEqual({ n: 1 });
     });
@@ -145,7 +150,7 @@ describe('runtimeRepository', () => {
   });
 
   it('clearSessionRuntime tears down all three tables and is idempotent', async () => {
-    await repo.setSessionEnd('s1', T0 + 90 * 60_000);
+    await repo.startSession('s1', T0, T0 + 90 * 60_000);
     await repo.openEpisode({
       sessionId: 's1',
       taskId,

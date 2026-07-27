@@ -72,6 +72,22 @@ export function createInteractionsRepository(db: SqliteConnection) {
     return interactionTaskRowToDomain(linkResult.rows[0] as unknown as InteractionTaskRow);
   }
 
+  /** The task ids served in a session, derived from the episode rows themselves. This is what
+   *  feeds `replanRemaining`'s `excludeTaskIds` (task 11: "tasks already served this session —
+   *  never re-planned into the tail"): the durable interaction record already knows, so no
+   *  second served-set has to be invented and kept in sync with it. */
+  async function listTaskIdsBySession(sessionId: string): Promise<number[]> {
+    const result = await db.execute(
+      `SELECT DISTINCT it.task_id AS task_id
+         FROM interaction_tasks it
+         JOIN interactions i ON i.id = it.interaction_id
+        WHERE i.session_id = ?
+        ORDER BY it.task_id`,
+      [sessionId],
+    );
+    return (result.rows as unknown as Array<{ task_id: number }>).map((row) => row.task_id);
+  }
+
   async function listBySession(sessionId: string): Promise<Interaction[]> {
     const result = await db.execute(
       'SELECT * FROM interactions WHERE session_id = ? ORDER BY timestamp',
@@ -80,7 +96,7 @@ export function createInteractionsRepository(db: SqliteConnection) {
     return (result.rows as unknown as InteractionRow[]).map(interactionRowToDomain);
   }
 
-  return { getById, create, update, linkTask, listBySession };
+  return { getById, create, update, linkTask, listTaskIdsBySession, listBySession };
 }
 
 export type InteractionsRepository = ReturnType<typeof createInteractionsRepository>;

@@ -68,7 +68,12 @@ describe('migration 005 - session runtime tables (v2.5 -> v2.6)', () => {
       expect(names(conn.raw, 'table')).toEqual(
         expect.arrayContaining(['active_episode', 'session_runtime', 'session_task_extension']),
       );
-      expect(columns(conn.raw, 'session_runtime')).toEqual(['planned_end_at_ms', 'session_id', 'updated_at']);
+      expect(columns(conn.raw, 'session_runtime')).toEqual([
+        'planned_end_at_ms',
+        'session_id',
+        'started_at_ms',
+        'updated_at',
+      ]);
       expect(columns(conn.raw, 'active_episode')).toEqual([
         'block_end_at_ms',
         'block_kind',
@@ -150,7 +155,9 @@ describe('migration 005 - session runtime tables (v2.5 -> v2.6)', () => {
 
     it('cascades all three tables when the session row is deleted', () => {
       seedSessionAndTask(conn);
-      conn.raw.prepare("INSERT INTO session_runtime (session_id, planned_end_at_ms) VALUES ('s1', 9000)").run();
+      conn.raw
+        .prepare("INSERT INTO session_runtime (session_id, started_at_ms, planned_end_at_ms) VALUES ('s1', 0, 9000)")
+        .run();
       conn.raw
         .prepare(
           `INSERT INTO active_episode (id, session_id, task_id, block_kind, planned_minutes, started_at_ms, block_end_at_ms)

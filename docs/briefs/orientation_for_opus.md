@@ -2,7 +2,9 @@
 
 **Purpose.** This is the front-of-context map for the build phase. Read it before touching code. It says what exists, what's proven, what's load-bearing, and what's decided — so you build *with* the grain of five prior sessions instead of reinventing conventions or re-opening settled questions. It is the durable companion to the per-task briefs in `docs/briefs/`.
 
-**How to use it.** Read this, then the batch brief for your assigned tasks (`opus_batch_6_7_9_12.md`), then the specific spec/strategy sections each task cites. Do not start from the build-allocation matrix alone — it says *what and in what order*, not *how this codebase does things*.
+**How to use it.** Read this, then the per-task brief for your assigned task in `docs/briefs/`, then the specific spec/strategy sections it cites. The master task table (`todoAI_master_task_table.{md,html}`, in chat artifacts) is the at-a-glance board; **this doc wins on any conflict**, and where a per-task brief is more current than either, the brief wins for its own task. *(The old `docs/build_allocation.md` has been retired — see §10; do not resurrect it.)*
+
+**Last refreshed:** 2026-07-20, after tasks 11 and 34 landed and the extend ruling. If the master table shows tasks this doc's §2 doesn't, trust the table and fix §2.
 
 ---
 
@@ -33,7 +35,12 @@ These are established, most of them the hard way, on real hardware. Treat them a
 | 9 | Scoring implementation (§5.1–§5.2) | ✅ built + documented, revised per task-10 rulings R1–R3 (`docs/eval/task10_R1R2R3_implementation_report.md`). Code: `src/scoring/`, `src/services/taskCompletion.ts`, `src/services/breakdown.ts` |
 | 10 | Fable review of scoring composition | ✅ **done** — `docs/eval/task10_fable_review_report.md`. Forks 1/2/3/6 ruled leave-as-built; fork 5 gets a one-line smoothing fix. **One mandatory follow-up: the dependency-blocked pre-filter (U1) must exist before task 11 ships** — the novelty shuffle otherwise serves ordered subtask chains in random order. Also: link parents to subtasks at breakdown (U2); spec §5.1/§5.2 still describe the retired pre-R1/R3 composition and need updating |
 | 12 | Coaching flows + resolution dispatch (§7.2) | ✅ **done** — confirmed on-device; `docs/eval/task12_phaseB_findings_report.md`. **2 human-review gates open** (crisis detector coverage, `CRISIS_REFERRAL_TEXT` localisation) |
-| 8, 11, 13, 14, 15, 17 | tiering / session-planning / timer / data-resilience / numeric learning | later (see `docs/build_allocation.md` for allocation + dependencies) |
+| 11 | Session planning (§5.3) | ✅ **done** — `src/planning/`; `runSelectionBoundary` (both pre-filters → ranker), R7 hold via `pendingBreakdownCompleteTaskIds`, `blockKind` (countdown/openBlock), `PlanAdjustment` LLM seam (deterministic v1, **no LLM call** — ruled). `docs/eval/task11_findings_report.md` |
+| 33 | Multi-session / hyperfocus **implementation** | ✅ **done** — migration 003 (`work_state`, `duration_type`, `accumulated_minutes`, `last_worked_at`), park primitive, cumulative fold in `completeTask`, three-way neglect anchor. `docs/eval/task33_findings_report.md` |
+| 34 | Schema reconciliation | ✅ **done** — migration 004 → schema **2.5.0**; `context_fit` dropped from CHECK + row deleted, four survivors reseeded 31/23/23/23 where `data_points_count=0`, `active_tasks_with_neglect` **dropped**. `docs/eval/task34_findings_report.md` |
+| 8, 13, 14, 15, 17 | tiering / timer / data-resilience / numeric learning | see the master task table for allocation + dependencies. **13 is next on the personal path** (brief written) |
+| 35 | Spec fold-in v2.3 → **v2.4** | ⬜ **new** — brief `docs/briefs/spec_foldin_task_35.md`; headless, docs-only; §9 |
+| 36 | Recurrence period engine (§4.2) | ⬜ **new** — split out of 13 by ruling; brief `docs/briefs/recurrence_period_engine_task_36.md`; headless; §9 |
 | 18 | Skill-injection layer **design** (Fable) | ✅ **done** — design at `docs/design/skill_layer_task18_design.md`, paper trail at `docs/eval/task18_design_report.md`. All five cores concrete (flat-AND closed-vocabulary matching, `conf = Ceff/(Ceff+2·Xeff+3)` with 45-day decay, two prompts, two GBNF grammars, latency-tiered injection). **Six schema gaps flagged** → task 26. Open handoffs: whether task 11 makes any LLM call (planning-scope consumer), and Phase-B device pass on the two new grammars |
 | 19 | Skill-layer implementation (from the 18 design) | ⬜ unblocked by 18; **needs task 26 migration first**; Phase B device pass on `skill_distill.v1` / `skill_refine.v1` |
 | 25 | Post-review scoring follow-ups (U1 dep-blocked pre-filter, U2 parent linkage, fork-5 smoothing) | ⬜ **new** — U1 is a **hard blocker on task 11**; §9 |
@@ -45,7 +52,9 @@ These are established, most of them the hard way, on real hardware. Treat them a
 | 23 | UI/UX design (interaction + visual system) | ⬜ **new** — not started; beta gate for polish, high-leverage to start early; §9 |
 | 24 | Product UI implementation (real screens) | ⬜ **new** — not started; **functional pass is required for personal ship** (only dev screens exist today); §9 |
 
-**Ship gating for everything above is in §8; the new tasks (21–24) are detailed in §9.**
+**Merged-branch state:** 11 and 34 landed in parallel on `opus/batch-a-headless` and are **confirmed green together** (full `jest` + `tsc --noEmit` + `eslint` on the merged tree, 2026-07-20) — not merely believed-green per-branch.
+
+**Ship gating for everything above is in §8; the new/open tasks are detailed in §9.**
 
 ## 3. Module map — what exists and its contract
 
@@ -67,9 +76,11 @@ These are established, most of them the hard way, on real hardware. Treat them a
 - Grammar tooling: `buildGrammar` (+ `escapeGbnfLiteral`) for dynamic-slot templates, `boundedIntRule`/`boundedStringRule`/`literalAlternationRule`/etc. primitives, `SCHEMA_PATHS`.
 - **Rule-name lint:** `src/llm/grammar/__tests__/ruleNaming.test.ts` enforces `/^[a-zA-Z][a-zA-Z0-9]*$/` on every grammar rule name (see constraint #2). Don't add a rule with an underscore; the test will catch you, but know why.
 
+**`src/planning/`** — session planning (task 11). `runSelectionBoundary` is the **only** entry to the ranked pool: capability pre-filter → dependency pre-filter → ranker, both reject sets retained (never silently dropped). `agenda.ts` holds the item vocabulary (`SessionPlan`, `AgendaItem`, `blockKind`, `plannedMinutes`, `deepFocus`, `resumeClaim`); `service.ts` exposes `replanRemainingFromRepositories` (tail regeneration — the escape valve, break overrun, and hyperfocus extend are its three callers) and the typed `PlanAdjustment` hook (the single sanctioned place an LLM could touch a plan; **planning makes no LLM call in v1** — ruled). Planning is deterministic and hidden from the user. **A consumer must never resurrect a filtered task**; the `PlanAdjustment` contract is stated but not yet enforced — task 19 owns the guard if it ever wires an adjuster.
+
 **`src/dev/`** — throwaway spike screens (Q1 harnesses, probes). Not production. You may crib the `llama.rn` load pattern from them; do not depend on them. (Note: the original `BonsaiSpikeScreen.tsx` no longer exists; `DateStrProbeScreen`/`RuleNameProbeScreen`/`Q1GrammarSpikeScreen` do.)
 
-**`docs/`** — `briefs/` (per-task), `eval/` (Q1 findings + fixtures), `reference/` (spec v2.2, schema v2.2).
+**`docs/`** — `briefs/` (per-task), `design/` (task 18 skill layer, task 28 multi-session + its extend amendment), `eval/` (findings reports + fixtures), `reference/` (**spec v2.3, schema snapshot v2.5** — v2.2 retained as history). **Spec version and schema `schema_metadata` version legitimately differ** (product rulings vs applied DDL); the spec is v2.3 with v2.4 pending task 35, the schema is 2.5.0. Don't "fix" the mismatch.
 
 ## 4. Non-negotiable constraints (violating any of these is a real bug)
 
@@ -83,6 +94,8 @@ These are established, most of them the hard way, on real hardware. Treat them a
 8. **Coaching resolution is a grammar-constrained union, NOT native tool-calling** (strategy D8, overriding spec §3.4's "tool call" language). The model emits a validated union object; *the app* dispatches it to repository actions. `break_down_task`/`add_missing_task` are stubs that trigger a staged follow-up call, and `no_change` is a first-class action.
 9. **`PRAGMA foreign_keys = ON`** every connection (already handled in `connection.ts` — don't undo it).
 10. **Model storage:** app-private external dir only (`/sdcard/Android/data/com.todoai/files/`).
+11. **A park is not a skip** (task 28/33). Parking in-progress work (`recordProgressEpisode`) never increments `skip_count`, never enqueues coaching, and never feeds the 3-skip recalibration. **The app never abandons a *task* by inference** — episodes and sessions may be abandoned automatically (e.g. a crash mid-episode), but a task's in-progress work is written off only by an explicit user disposition through coaching. Separate columns, separate code paths.
+12. **Extend is two affordances, never one** (task 28 amendment, ruled 2026-07-20). `+5 minutes` is flat, **uncapped**, no timer-face change, tail shifted — repeated use queues a `repeated_extension` conversation at task close, never a mid-flow nudge. `Keep going` (hyperfocus) is 25-min quanta, count-up, tail regenerated, sets `sessions.extended`, and is the **only** path the self-care guardrail (option B) governs. Capping `+5` is a bug against the ruling. `repeated_extension` and `long_extend` are `trigger_data.kind` values on the existing `pattern_detected` trigger — **not** new trigger types; no migration adds them.
 
 ## 5. Settled decisions (do not re-open without a new explicit call)
 
@@ -91,19 +104,24 @@ These are established, most of them the hard way, on real hardware. Treat them a
 - **iOS:** deferred until public deployment with a profit model. Android-only.
 - **Expo:** ruled out (native code required).
 - **Learning:** fully local skill-injection (task 18, Fable), no LoRA, no cloud training. Task 12 leaves it a seam; it is not built now.
+- **Session planning makes no LLM call** (task 11, ruled). Deterministic v1; the `PlanAdjustment` hook is the only sanctioned future LLM seam, and task 18's planning-scope skills have exactly that one consumer.
+- **Extend split + guardrail B** (task 28 amendment, ruled). See constraint #12. Do not re-merge the two extend paths or add a cap to `+5`.
+- **Recurrence period engine is task 36, not task 13** (ruled). The time-driven half of §4.2 (advancing `next_due_at`, rolling `reset_date`, the missed-quota boost) is its own headless task; task 13 must not build period logic.
 
 ## 6. Read-these-first, in order
 
 1. This doc.
-2. `docs/briefs/opus_batch_6_7_9_12.md` (your work order).
-3. `docs/reference/ADHD_Task_Management_App_Specification_v2.2.md` — §3 (model/inference/interface), §5 (scoring/neglect), §7 (coaching), the sections your tasks cite.
+2. Your per-task brief in `docs/briefs/` (the work order for your assigned task).
+3. `docs/reference/ADHD_Task_Management_App_Specification_v2.3.md` — §3 (model/inference/interface), §5 (scoring/neglect), §7 (coaching), the sections your task cites. **v2.3, not v2.2** (v2.4 pending task 35). The schema snapshot is `ADHD_Task_Management_App_Database_Schema_v2.5.sql`.
 4. `docs/briefs/structured_output_strategy_task_4.md` — for anything touching structured output/coaching resolution (D1 recap, D8 union, D10 validate→retry ladder).
 5. The actual code contracts in §3 above — read `src/llm/index.ts`, `src/types/domain.ts`, `src/types/scales.ts`, and the repository you're consuming, before writing against them.
 6. `docs/eval/Q1c_findings_report.md` — so the grammar constraints in §4 are grounded, not cargo-culted.
 
-## 7. How this batch fits
+## 7. Where the frontier is now
 
-Task **9 is independent** — pure logic over the data layer, no LLM — so it can start immediately and in parallel. Task **6 is the spine**: it unblocks **7** (prompts need a working provider to iterate against) and **12** (coaching needs the provider + prompts). **Fable reviews task 9's composition (task 10)** once it's buildable. Full sequencing and per-task detail are in the batch brief. *(6, 7, 12 are now done — see §2. The live frontier is the ship-gating in §8 and the new tasks in §9.)*
+The original 6/7/9/12 spine is done and confirmed on-device; the headless build stretch (10, 11, 25, 26, 27, 33, 34) is **closed**. **The personal-ship critical path is now `13 → 24`, and both carry `P`** — everything remaining on the personal route needs Jason and the phone. Task **13** (timer + episode lifecycle) is the next build; **24** (product UI) follows and is the real gap between a confirmed backend and a usable app.
+
+**In flight, all headless and parallel-safe:** 13's Phase A, **35** (spec fold-in, docs-only), **36** (recurrence engine). Note **13 and 36 are not fully file-disjoint** — if both add a migration they will both want 005; coordinate the number (both briefs say so). Sequence device (`P`) batches separately from headless work; hand Jason headless set-and-forget batches when he's away from the phone.
 
 ## 8. Ship targets and their gates
 
@@ -162,6 +180,12 @@ The six gaps from `docs/eval/task18_design_report.md` §2: new `learning_state (
 **The spec currently describes a composition that no longer exists.** §5.1 still shows 25/20/20/15/20 with a context-fit row; §5.2 still shows `(days/7)^2`; §7.2 still shows three coaching triggers when there are now **five**. Fold in **R1–R8**: R1 (linear seed + swappable seam, still uncapped), R2 (`ordered:true` → real dependencies, transitive-fan-out offset, multi-hop DAG guard), R3 (31/23/23/23 + context/tools as a hard pre-filter that retains rejects), R4 (buried-task trigger), R5, **R6** (smoothed historical success, §5.1), **R7** (parent lifecycle + the `breakdown_complete` trigger, §4.1/§4.2/§7.2), **R8** (the accrual-gate clock rule, §5.2 — state plainly that it is a start condition and that constraint #5 is intact), plus the two-pre-filter selection boundary (§5.3/§8.1).
 **§7.2's trigger table becomes five rows:** any single skip → next start; 3 skips in a session → immediate; 5+ days unopened → next open; buried out-of-context/tool task (R4) → conversation; **breakdown complete (R7) → immediate**, with the recalibration-wins precedence recorded.
 
+**Task 35 — Spec fold-in (v2.3 → v2.4)** *(Sonnet/Haiku; docs-only; brief `docs/briefs/spec_foldin_task_35.md`)*
+Spec v2.3 §4.5 is now factually false — it says `algorithm_weights` still carries `context_fit` at 25/20/20/15/20 and that no migration ever touched the table; migration 004 did both. Fold in 004 (including the dropped `active_tasks_with_neglect`), task 11's planner contracts, and the extend amendment. **The spec goes to v2.4 and *describes* schema 2.5.0** — the two version numbers track different things and legitimately drift; the master table previously mislabelled this "v2.5" and the brief carries the correction. v2.2/v2.3 stay untouched as history.
+
+**Task 36 — Recurrence period engine (§4.2)** *(Opus; headless; brief `docs/briefs/recurrence_period_engine_task_36.md`)*
+Split out of task 13 by ruling so the critical path stays lean. `taskCompletion.ts` deliberately omits the **time-driven** half of recurrence: advancing `next_due_at`, rolling `reset_date`/`current_period_progress` at a period boundary, and the missed-quota importance boost. **Live bug today:** completing a `scheduled` task never advances its due date, so derived urgency (23% of score) is wrong for every recurring task and R8's gate reads a stale anchor. Idempotent `advanceRecurrence(now)` sweep at app open / session start; catch-up after absence **resets, never stacks guilt**; the boost should be **derived at scoring time, not written to `tasks.importance`** (it would collide with the 1–99 subtask band). Skips `unscheduled`, `count`, and one-offs. Not file-disjoint from task 13 — coordinate any migration number.
+
 **Task 29 — 8B/1.7B quant path decision + execution** *(Jason decides; execution You + Opus)*
 Task 8's dependency "6 + quants" was not a task — it is real work with an owner-less gap. Spec §11's open roadmap decision: **ship 4B-first**, or **invest in the PrismML fork build (Stage B)** for native Q2_0 across all three sizes plus Android Vulkan. Either an 8B/1.7B TQ1_0 repack has to be found or made, or Stage B has to be built against a moving fork. **Until this resolves, task 8 has one rung and cannot be built.** General-ship concern — not on the personal path, but it should be a numbered decision rather than a dangling dependency.
 
@@ -181,3 +205,7 @@ The standing verification residue, numbered because it has been carried as a foo
 **Verification residue** *(believed-done — confirm before leaning on it):*
 - `add_dependency` / `add_missing_task` resolution dispatch — **unexercised on-device** (task 12 §4). Fold into the next device session. **Priority raised by R7:** `add_missing_task` is the natural resolution of a "no, it's not actually done" breakdown-confirmation, so it is now on the **personal-ship** path, not incidental.
 - The **D1 recap→constrain flow** — still **unmeasured**; task 7 §7 suggests it may close the last extraction gap (the `quota`-drops-days case the recap understood but the constrained pass re-derived wrong). Wire recap→constrain and re-measure.
+
+## 10. Document system (retired doc note)
+
+`docs/build_allocation.md` has been **retired** (2026-07-20). It pre-dated tasks 25–36 and had become the doc most likely to mislead a fresh session — it described an allocation and build order that several rulings had since overtaken. Its still-live content is fully captured elsewhere: the **failure-mode routing rule** (clear pattern → Sonnet/Haiku; serious engineering against a clear spec → Opus; a merely-good answer could be subtly and expensively wrong → Fable; needs the phone or human judgment → Jason) lives in the coordinator handoff §1, and **there is no Fable-only work left** — the three Fable-worthy cores (10, 18, 28) are all spent. Per-task allocation now lives in the master task table's Model column. The file itself has been replaced with a tombstone pointing here; do not resurrect it.

@@ -778,6 +778,8 @@ describe('episode lifecycle (task 13)', () => {
 
     const session = await repos.sessions.getById(SESSION);
     expect(session).toMatchObject({ status: 'completed', actualDuration: 60, tasksCompleted: 1 });
+    // completed_at has no DB default, so nothing but this close can ever fill it.
+    expect(session?.completedAt).toBe('2026-07-26 10:00:00');
     expect(await repos.runtime.getSessionRuntime(SESSION)).toBeUndefined();
     expect(await repos.runtime.getActiveEpisode()).toBeUndefined();
   });

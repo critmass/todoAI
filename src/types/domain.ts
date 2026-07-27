@@ -504,8 +504,13 @@ export function sessionRowToDomain(row: SessionRow): Session {
 /** Fully partial and excludes id - sessions.id is caller-supplied (not autoincrement) but is
  *  always passed as its own parameter to create()/update(), never inside the patch body, so
  *  this one mapper serves both. The sessions repository's create() adds the
- *  sessionType/plannedDuration/status-required constraint at its own boundary. */
-export type SessionWriteInput = Partial<Omit<Session, 'id' | 'startedAt' | 'completedAt'>>;
+ *  sessionType/plannedDuration/status-required constraint at its own boundary.
+ *
+ *  `startedAt` stays excluded because the column has a CURRENT_TIMESTAMP default - the DB fills
+ *  it. `completedAt` does NOT have a default, so excluding it (as this type originally did) left
+ *  the column permanently NULL with no writer anywhere: not a deliberate omission but a gap,
+ *  closed by task 13's session close. */
+export type SessionWriteInput = Partial<Omit<Session, 'id' | 'startedAt'>>;
 
 export function sessionDomainToRow(input: SessionWriteInput): Partial<SessionRow> {
   const row: Partial<SessionRow> = {};
@@ -521,6 +526,7 @@ export function sessionDomainToRow(input: SessionWriteInput): Partial<SessionRow
   if (input.escapeValveUsed !== undefined) row.escape_valve_used = boolToRow(input.escapeValveUsed);
   if (input.extended !== undefined) row.extended = boolToRow(input.extended);
   if (input.modelTier !== undefined) row.model_tier = input.modelTier;
+  if (input.completedAt !== undefined) row.completed_at = input.completedAt;
   return row;
 }
 

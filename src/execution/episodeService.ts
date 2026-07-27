@@ -145,6 +145,13 @@ export async function startSessionRuntime(
   );
 }
 
+/** Epoch ms → the 'YYYY-MM-DD HH:MM:SS' UTC form SQLite's CURRENT_TIMESTAMP produces. The runtime
+ *  tables store raw epoch ms, but `sessions.completed_at` is an ordinary DATETIME column read by
+ *  date functions, so a value written there must match the format its siblings use. */
+function sqliteTimestamp(atMs: number): string {
+  return new Date(atMs).toISOString().replace('T', ' ').slice(0, 19);
+}
+
 async function requireSessionRuntime(
   deps: EpisodeServiceDeps,
   sessionId: string,
@@ -170,6 +177,7 @@ export async function closeSession(
       actualDuration: runtime
         ? minutesFromMs(input.now - runtime.startedAtMs)
         : session.actualDuration,
+      completedAt: sqliteTimestamp(input.now),
     });
   }
   await deps.runtime.clearSessionRuntime(input.sessionId);

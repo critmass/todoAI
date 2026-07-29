@@ -329,6 +329,36 @@ describe('session controller (task 24)', () => {
       expect(await repos.runtime.getActiveEpisode()).toBeUndefined();
     });
 
+    it('the third skip in a session interrupts rather than serving another task', async () => {
+      // Short enough that none is "major", so the plan is a flat run of tasks with no deep-focus
+      // block and therefore no break to walk past — the skip sequence is what is under test here.
+      for (const title of ['One', 'Two', 'Three', 'Four']) {
+        await makeTask({ title, estimatedDuration: 5 });
+      }
+      const ctl = controller();
+      await startSession(ctl, 90);
+
+      for (let i = 0; i < 3; i++) {
+        const phase = ctl.getState().phase;
+        if (phase.kind !== 'work') throw new Error(`expected work, got ${phase.kind}`);
+        await ctl.beginBlock(phase.item);
+        clock += 5_000;
+        await ctl.skip();
+      }
+
+      // spec §7.2: stop serving tasks and talk about what they can take on right now.
+      const phase = ctl.getState().phase;
+      expect(phase.kind).toBe('coaching_interrupt');
+      if (phase.kind === 'coaching_interrupt') {
+        expect(phase.trigger).toBe('session_recalibration');
+      }
+      // The session is closed before the conversation — a fresh one afterwards is the rematch.
+      expect((await repos.sessions.getById('sess-1'))?.status).toBe('completed');
+      expect((await repos.sessions.getById('sess-1'))?.tasksSkipped).toBe(3);
+      const queue = await repos.coaching.priorityQueue();
+      expect(queue.map((entry) => entry.triggerType)).toContain('session_recalibration');
+    });
+
     it('the escape valve works before the block starts too', async () => {
       await makeTask({ title: 'Long thing', estimatedDuration: 40 });
       await makeTask({ title: 'Short thing', estimatedDuration: 10 });

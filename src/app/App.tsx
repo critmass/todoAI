@@ -495,6 +495,17 @@ function SessionFlow({
     return () => clearInterval(id);
   }, [phase.kind]);
 
+  // Coaching the engine raised at `immediate` urgency interrupts the session rather than waiting
+  // for the next one (spec §7.2). The controller has already closed the session by this point.
+  useEffect(() => {
+    if (phase.kind !== 'coaching_interrupt') return;
+    openChat({
+      kind: 'coaching',
+      trigger: phase.trigger,
+      candidateTaskIds: phase.taskIds,
+    });
+  }, [phase, openChat]);
+
   const leaveSession = useCallback(() => {
     fire(session.abandon());
     setRoute({ kind: 'dashboard' });
@@ -573,6 +584,8 @@ function SessionFlow({
       );
 
     case 'planning':
+    // The effect above navigates away; this render is the single frame in between.
+    case 'coaching_interrupt':
       return <Booting />;
 
     case 'plan_empty':

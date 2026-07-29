@@ -4,7 +4,7 @@
 import type { AgendaTaskItem, PlanOutcome } from '../../planning/agenda';
 import type { EndOfBlockOption, EndOfBlockPrompt, TimerSnapshot } from '../../execution';
 import type { Session, Task } from '../../types/domain';
-import type { SessionType } from '../../types/db';
+import type { CoachingTrigger, SessionType } from '../../types/db';
 import type { UserEnergy } from '../../types/scales';
 
 /** The four session lengths offered at check-in. `minutes` is what the planner is given; the
@@ -45,6 +45,10 @@ export type SessionPhase =
   /** A crash was recovered and the block had already expired: the credited work is safe and the
    *  task is parked; this asks what the user wants to do about it now. */
   | { kind: 'recovered'; task: Task; creditedMinutes: number }
+  /** Coaching the engine queued at `immediate` urgency, which by definition must not wait for the
+   *  next session (spec §7.2's third skip: "stop serving tasks and talk about what they can take
+   *  on RIGHT NOW"). The shell opens the coach on this phase. */
+  | { kind: 'coaching_interrupt'; trigger: CoachingTrigger; taskIds: number[] }
   | { kind: 'summary'; summary: SessionSummary };
 
 export interface SessionSummary {

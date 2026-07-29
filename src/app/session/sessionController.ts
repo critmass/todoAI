@@ -56,6 +56,7 @@ import {
   type TailDirective,
 } from '../../execution';
 import { BREAK_MINUTES } from '../../planning/planner';
+import { urgencyForTrigger } from '../../services/coaching/triggers';
 import type { SessionPhase, SessionSummary } from './types';
 
 export interface SessionControllerDeps {
@@ -533,6 +534,25 @@ export function createSessionController(deps: SessionControllerDeps) {
       session.coaching.push(
         ...result.coaching.map((entry) => ({ ...entry, taskId: result.taskId })),
       );
+
+      // `immediate` means immediate. The third skip in a session says the plan has misjudged what
+      // the user has right now, and spec §7.2's answer is to STOP SERVING TASKS and talk — so
+      // walking on to the next agenda item would be doing exactly the thing the trigger fired to
+      // prevent. The session closes first: the conversation is about what they can take on now,
+      // and a fresh session after it is the rematch.
+      const interrupt = result.coaching.find(
+        (entry) => urgencyForTrigger(entry.trigger) === 'immediate',
+      );
+      if (interrupt) {
+        await finish();
+        setPhase({
+          kind: 'coaching_interrupt',
+          trigger: interrupt.trigger,
+          taskIds: interrupt.trigger === 'task_skipped' ? [result.taskId] : [],
+        });
+        return;
+      }
+
       await followTail(result.tail);
     });
   }

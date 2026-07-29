@@ -260,7 +260,7 @@ export function createSessionController(deps: SessionControllerDeps) {
         startedAtMs,
         rng,
       );
-      adoptPlan(plan);
+      await adoptPlan(plan);
     });
   }
 
@@ -270,7 +270,7 @@ export function createSessionController(deps: SessionControllerDeps) {
     return [...new Set(active.flatMap((task) => task.toolRequirements))].sort();
   }
 
-  function adoptPlan(plan: SessionPlan): void {
+  async function adoptPlan(plan: SessionPlan): Promise<void> {
     session.plan = plan;
     session.cursor = 0;
     if (plan.outcome !== 'planned' || !plan.items.some((item) => item.kind === 'task')) {
@@ -281,7 +281,7 @@ export function createSessionController(deps: SessionControllerDeps) {
       });
       return;
     }
-    void serveFrom(0);
+    await serveFrom(0);
   }
 
   // ── Walking the hidden agenda ────────────────────────────────────────────────────────────
@@ -333,7 +333,7 @@ export function createSessionController(deps: SessionControllerDeps) {
         { excludeTaskIds: new Set(await servedTaskIds()) },
       );
       if (replanned.outcome === 'planned' && replanned.items.some((i) => i.kind === 'task')) {
-        adoptPlan(replanned);
+        await adoptPlan(replanned);
         return;
       }
       // The rebuild found nothing, but §6.2's first half may still have: offer that one task.
@@ -514,7 +514,7 @@ export function createSessionController(deps: SessionControllerDeps) {
       await finish();
       return;
     }
-    adoptPlan(plan);
+    await adoptPlan(plan);
   }
 
   /** Re-plans whatever session time is left against a refreshed check-in. Used by the recovered
@@ -537,7 +537,7 @@ export function createSessionController(deps: SessionControllerDeps) {
         rng,
         { excludeTaskIds: new Set(await servedTaskIds()) },
       );
-      adoptPlan(plan);
+      await adoptPlan(plan);
     });
   }
 

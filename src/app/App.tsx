@@ -10,7 +10,14 @@
 // a JS timer, which task 13 measured arriving 38–45 s late from doze.
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, AppState, StatusBar, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  AppState,
+  BackHandler,
+  StatusBar,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { colors, spacing } from './theme';
@@ -289,6 +296,43 @@ function Router({
     setRoute({ kind: 'metrics' });
   }, [services, setRoute]);
 
+  const leaveChat = useCallback(() => {
+    chat.leave();
+    fire(library.refresh());
+    toDashboard();
+  }, [chat, library, toDashboard]);
+
+  /**
+   * Android's back gesture is the primary way people move backwards on this platform, and React
+   * Native does not wire it to anything by default — without this, back quits the app from every
+   * screen. Found on the S23 FE in Phase B, which is exactly the class of thing an emulator pass
+   * does not surface.
+   *
+   * Returning `false` passes the press on: the dashboard lets Android leave the app (correct — it
+   * is the root), and the session flow registers its own handler because only it knows whether a
+   * block is open.
+   */
+  useEffect(() => {
+    const onBack = (): boolean => {
+      switch (route.kind) {
+        case 'dashboard':
+        case 'session':
+          return false;
+        case 'taskEditor':
+          setRoute({ kind: 'taskList' });
+          return true;
+        case 'chat':
+          leaveChat();
+          return true;
+        default:
+          toDashboard();
+          return true;
+      }
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBack);
+    return () => subscription.remove();
+  }, [route.kind, leaveChat, setRoute, toDashboard]);
+
   const saveTask = useCallback(async () => {
     if (await library.save()) setRoute({ kind: 'taskList' });
   }, [library, setRoute]);
@@ -360,11 +404,7 @@ function Router({
           onSend={(text) => fire(chat.send(text))}
           onSave={() => fire(chat.saveTask())}
           onResolve={() => fire(chat.resolve())}
-          onBack={() => {
-            chat.leave();
-            fire(library.refresh());
-            toDashboard();
-          }}
+          onBack={leaveChat}
         />
       );
 
@@ -460,6 +500,35 @@ function SessionFlow({
     setRoute({ kind: 'dashboard' });
   }, [session, setRoute]);
 
+  /**
+   * Leaving the work screen with a BLOCK OPEN raises the five-option prompt instead of ending the
+   * session. The app never picks a disposition by inference (constraint #11's spirit): the user
+   * did real work, and only they can say whether it is done, parked or declined. With no block
+   * open there is nothing to dispose of, so backing out just ends the session.
+   */
+  const backOut = useCallback(() => {
+    if (phase.kind === 'work' && phase.episodeOpen) {
+      fire(session.requestEndOfBlock(phase.item));
+      return;
+    }
+    leaveSession();
+  }, [phase, session, leaveSession]);
+
+  useEffect(() => {
+    const onBack = (): boolean => {
+      // The prompt is a required stop: a disposition has to be chosen, so the press is consumed.
+      if (phase.kind === 'prompt') return true;
+      if (phase.kind === 'summary') {
+        setRoute({ kind: 'dashboard' });
+        return true;
+      }
+      backOut();
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBack);
+    return () => subscription.remove();
+  }, [phase.kind, backOut, setRoute]);
+
   const progress = useMemo(() => {
     if (!timer) return 0;
     if (timer.face === 'countup') return 0;
@@ -552,7 +621,7 @@ function SessionFlow({
           onEndBlock={() => fire(session.requestEndOfBlock(phase.item))}
           onSomethingEasier={() => fire(session.somethingEasier())}
           onNotThisOne={() => fire(session.skip())}
-          onBack={leaveSession}
+          onBack={backOut}
         />
       );
 

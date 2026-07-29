@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import com.facebook.react.bridge.ReactApplicationContext
 import com.todoai.specs.NativeEpisodeAlarmSpec
 
@@ -71,6 +72,7 @@ class EpisodeAlarmModule(reactContext: ReactApplicationContext) :
     val triggerAtMs = atMs.toLong()
     val manager = alarmManager()
     val pending = firePendingIntent(title, body)
+    Log.i(MODULE_NAME, "schedule at $triggerAtMs (in ${triggerAtMs - System.currentTimeMillis()}ms)")
     try {
       manager.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAtMs, showPendingIntent()), pending)
     } catch (denied: SecurityException) {

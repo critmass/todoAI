@@ -1,5 +1,6 @@
 package com.todoai
 
+import android.util.Log
 import com.facebook.react.BaseReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
@@ -12,10 +13,18 @@ import com.facebook.react.module.model.ReactModuleInfoProvider
  */
 class EpisodeAlarmPackage : BaseReactPackage() {
 
-  override fun getModule(name: String, reactContext: ReactApplicationContext): NativeModule? =
-      if (name == EpisodeAlarmModule.MODULE_NAME) EpisodeAlarmModule(reactContext) else null
+  init {
+    Log.i(TAG, "EpisodeAlarmPackage constructed")
+  }
+
+  override fun getModule(name: String, reactContext: ReactApplicationContext): NativeModule? {
+    val match = name == EpisodeAlarmModule.MODULE_NAME
+    Log.i(TAG, "getModule(\"$name\") match=$match")
+    return if (match) EpisodeAlarmModule(reactContext) else null
+  }
 
   override fun getReactModuleInfoProvider(): ReactModuleInfoProvider = ReactModuleInfoProvider {
+    Log.i(TAG, "module info requested for ${EpisodeAlarmModule.MODULE_NAME}")
     mapOf(
         EpisodeAlarmModule.MODULE_NAME to
             ReactModuleInfo(
@@ -27,5 +36,9 @@ class EpisodeAlarmPackage : BaseReactPackage() {
                 /* isTurboModule = */ true,
             )
     )
+  }
+
+  private companion object {
+    const val TAG = "EpisodeAlarm"
   }
 }

@@ -399,10 +399,15 @@ module lost the alarm and **not the app**, and Settings said so in plain words.
 
 ### 9.7 Housekeeping
 
-The six stale `coaching_queue` rows left by task 12's and task 13's device sessions were marked
-`resolved` (they intercepted every app open and every session start). The runtime tables were left
-**0/0/0** afterwards, so no phantom crash signal survives, and no `com.todoai` alarm is pending.
-Test rows on the device now include tasks 19 ("Alarm") and 20 ("Ping").
+Stale `coaching_queue` rows from task 12's and task 13's device sessions were marked `resolved` —
+they intercepted every app open and every session start, which is *correct* behaviour and made them
+a nuisance to test around. Fixture tasks for the execution runs were seeded straight into the
+database (task creation through the editor is verified separately, §9.4).
+
+**The device was left clean:** runtime tables **0/0/0**, so no phantom crash signal survives; **no
+`com.todoai` alarm pending** and **no notification posted**; forced doze and the simulated battery
+state both reverted (`deviceidle unforce`, `battery reset`, `stayon false`). Test rows remain in
+`tasks` (ids 13–27) and in the resolved `coaching_queue`.
 
 
 ### 9.8 The five outcomes, on hardware
@@ -523,6 +528,24 @@ It is also a nice confirmation of task 7's Phase B tuning surviving into the pro
 instruction was rewritten specifically because an earlier draft suppressed the clarifying question
 in 5 out of 5 ambiguous inputs.
 
+**Answering "just once" and tapping Save then captured the task**, so the grammar-constrained
+extraction call, the mapper and the two writes all ran on device:
+
+| Field | Value | Verdict |
+|---|---|---|
+| `estimated_duration` | 10 | correct, from "for 10 minutes" |
+| `duration_source` | `'user'` | correct — the user stated it, so §5.4 may replace it off the first real completion |
+| `energy_requirement` | 3 | the D4 default, projected through `scales.ts` |
+| **`task_recurrence` row** | **none** | **correct** — "just once" is a true one-off, and the row's *absence* is the fact (constraint #7) |
+| `context_tags` | `["dentist","appointment"]` | legitimate: the grammar's `tag ::= tagKnown \| newTag` deliberately allows one bounded new-tag escape (D7), so the vocabulary grows with use |
+
+**Two extraction-quality observations, which belong to task 7/32 rather than here.** The title came
+back as the whole sentence — *"Call the dentist for 10 minutes tomorrow"* rather than *"Call the
+dentist"* — and `next_due_at` is **null** despite "tomorrow". Neither is an app defect: the mapper
+faithfully wrote what the validated extraction contained. Both are exactly the kind of thing task
+32's recap→constrain measurement exists to quantify, and the product surface is now where that
+measurement should be taken.
+
 ## 10. What Phase B did NOT cover
 
 Recorded so the next session knows exactly where the edge is.
@@ -531,11 +554,11 @@ Recorded so the next session knows exactly where the edge is.
   (`block_expired`, `session_over`) plus both of `block_expired`'s answers. The third —
   force-kill *before* the block end, relaunch, and resume the SAME block end — is covered by test
   but not by hardware.
-- **The grammar-constrained half of task capture.** The *prose* half ran against the real 4B and
-  behaved exactly as D1/D6 intend (§9.13); the constrained extraction call and the save that follows
-  it have only been exercised against `MockLLMProvider`. This is also where task 32's residue item
-  (c) — the recap→constrain measurement — would be taken, and the product surface is now the natural
-  place to take it.
+- **Extraction QUALITY, as opposed to the extraction path.** The path is confirmed end to end on
+  device (§9.13); what is not measured is how often the fields come back *right*. The one live
+  capture got the duration and the recurrence right and the title and due date wrong, which is a
+  sample of one. Task 32's residue item (c) — recap→constrain, measured — is the proper instrument,
+  and it now has a real surface to run on.
 - **The break screen.** Breaks only appear between context groups, and every fixture task shared one
   (no context tags), so no break was ever planned. Needs fixtures with differing `context_tags`.
 - **Four of the six recurrence kinds** in the editor. One-time and the kind switch were exercised on
@@ -553,9 +576,10 @@ Recorded so the next session knows exactly where the edge is.
 
 **The personal-ship bar in the brief's §6 is met**, with one qualifier.
 
-- The end-to-end loop works on the device: add a task → start a session → check in → execute with
-  the timer → the five outcomes → coaching when triggered → summary. Every step of that sentence has
-  now been done on the S23 FE and checked against the database rather than the screen.
+- The end-to-end loop works on the device: **add a task through the chat** → start a session →
+  check in → execute with the timer → **all five outcomes** → coaching when triggered → summary.
+  Every step of that sentence has now been done on the S23 FE and checked against the database
+  rather than the screen.
 - It is wired to the real execution, planning and extraction services, not mocks.
 - **The alarm primitive is validated firing from the background and from forced deep idle.**
 - **`recoverOpenEpisode` is validated after a real force-kill.**

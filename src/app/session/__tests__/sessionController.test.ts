@@ -309,6 +309,42 @@ describe('session controller (task 24)', () => {
       expect(queue.map((entry) => entry.triggerType)).toContain('task_skipped');
     });
 
+    it('declining a task that was never STARTED still records the skip', async () => {
+      // The work screen offers "Not this one" before the block begins. The engine's disposition
+      // calls all require an open episode, so this used to throw and the button did nothing.
+      await makeTask({ title: 'Mix track' });
+      const ctl = controller();
+      await startSession(ctl, 60);
+      const phase = ctl.getState().phase;
+      if (phase.kind !== 'work') throw new Error('expected work');
+      expect(phase.episodeOpen).toBe(false);
+
+      await ctl.skip('not now');
+
+      const task = await repos.tasks.getById(phase.item.task.id);
+      expect(task?.skipCount).toBe(1);
+      expect(task?.skipReasons).toEqual(['not now']);
+      expect((await repos.sessions.getById('sess-1'))?.tasksSkipped).toBe(1);
+      expect(await repos.coaching.priorityQueue()).not.toHaveLength(0);
+      expect(await repos.runtime.getActiveEpisode()).toBeUndefined();
+    });
+
+    it('the escape valve works before the block starts too', async () => {
+      await makeTask({ title: 'Long thing', estimatedDuration: 40 });
+      await makeTask({ title: 'Short thing', estimatedDuration: 10 });
+      const ctl = controller();
+      await startSession(ctl, 90);
+      const phase = ctl.getState().phase;
+      if (phase.kind !== 'work') throw new Error('expected work');
+
+      await ctl.somethingEasier();
+
+      // Never started ⇒ 0 ms worked ⇒ past no gate ⇒ the engine reads the escape as a skip, which
+      // is the honest disposition for a task the user declined without opening.
+      expect((await repos.sessions.getById('sess-1'))?.escapeValveUsed).toBe(true);
+      expect(await repos.runtime.getActiveEpisode()).toBeUndefined();
+    });
+
     it('the escape valve marks the session and replans the tail', async () => {
       await makeTask({ title: 'Long thing', estimatedDuration: 40 });
       await makeTask({ title: 'Short thing', estimatedDuration: 10 });
@@ -454,6 +490,32 @@ describe('session controller (task 24)', () => {
       expect(await repos.interactions.listTaskIdsBySession('sess-1')).toEqual([]);
       // It asks where the user is now, because the plan died with the process.
       expect(recovered.getState().phase.kind).toBe('check_in_context');
+    });
+
+    it('"it\'s done" completes the task through the normal fold', async () => {
+      // Mirrors the device case: a task with credited work from the crash, then the user says it
+      // was finished. The zero-length episode exists so the completion goes through completeTask
+      // rather than around it — the fold must produce ONE history entry of the accumulated total.
+      const task = await makeTask({ title: 'Mix track' });
+      await repos.tasks.recordProgressEpisode(task.id, 2);
+      const ctl = controller();
+      await startSession(ctl, 60);
+      const recovered = controller();
+      await recovered.adoptRecoveredSession({
+        sessionId: 'sess-1',
+        creditedMinutes: 2,
+        directive: { kind: 'block_expired', taskId: task.id },
+      });
+
+      const parked = (await repos.tasks.getById(task.id))!;
+      await recovered.resolveRecovered(parked, 'done');
+
+      const after = await repos.tasks.getById(task.id);
+      expect(after?.status).toBe('completed');
+      expect(after?.actualDurationHistory).toEqual([2]);
+      expect(after?.accumulatedMinutes).toBe(0);
+      expect(after?.workState).toBe('none');
+      expect(await repos.runtime.getActiveEpisode()).toBeUndefined();
     });
 
     it('session_over goes straight to the summary', async () => {

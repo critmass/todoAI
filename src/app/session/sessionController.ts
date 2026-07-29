@@ -153,12 +153,18 @@ export function createSessionController(deps: SessionControllerDeps) {
   }
 
   /** Wraps an async step so a repository failure lands as a message on screen rather than an
-   *  unhandled rejection — a session that half-started is worse than one that says what broke. */
+   *  unhandled rejection — a session that half-started is worse than one that says what broke.
+   *
+   *  It also LOGS. Phase B had a disposition fail silently: the error went into state, no session
+   *  screen renders that state, and the flow moved on as if it had worked — which on a device looks
+   *  exactly like a button that does nothing. Surfacing errors on the screens themselves is beta
+   *  work; making them reachable from `adb logcat` is not optional. */
   async function guard<T>(step: () => Promise<T>): Promise<T | undefined> {
     publish({ busy: true, error: null });
     try {
       return await step();
     } catch (err) {
+      console.warn('[todoAI] session step failed:', err);
       publish({ error: err instanceof Error ? err.message : String(err) });
       return undefined;
     } finally {
@@ -471,6 +477,33 @@ export function createSessionController(deps: SessionControllerDeps) {
 
   // ── The three dispositions ───────────────────────────────────────────────────────────────
 
+  /**
+   * Declining or escaping from a task the user never STARTED.
+   *
+   * The work screen offers "Not this one" and the escape valve before the block begins, and both
+   * of those are dispositions — but the engine's disposition calls all require an open episode and
+   * throw without one, so before this existed those two buttons silently did nothing.
+   *
+   * The fix opens a ZERO-LENGTH episode first rather than reimplementing the outcome here. That
+   * keeps every semantic in task 13 where it belongs — `skip_count`, the `task_skipped` follow-up,
+   * the third-skip recalibration, the session counter, the interaction row — at the cost of one row
+   * that is written and closed in the same breath. It also lands on the right side of the 60-second
+   * gate for free: a task that was never started has worked 0 ms, so `parkAvailable` is false and
+   * the engine treats an escape from it as a skip, which is exactly what declining an unstarted
+   * task is.
+   */
+  async function ensureEpisodeForDisposition(): Promise<void> {
+    const open = await deps.episode.runtime.getActiveEpisode();
+    if (open) return;
+    const phase = view.phase;
+    if (phase.kind !== 'work') return;
+    await startEpisode(deps.episode, {
+      sessionId: requireSessionId(),
+      item: phase.item,
+      now: deps.now(),
+    });
+  }
+
   async function done(): Promise<void> {
     await closeWith(() => completeEpisode(deps.episode, deps.now()));
   }
@@ -481,11 +514,17 @@ export function createSessionController(deps: SessionControllerDeps) {
   }
 
   async function skip(reason?: string): Promise<void> {
-    await closeWith(() => skipEpisode(deps.episode, deps.now(), reason ? { reason } : undefined));
+    await closeWith(async () => {
+      await ensureEpisodeForDisposition();
+      return skipEpisode(deps.episode, deps.now(), reason ? { reason } : undefined);
+    });
   }
 
   async function somethingEasier(): Promise<void> {
-    await closeWith(() => escapeToEasier(deps.episode, deps.now()));
+    await closeWith(async () => {
+      await ensureEpisodeForDisposition();
+      return escapeToEasier(deps.episode, deps.now());
+    });
   }
 
   async function closeWith(close: () => Promise<EpisodeCloseResult>): Promise<void> {

@@ -14,8 +14,10 @@ class MainApplication : Application(), ReactApplication {
       context = applicationContext,
       packageList =
         PackageList(this).packages.apply {
-          // Packages that cannot be autolinked yet can be added manually here, for example:
-          // add(MyReactNativePackage())
+          // Autolinking only walks node_modules, so the app's own TurboModules are listed here.
+          // EpisodeAlarm is the expiry alarm task 24 owes constraint #13 — a real AlarmManager
+          // alarm, because a JS timer provably does not fire from doze (task 13 findings §9.4).
+          add(EpisodeAlarmPackage())
         },
     )
   }

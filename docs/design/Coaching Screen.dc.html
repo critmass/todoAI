@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  @font-face { font-family: 'Roboto'; src: local('Roboto'); }
+  body { margin: 0; }
+</style>
+</helmet>
+<div style="height:100%; display:flex; flex-direction:column; min-height:0; background:#F7F7F8; font-family:Roboto,system-ui,sans-serif;">
+  <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+    <button onClick="{{ onBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+    <div style="font-size:17px; font-weight:600; color:#1B1B1F;">{{ title }}</div>
+  </div>
+
+  <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:16px;">
+    <sc-for list="{{ messages }}" as="msg" hint-placeholder-count="2">
+      <sc-if value="{{ msg.fromUser }}" hint-placeholder-val="{{ false }}">
+        <div style="align-self:flex-end; max-width:78%; background:#1B1B1F; color:#fff; padding:10px 14px; border-radius:18px 18px 4px 18px; font-size:15px; line-height:1.35;">
+          {{ msg.text }}
+        </div>
+      </sc-if>
+      <sc-if value="{{ msg.fromAI }}" hint-placeholder-val="{{ true }}">
+        <div style="align-self:flex-start; max-width:78%; background:#fff; color:#1B1B1F; border:1px solid #E5E5EA; padding:10px 14px; border-radius:18px 18px 18px 4px; font-size:15px; line-height:1.35;">
+          {{ msg.text }}
+        </div>
+      </sc-if>
+    </sc-for>
+  </div>
+
+  <div style="display:flex; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid #E5E5EA; background:#fff;">
+    <input value="{{ draft }}" onChange="{{ onDraftChange }}" onKeyDown="{{ onDraftKeyDown }}" placeholder="Message" style="flex:1; border:1px solid #D9D9DE; border-radius:20px; padding:10px 16px; font-size:15px; outline:none; font-family:inherit;" />
+    <button onClick="{{ sendMessage }}" style="width:40px; height:40px; border-radius:50%; border:none; background:#3A5A40; color:#fff; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;">➤</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:412,&quot;height&quot;:892},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;New Task&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;onBack&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;() =&gt; void&quot;}}">
+class Component extends DCLogic {
+  state = {
+    draft: '',
+    messages: [{ fromAI: true, fromUser: false, text: "What's on your mind? Tell me the task and I'll help you get it set up." }],
+  };
+
+  onDraftChange = (e) => this.setState({ draft: e.target.value });
+
+  onDraftKeyDown = (e) => {
+    if (e.key === 'Enter') this.sendMessage();
+  };
+
+  sendMessage = () => {
+    const text = this.state.draft.trim();
+    if (!text) return;
+    this.setState(s => ({
+      draft: '',
+      messages: [...s.messages, { fromUser: true, fromAI: false, text }],
+    }));
+  };
+
+  renderVals() {
+    return {
+      title: this.props.title ?? 'Coach',
+      onBack: this.props.onBack ?? (() => {}),
+      messages: this.state.messages,
+      draft: this.state.draft,
+      onDraftChange: this.onDraftChange,
+      onDraftKeyDown: this.onDraftKeyDown,
+      sendMessage: this.sendMessage,
+    };
+  }
+}
+</script>
+</body>
+</html>

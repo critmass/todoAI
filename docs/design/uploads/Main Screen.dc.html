@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  @font-face { font-family: 'Roboto'; src: local('Roboto'); }
+  body { margin: 0; }
+</style>
+</helmet>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" hint-size="412,892">
+  <div style="height:100%; display:flex; flex-direction:column; background:#F7F7F8; font-family:Roboto,system-ui,sans-serif;">
+
+    <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:32px;">
+        <div style="font-size:22px; font-weight:600; color:#1B1B1F; margin-bottom:4px; text-align:center;">
+          Focus
+        </div>
+        <sc-if value="{{ hasTasks }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+            <button onClick="{{ startWork }}" style="width:100%; padding:16px; border-radius:28px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.15);">
+              Start work
+            </button>
+            <button onClick="{{ openReview }}" style="width:100%; padding:16px; border-radius:28px; border:1.5px solid #3A5A40; background:transparent; color:#3A5A40; font-size:16px; font-weight:600;">
+              Review task list
+            </button>
+            <button onClick="{{ openAddTask }}" style="width:100%; padding:16px; border-radius:28px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:500;">
+              Add task
+            </button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noTasks }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ openAddTask }}" style="width:100%; padding:16px; border-radius:28px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.15);">
+            Add task
+          </button>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Task list</div>
+        </div>
+        <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:16px;">
+          <sc-for list="{{ tasks }}" as="task" hint-placeholder-count="3">
+            <button onClick="{{ task.open }}" style="background:#fff; border:1px solid #E5E5EA; border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:4px; text-align:left; cursor:pointer;">
+              <div style="font-size:15px; font-weight:600; color:#1B1B1F;">{{ task.name }}</div>
+              <div style="font-size:13px; color:#6B6B70;">{{ task.summary }}</div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isTaskDetail }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ backToReview }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Edit task</div>
+        </div>
+        <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:20px; padding:24px;">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Task name</label>
+            <input value="{{ editingTask.name }}" onChange="{{ onEditTaskName }}" style="width:100%; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:12px 14px; font-size:16px; outline:none; font-family:inherit; background:#fff;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Estimated length</label>
+            <input value="{{ editingTask.estimatedLength }}" onChange="{{ onEditEstimatedLength }}" placeholder="e.g. 25 min" style="width:100%; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:12px 14px; font-size:16px; outline:none; font-family:inherit; background:#fff;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Due date</label>
+            <input value="{{ editingTask.dueDate }}" onChange="{{ onEditTaskDueDate }}" style="width:100%; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:12px 14px; font-size:16px; outline:none; font-family:inherit; background:#fff;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Frequency (times)</label>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:16px; color:#1B1B1F; font-weight:600;">{{ editingTask.completedCount }}</span>
+              <span style="font-size:15px; color:#6B6B70;">of</span>
+              <input value="{{ editingTask.frequency }}" onChange="{{ onEditTaskFrequency }}" inputMode="numeric" style="flex:1; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:12px 14px; font-size:16px; outline:none; font-family:inherit; background:#fff;" />
+            </div>
+          </div>
+          <label onClick="{{ onToggleRecurring }}" style="display:flex; align-items:center; gap:10px; font-size:15px; color:#1B1B1F; cursor:pointer;">
+            <div style="width:20px; height:20px; border-radius:6px; border:1.5px solid {{ editingTask.recurringBorder }}; background:{{ editingTask.recurringBg }}; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:700; flex-shrink:0;">{{ editingTask.recurringMark }}</div>
+            Recurring
+          </label>
+          <sc-if value="{{ editingTask.recurring }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span style="font-size:14px; color:#6B6B70;">Every</span>
+              <input value="{{ editingTask.recurCount }}" onChange="{{ onEditRecurCount }}" inputMode="numeric" style="width:56px; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 12px; font-size:15px; outline:none; font-family:inherit; background:#fff; text-align:center;" />
+              <select value="{{ editingTask.recurUnit }}" onChange="{{ onEditRecurUnit }}" style="flex:1; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 12px; font-size:15px; outline:none; font-family:inherit; background:#fff;">
+                <option value="daily">n-daily</option>
+                <option value="weekly">n-weekly</option>
+                <option value="monthly">n-monthly</option>
+                <option value="yearly">n-yearly</option>
+              </select>
+            </div>
+          </sc-if>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Tools required</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <sc-for list="{{ editingTask.toolChips }}" as="chip" hint-placeholder-count="1">
+                <div style="display:flex; align-items:center; gap:6px; background:#fff; border:1px solid #E5E5EA; border-radius:20px; padding:8px 10px 8px 14px; font-size:14px; color:#1B1B1F;">
+                  {{ chip.label }}
+                  <button onClick="{{ chip.remove }}" style="background:none; border:none; color:#6B6B70; font-size:15px; cursor:pointer; line-height:1; padding:2px;">×</button>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input value="{{ newTool }}" onChange="{{ onNewToolChange }}" onKeyDown="{{ onNewToolKeyDown }}" placeholder="Add a tool…" style="flex:1; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 14px; font-size:15px; outline:none; font-family:inherit; background:#fff;" />
+              <button onClick="{{ addTool }}" style="padding:10px 16px; border-radius:12px; border:none; background:#3A5A40; color:#fff; font-size:14px; font-weight:600; cursor:pointer;">Add</button>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Contexts this task is in</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <sc-for list="{{ editingTask.contextChips }}" as="chip" hint-placeholder-count="1">
+                <div style="display:flex; align-items:center; gap:6px; background:#fff; border:1px solid #E5E5EA; border-radius:20px; padding:8px 10px 8px 14px; font-size:14px; color:#1B1B1F;">
+                  {{ chip.label }}
+                  <button onClick="{{ chip.remove }}" style="background:none; border:none; color:#6B6B70; font-size:15px; cursor:pointer; line-height:1; padding:2px;">×</button>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input value="{{ newContext }}" onChange="{{ onNewContextChange }}" onKeyDown="{{ onNewContextKeyDown }}" placeholder="Add a context…" style="flex:1; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 14px; font-size:15px; outline:none; font-family:inherit; background:#fff;" />
+              <button onClick="{{ addContext }}" style="padding:10px 16px; border-radius:12px; border:none; background:#3A5A40; color:#fff; font-size:14px; font-weight:600; cursor:pointer;">Add</button>
+            </div>
+          </div>
+          <div style="flex:1;"></div>
+          <sc-if value="{{ editingTask.isDependency }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13px; color:#6B6B70; text-align:center;">Other tasks depend on this one, so it can't be deleted.</div>
+          </sc-if>
+          <button onClick="{{ deleteTask }}" style="width:100%; padding:14px; border-radius:24px; border:1px solid {{ editingTask.deleteBorder }}; background:transparent; color:{{ editingTask.deleteColor }}; font-size:16px; font-weight:600; cursor:{{ editingTask.deleteCursor }};">Delete task</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isEnergy }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Check in</div>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:32px;">
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">
+            How's your energy right now?
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+            <sc-for list="{{ energyLevels }}" as="level" hint-placeholder-count="3">
+              <button onClick="{{ level.select }}" style="width:100%; padding:16px; border-radius:16px; text-align:left; background:{{ level.bg }}; border:{{ level.border }}; color:{{ level.color }}; font-size:16px; font-weight:600; cursor:pointer;">
+                {{ level.label }}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDuration }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Check in</div>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:32px;">
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">
+            How much time do you have?
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+            <sc-for list="{{ durationOptions }}" as="opt" hint-placeholder-count="4">
+              <button onClick="{{ opt.select }}" style="width:100%; padding:16px; border-radius:16px; text-align:left; background:{{ opt.bg }}; border:{{ opt.border }}; color:{{ opt.color }}; font-size:16px; font-weight:600; cursor:pointer;">
+                {{ opt.label }}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isContext }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Check in</div>
+        </div>
+        <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:20px; padding:24px;">
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">
+            Where are you right now?
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <sc-for list="{{ topContextChips }}" as="chip" hint-placeholder-count="5">
+              <button onClick="{{ chip.select }}" style="width:100%; padding:14px 16px; border-radius:16px; text-align:left; background:{{ chip.bg }}; border:{{ chip.border }}; color:{{ chip.color }}; font-size:16px; font-weight:600; cursor:pointer;">
+                {{ chip.name }}
+              </button>
+            </sc-for>
+          </div>
+          <input value="{{ contextQuery }}" onChange="{{ onContextQueryChange }}" placeholder="Search another context…" style="width:100%; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:20px; padding:12px 16px; font-size:15px; outline:none; font-family:inherit; background:#fff;" />
+          <sc-if value="{{ hasSearchResults }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <sc-for list="{{ searchResults }}" as="chip" hint-placeholder-count="0">
+                <button onClick="{{ chip.select }}" style="width:100%; padding:14px 16px; border-radius:16px; text-align:left; background:{{ chip.bg }}; border:{{ chip.border }}; color:{{ chip.color }}; font-size:16px; font-weight:600; cursor:pointer;">
+                  {{ chip.name }}
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isTools }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Tools check</div>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:20px; padding:32px;">
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">
+            {{ selectedTask.name }}
+          </div>
+          <div style="font-size:15px; color:#6B6B70; text-align:center;">
+            This task needs:
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <sc-for list="{{ selectedTask.tools }}" as="tool" hint-placeholder-count="2">
+              <div style="background:#fff; border:1px solid #E5E5EA; border-radius:14px; padding:12px 16px; font-size:15px; font-weight:500; color:#1B1B1F;">
+                {{ tool }}
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:16px; font-weight:600; color:#1B1B1F; text-align:center; margin-top:8px;">
+            Do you have all of these with you?
+          </div>
+          <div style="display:flex; gap:12px;">
+            <button onClick="{{ confirmToolsPresent }}" style="flex:1; padding:14px; border-radius:24px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600;">Yes</button>
+            <button onClick="{{ toolsMissing }}" style="flex:1; padding:14px; border-radius:24px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:600;">Not yet</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isWork }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Focus</div>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; padding:32px 32px 48px;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px; padding-top:16px;">
+            <div style="font-size:14px; color:#6B6B70; text-transform:uppercase; letter-spacing:0.04em;">Now working on</div>
+            <div style="font-size:22px; font-weight:600; color:#1B1B1F; text-align:center;">{{ selectedTask.name }}</div>
+            <button onClick="{{ toggleHyperFocus }}" style="margin-top:6px; padding:8px 16px; border-radius:16px; border:1.5px solid {{ hyperFocusBorder }}; background:{{ hyperFocusBg }}; color:{{ hyperFocusColor }}; font-size:13px; font-weight:600; cursor:pointer;">Hyper-focus</button>
+          </div>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+            <sc-if value="{{ isTimerIdle }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ startTimer }}" style="width:160px; height:160px; border-radius:50%; border:none; background:#3A5A40; color:#fff; font-size:22px; font-weight:700; letter-spacing:0.04em; cursor:pointer; box-shadow:0 4px 16px rgba(58,90,64,0.35);">
+                START
+              </button>
+            </sc-if>
+            <sc-if value="{{ isTimerActive }}" hint-placeholder-val="{{ false }}">
+              <div style="width:176px; height:176px; border-radius:50%; background:{{ timerRingBg }}; display:flex; align-items:center; justify-content:center;">
+                <button onClick="{{ toggleTimerPause }}" style="width:160px; height:160px; border-radius:50%; border:none; background:{{ timerCircleBg }}; color:#fff; font-size:32px; font-weight:700; letter-spacing:0.02em; cursor:pointer; box-shadow:0 4px 16px rgba(58,90,64,0.35); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;">
+                  <div>{{ timeDisplay }}</div>
+                  <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; opacity:0.85;">{{ timerStatusLabel }}</div>
+                </button>
+              </div>
+            </sc-if>
+          </div>
+          <div style="display:flex; gap:12px; width:100%;">
+            <sc-if value="{{ isTimerIdle }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ goBack }}" style="flex:1; padding:14px; border-radius:24px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:600;">Skip</button>
+            </sc-if>
+            <sc-if value="{{ isTimerActive }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ finishWork }}" style="flex:1; padding:14px; border-radius:24px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600;">Finished</button>
+              <button onClick="{{ giveUp }}" style="flex:1; padding:14px; border-radius:24px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:600;">Give up</button>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+<sc-if value="{{ isDebrief }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:32px;">
+        <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">Did you finish?</div>
+        <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+          <button onClick="{{ debriefYes }}" style="width:100%; padding:16px; border-radius:28px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600;">Yes</button>
+          <button onClick="{{ debriefNo }}" style="width:100%; padding:16px; border-radius:28px; border:1.5px solid #3A5A40; background:transparent; color:#3A5A40; font-size:16px; font-weight:600;">No</button>
+          <button onClick="{{ debriefExtendFive }}" style="width:100%; padding:16px; border-radius:28px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:500;">+5 minutes</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isChat }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; min-height:0; display:flex;">
+        <dc-import name="Coaching Screen" title="{{ chatTitle }}" on-back="{{ goBack }}" style="flex:1; min-height:0;" hint-size="100%,100%"></dc-import>
+      </div>
+    </sc-if>
+
+  </div>
+</x-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:412,&quot;height&quot;:892},&quot;hasTasks&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo state&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'main',
+    chatTitle: '',
+    energy: null,
+    duration: null,
+    context: null,
+    contextQuery: '',
+    timerState: 'idle',
+    secondsLeft: 0,
+    hyperFocus: false,
+    elapsedSeconds: 0,
+    timerDuration: 25 * 60,
+    editingTaskIndex: null,
+    tasks: [
+      { name: 'Submit expense report', estimatedLength: '20 min', dueDate: 'Jul 30', frequency: '', completedCount: '0', recurring: false, recurCount: '1', recurUnit: 'daily', tools: [], contexts: ['Home', 'Office'], isDependency: true },
+      { name: 'Drink water', estimatedLength: '2 min', dueDate: '', frequency: '8', completedCount: '4', recurring: true, recurCount: '1', recurUnit: 'daily', tools: [], contexts: ['Home', 'Office', 'Gym'], isDependency: false },
+      { name: 'Call dentist to reschedule', estimatedLength: '10 min', dueDate: 'Aug 1', frequency: '', completedCount: '0', recurring: false, recurCount: '1', recurUnit: 'daily', tools: ['Phone'], contexts: ['Home', 'Commute'], isDependency: false },
+      { name: 'Stretch break', estimatedLength: '5 min', dueDate: '', frequency: '3', completedCount: '1', recurring: true, recurCount: '1', recurUnit: 'daily', tools: ['Yoga mat', 'Water bottle'], contexts: ['Home', 'Gym'], isDependency: false },
+    ],
+    newTool: '',
+    newContext: '',
+  };
+
+  openReview = () => this.setState({ screen: 'review' });
+
+  openAddTask = () => this.setState({ screen: 'chat', chatTitle: 'New Task' });
+
+  startWork = () => this.setState({ screen: 'energy', energy: null });
+
+  goBack = () => {
+    this.clearTimerInterval();
+    this.setState({ screen: 'main', timerState: 'idle' });
+  };
+
+  selectEnergy = (level) => this.setState({ energy: level, screen: 'duration' });
+
+  selectDuration = (duration) => this.setState({ duration, screen: 'context', contextQuery: '', context: null });
+
+  allContexts = ['Home', 'Office', 'Commute', 'Coffee shop', 'Gym', 'Kitchen', 'Bedroom', 'Car', 'Library', 'Outdoors', 'Client site'];
+  topContexts = ['Home', 'Office', 'Commute', 'Coffee shop', 'Gym'];
+
+  onContextQueryChange = (e) => this.setState({ contextQuery: e.target.value });
+
+  selectContext = (context) => {
+    const coachingTriggered = this.state.energy === 'Low';
+    if (coachingTriggered) {
+      this.setState({ context, screen: 'chat', chatTitle: 'Coaching session' });
+      return;
+    }
+    const task = this.state.tasks[Math.floor(Math.random() * this.state.tasks.length)];
+    this.setState({
+      context,
+      selectedTask: task,
+      screen: task.tools && task.tools.length > 0 ? 'tools' : 'work',
+    });
+  };
+
+  confirmToolsPresent = () => this.setState({ screen: 'work' });
+  toolsMissing = () => this.setState({ screen: 'main' });
+
+  openTaskDetail = (index) => this.setState({ screen: 'taskDetail', editingTaskIndex: index, newTool: '', newContext: '' });
+  backToReview = () => this.setState({ screen: 'review', editingTaskIndex: null });
+
+  updateEditingTask(fields) {
+    this.setState(s => {
+      const tasks = [...s.tasks];
+      tasks[s.editingTaskIndex] = { ...tasks[s.editingTaskIndex], ...fields };
+      return { tasks };
+    });
+  }
+
+  onEditTaskName = (e) => this.updateEditingTask({ name: e.target.value });
+  onEditTaskDueDate = (e) => this.updateEditingTask({ dueDate: e.target.value });
+  onEditEstimatedLength = (e) => this.updateEditingTask({ estimatedLength: e.target.value });
+  onEditTaskFrequency = (e) => {
+    const digits = e.target.value.replace(/[^0-9]/g, '');
+    this.updateEditingTask({ frequency: digits });
+  };
+  onToggleRecurring = () => this.updateEditingTask({ recurring: !this.state.tasks[this.state.editingTaskIndex].recurring });
+  onEditRecurCount = (e) => {
+    const digits = e.target.value.replace(/[^0-9]/g, '');
+    this.updateEditingTask({ recurCount: digits === '' ? '' : digits });
+  };
+  onEditRecurUnit = (e) => this.updateEditingTask({ recurUnit: e.target.value });
+
+  onNewToolChange = (e) => this.setState({ newTool: e.target.value });
+  onNewToolKeyDown = (e) => { if (e.key === 'Enter') this.addTool(); };
+  addTool = () => {
+    const val = this.state.newTool.trim();
+    if (!val) return;
+    const task = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ tools: [...task.tools, val] });
+    this.setState({ newTool: '' });
+  };
+  removeTool = (i) => {
+    const task = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ tools: task.tools.filter((_, idx) => idx !== i) });
+  };
+
+  onNewContextChange = (e) => this.setState({ newContext: e.target.value });
+  onNewContextKeyDown = (e) => { if (e.key === 'Enter') this.addContext(); };
+  addContext = () => {
+    const val = this.state.newContext.trim();
+    if (!val) return;
+    const task = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ contexts: [...task.contexts, val] });
+    this.setState({ newContext: '' });
+  };
+  removeContext = (i) => {
+    const task = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ contexts: task.contexts.filter((_, idx) => idx !== i) });
+  };
+
+  deleteTask = () => {
+    if (this.state.tasks[this.state.editingTaskIndex]?.isDependency) return;
+    this.setState(s => ({
+      tasks: s.tasks.filter((_, i) => i !== s.editingTaskIndex),
+      screen: 'review',
+      editingTaskIndex: null,
+    }));
+  };
+
+  timerDuration = 25 * 60;
+  clearTimerInterval() {
+    if (window.__focusTimerId) {
+      clearInterval(window.__focusTimerId);
+      window.__focusTimerId = null;
+    }
+  }
+
+  componentDidMount() {
+    this.clearTimerInterval();
+  }
+
+  componentWillUnmount() {
+    this.clearTimerInterval();
+  }
+
+  beginInterval() {
+    this.clearTimerInterval();
+    window.__focusTimerId = setInterval(() => {
+      this.setState(s => {
+        if (s.hyperFocus) {
+          return { elapsedSeconds: s.elapsedSeconds + 1 };
+        }
+        if (s.secondsLeft <= 1) {
+          this.clearTimerInterval();
+          return { secondsLeft: 0, timerState: 'idle', screen: 'debrief' };
+        }
+        return { secondsLeft: s.secondsLeft - 1 };
+      });
+    }, 1000);
+  }
+
+  toggleHyperFocus = () => {
+    this.setState(s => ({
+      hyperFocus: !s.hyperFocus,
+      elapsedSeconds: !s.hyperFocus ? (s.timerDuration - s.secondsLeft) : s.elapsedSeconds,
+    }));
+  };
+
+  parseEstimatedSeconds(task) {
+    if (!task || !task.estimatedLength) return this.timerDuration;
+    const str = task.estimatedLength.toLowerCase();
+    const num = parseFloat(str);
+    if (isNaN(num)) return this.timerDuration;
+    if (str.includes('hr') || str.includes('hour')) return Math.round(num * 3600);
+    if (str.includes('sec')) return Math.round(num);
+    return Math.round(num * 60);
+  }
+
+  startTimer = () => {
+    const seconds = this.parseEstimatedSeconds(this.state.selectedTask);
+    this.setState({ timerState: 'running', secondsLeft: seconds, timerDuration: seconds, hyperFocus: false, elapsedSeconds: 0 });
+    this.beginInterval();
+  };
+
+  toggleTimerPause = () => {
+    if (this.state.timerState === 'running') {
+      this.clearTimerInterval();
+      this.setState({ timerState: 'paused' });
+    } else if (this.state.timerState === 'paused') {
+      this.setState({ timerState: 'running' });
+      this.beginInterval();
+    }
+  };
+
+  finishWork = () => {
+    this.clearTimerInterval();
+    this.setState({ screen: 'main', timerState: 'idle' });
+  };
+
+  giveUp = () => {
+    this.clearTimerInterval();
+    this.setState({ screen: 'main', timerState: 'idle' });
+  };
+
+  debriefYes = () => {
+    const task = this.state.tasks[Math.floor(Math.random() * this.state.tasks.length)];
+    this.setState({
+      selectedTask: task,
+      screen: task.tools && task.tools.length > 0 ? 'tools' : 'work',
+    });
+  };
+
+  debriefNo = () => this.setState({ screen: 'chat', chatTitle: 'Coaching session' });
+
+  debriefExtendFive = () => {
+    this.setState(s => ({
+      screen: 'work',
+      timerState: 'running',
+      secondsLeft: 5 * 60,
+      timerDuration: 5 * 60,
+    }));
+    this.beginInterval();
+  };
+
+  buildContextChip(name) {
+    const selected = this.state.context === name;
+    return {
+      name,
+      select: () => this.selectContext(name),
+      bg: selected ? '#3A5A40' : '#fff',
+      color: selected ? '#fff' : '#1B1B1F',
+      border: selected ? '1.5px solid #3A5A40' : '1px solid #E5E5EA',
+    };
+  }
+
+  renderVals() {
+    const hasTasks = this.props.hasTasks ?? false;
+    const screen = this.state.screen;
+    return {
+      hasTasks,
+      noTasks: !hasTasks,
+      isMain: screen === 'main',
+      isReview: screen === 'review',
+      isEnergy: screen === 'energy',
+      isDuration: screen === 'duration',
+      isContext: screen === 'context',
+      durationOptions: ['15 min', '30 min', '1 hour', '2+ hours'].map(label => {
+        const selected = this.state.duration === label;
+        return {
+          label,
+          select: () => this.selectDuration(label),
+          bg: selected ? '#3A5A40' : '#fff',
+          color: selected ? '#fff' : '#1B1B1F',
+          border: selected ? '1.5px solid #3A5A40' : '1px solid #E5E5EA',
+        };
+      }),
+      isTools: screen === 'tools',
+      isWork: screen === 'work',
+      isDebrief: screen === 'debrief',
+      debriefYes: this.debriefYes,
+      debriefNo: this.debriefNo,
+      debriefExtendFive: this.debriefExtendFive,
+      isChat: screen === 'chat',
+      selectedTask: this.state.selectedTask,
+      confirmToolsPresent: this.confirmToolsPresent,
+      toolsMissing: this.toolsMissing,
+      isTimerIdle: this.state.timerState === 'idle',
+      isTimerActive: this.state.timerState === 'running' || this.state.timerState === 'paused',
+      timerStatusLabel: this.state.timerState === 'paused' ? 'Paused' : 'Focusing',
+      timerCircleBg: this.state.timerState === 'paused' ? '#6B6B70' : '#3A5A40',
+      timeDisplay: this.state.hyperFocus
+        ? `${String(Math.floor(this.state.elapsedSeconds / 60)).padStart(2, '0')}:${String(this.state.elapsedSeconds % 60).padStart(2, '0')}`
+        : `${String(Math.floor(this.state.secondsLeft / 60)).padStart(2, '0')}:${String(this.state.secondsLeft % 60).padStart(2, '0')}`,
+      toggleHyperFocus: this.toggleHyperFocus,
+      hyperFocusBorder: this.state.hyperFocus ? '#3A5A40' : '#C9C9CF',
+      hyperFocusBg: this.state.hyperFocus ? '#3A5A40' : 'transparent',
+      hyperFocusColor: this.state.hyperFocus ? '#fff' : '#49454F',
+      timerRingBg: (() => {
+        if (this.state.hyperFocus) return '#E5E5EA';
+        const pct = this.state.timerDuration > 0 ? Math.max(0, Math.min(1, this.state.secondsLeft / this.state.timerDuration)) : 0;
+        const deg = pct * 360;
+        return `conic-gradient(#3A5A40 ${deg}deg, #E5E5EA ${deg}deg)`;
+      })(),
+      startTimer: this.startTimer,
+      toggleTimerPause: this.toggleTimerPause,
+      finishWork: this.finishWork,
+      giveUp: this.giveUp,
+      contextQuery: this.state.contextQuery,
+      onContextQueryChange: this.onContextQueryChange,
+      topContextChips: this.topContexts.map(name => this.buildContextChip(name)),
+      searchResults: this.state.contextQuery.trim()
+        ? this.allContexts
+            .filter(c => c.toLowerCase().includes(this.state.contextQuery.trim().toLowerCase()))
+            .map(name => this.buildContextChip(name))
+        : [],
+      hasSearchResults: !!this.state.contextQuery.trim() && this.allContexts.some(c => c.toLowerCase().includes(this.state.contextQuery.trim().toLowerCase())),
+      tasks: this.state.tasks.map((task, i) => ({
+        ...task,
+        open: () => this.openTaskDetail(i),
+        summary: [
+          task.dueDate ? `Due ${task.dueDate}` : null,
+          task.frequency ? `${task.completedCount || 0} of ${task.frequency} time${task.frequency === '1' ? '' : 's'} every ${task.recurCount && task.recurCount !== '1' ? task.recurCount + ' ' : ''}${task.recurUnit === 'daily' ? (task.recurCount && task.recurCount !== '1' ? 'days' : 'day') : task.recurUnit === 'weekly' ? (task.recurCount && task.recurCount !== '1' ? 'weeks' : 'week') : task.recurUnit === 'monthly' ? (task.recurCount && task.recurCount !== '1' ? 'months' : 'month') : (task.recurCount && task.recurCount !== '1' ? 'years' : 'year')}` : (task.recurring ? 'Recurring' : null),
+        ].filter(Boolean).join(' · '),
+      })),
+      openReview: this.openReview,
+      isTaskDetail: screen === 'taskDetail',
+      editingTask: this.state.editingTaskIndex !== null ? (() => {
+        const t = this.state.tasks[this.state.editingTaskIndex];
+        return {
+          ...t,
+          toolChips: (t.tools || []).map((tool, i) => ({ label: tool, remove: () => this.removeTool(i) })),
+          contextChips: (t.contexts || []).map((ctx, i) => ({ label: ctx, remove: () => this.removeContext(i) })),
+          deleteBorder: t.isDependency ? '#E5E5EA' : '#C9494A',
+          deleteColor: t.isDependency ? '#B3B3B8' : '#C9494A',
+          deleteCursor: t.isDependency ? 'not-allowed' : 'pointer',
+          recurringBorder: t.recurring ? '#3A5A40' : '#D9D9DE',
+          recurringBg: t.recurring ? '#3A5A40' : '#fff',
+          recurringMark: t.recurring ? '✓' : '',
+        };
+      })() : null,
+      backToReview: this.backToReview,
+      onEditTaskName: this.onEditTaskName,
+      onEditTaskDueDate: this.onEditTaskDueDate,
+      onEditEstimatedLength: this.onEditEstimatedLength,
+      onEditTaskFrequency: this.onEditTaskFrequency,
+      onToggleRecurring: this.onToggleRecurring,
+      onEditRecurCount: this.onEditRecurCount,
+      onEditRecurUnit: this.onEditRecurUnit,
+      deleteTask: this.deleteTask,
+      newTool: this.state.newTool,
+      onNewToolChange: this.onNewToolChange,
+      onNewToolKeyDown: this.onNewToolKeyDown,
+      addTool: this.addTool,
+      newContext: this.state.newContext,
+      onNewContextChange: this.onNewContextChange,
+      onNewContextKeyDown: this.onNewContextKeyDown,
+      addContext: this.addContext,
+      chatTitle: this.state.chatTitle,
+      openAddTask: this.openAddTask,
+      startWork: this.startWork,
+      goBack: this.goBack,
+      energyLevels: ['Low', 'Medium', 'High'].map(label => {
+        const selected = this.state.energy === label;
+        return {
+          label,
+          select: () => this.selectEnergy(label),
+          bg: selected ? '#3A5A40' : '#fff',
+          color: selected ? '#fff' : '#1B1B1F',
+          border: selected ? '1.5px solid #3A5A40' : '1px solid #E5E5EA',
+        };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -45,5 +45,14 @@
   },
   "engines": {
     "node": ">= 22.11.0"
+  },
+  "//codegenConfig": "Task 24 — the app's own TurboModule specs live in src/specs. Today that is one module: the episode expiry alarm (constraint #13, a real AlarmManager alarm because a JS timer provably does not fire from doze).",
+  "codegenConfig": {
+    "name": "TodoAiAppSpecs",
+    "type": "modules",
+    "jsSrcsDir": "src/specs",
+    "android": {
+      "javaPackageName": "com.todoai.specs"
+    }
   }
 }

@@ -2,6 +2,24 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      Task 24 — the episode expiry alarm (constraint #13). A JS setTimeout does not fire from
+      doze (task 13 findings §9.4, measured twice on the S23 FE at 38 s and 45 s late), so the
+      block end is an AlarmManager alarm that surfaces a full-screen-intent notification.
+
+      USE_EXACT_ALARM is granted at install to apps whose core function is alarms and timers,
+      which is literally what a work-block timer is. SCHEDULE_EXACT_ALARM covers API 31/32, where
+      the grant is a user setting instead; EpisodeAlarmModule.openExactAlarmSettings() takes the
+      user there and the module degrades to setAndAllowWhileIdle if it is refused.
+    -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+      android:name="android.permission.SCHEDULE_EXACT_ALARM"
+      android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
@@ -23,5 +41,15 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+
+      <!-- Fires at blockEndAtMs and posts the alarm notification. Not exported: only this app's
+           own PendingIntent ever targets it. -->
+      <receiver
+        android:name=".EpisodeAlarmReceiver"
+        android:exported="false">
+        <intent-filter>
+          <action android:name="com.todoai.BLOCK_ENDED" />
+        </intent-filter>
+      </receiver>
     </application>
 </manifest>

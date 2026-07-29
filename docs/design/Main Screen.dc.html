@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!--
+CHANGE LOG (reconciling prototype with locked product decisions)
+1. Session = hidden ordered agenda (3–4 tasks) built at check-in; no Math.random anywhere.
+   Advancing walks the agenda; exhaustion ends the session with a short summary screen.
+   The agenda itself is never rendered.
+2. End-of-block prompt now has exactly five options: Done / +5 minutes (flat, uncapped,
+   stays a countdown) / Keep going (switches to count-up, +25-min chunks) /
+   Pause for later (parks with progress) / Something easier.
+   Old 3-button debrief and the work-screen hyper-focus toggle are gone.
+3. "Give up" removed everywhere. Bailing in the first 45s reads as "Not this one" (a skip);
+   after that the prompt offers "Pause for later". Copy frames exits as a bad match, not failure.
+4. Always-present quiet escape valve on the work screen ("This isn't landing → something easier"),
+   which reorders the remaining agenda shortest-first and parks the current task for later.
+5. Recurrence editor rebuilt as six mutually exclusive kinds (one-time / schedule / quota per
+   period / quota on a schedule / ongoing / target count); only the chosen kind's fields show.
+   Standalone due-date and the old count+recurring combo removed.
+6. Coaching now reachable from low energy AND from repeated skips in a session
+   (2 skips → coaching check-in). Declining a task routes the same way.
+
+NOT REPRESENTED IN THE PROTOTYPE: real agenda generation (energy/duration/context matching is
+mocked — agenda is the first N open tasks, easier-path is shortest-first), no persistence of
+paused/partial progress across sessions, quota/schedule fields are not validated against a
+calendar, and the coach replies are stubs (chat surface is unchanged on purpose).
+-->
+<helmet>
+<style>
+  @font-face { font-family: 'Roboto'; src: local('Roboto'); }
+  body { margin: 0; }
+  a { color: #3A5A40; }
+  a:hover { color: #2C4531; }
+</style>
+</helmet>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" hint-size="412,892">
+  <div style="height:100%; display:flex; flex-direction:column; background:#F7F7F8; font-family:Roboto,system-ui,sans-serif;">
+
+    <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:32px;">
+        <div style="font-size:22px; font-weight:600; color:#1B1B1F; margin-bottom:4px; text-align:center;">
+          Focus
+        </div>
+        <sc-if value="{{ hasTasks }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+            <button onClick="{{ startWork }}" style="width:100%; padding:16px; border-radius:28px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.15);">
+              Start work
+            </button>
+            <button onClick="{{ openReview }}" style="width:100%; padding:16px; border-radius:28px; border:1.5px solid #3A5A40; background:transparent; color:#3A5A40; font-size:16px; font-weight:600;">
+              Review task list
+            </button>
+            <button onClick="{{ openAddTask }}" style="width:100%; padding:16px; border-radius:28px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:500;">
+              Add task
+            </button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noTasks }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ openAddTask }}" style="width:100%; padding:16px; border-radius:28px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.15);">
+            Add task
+          </button>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Task list</div>
+        </div>
+        <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:16px;">
+          <sc-for list="{{ tasks }}" as="task" hint-placeholder-count="3">
+            <button onClick="{{ task.open }}" style="background:#fff; border:1px solid #E5E5EA; border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:4px; text-align:left; cursor:pointer;">
+              <div style="font-size:15px; font-weight:600; color:#1B1B1F;">{{ task.name }}</div>
+              <div style="font-size:13px; color:#6B6B70;">{{ task.summary }}</div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isTaskDetail }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ backToReview }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Edit task</div>
+        </div>
+        <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:20px; padding:24px;">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Task name</label>
+            <input value="{{ editingTask.name }}" onChange="{{ onEditTaskName }}" style="width:100%; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:12px 14px; font-size:16px; outline:none; font-family:inherit; background:#fff;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Estimated length</label>
+            <input value="{{ editingTask.estimatedLength }}" onChange="{{ onEditEstimatedLength }}" placeholder="e.g. 25 min" style="width:100%; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:12px 14px; font-size:16px; outline:none; font-family:inherit; background:#fff;" />
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">How often</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <sc-for list="{{ editingTask.kindOptions }}" as="kind" hint-placeholder-count="6">
+                <button onClick="{{ kind.select }}" style="padding:9px 14px; border-radius:20px; white-space:nowrap; background:{{ kind.bg }}; border:{{ kind.border }}; color:{{ kind.color }}; font-size:14px; font-weight:600; cursor:pointer;">
+                  {{ kind.label }}
+                </button>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ editingTask.isOnce }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:13px; color:#6B6B70;">Due date</span>
+                <input value="{{ editingTask.dueDate }}" onChange="{{ onEditDueDate }}" placeholder="e.g. Jul 30" style="width:100%; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:12px 14px; font-size:16px; outline:none; font-family:inherit; background:#fff;" />
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ editingTask.isSchedule }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; gap:6px;">
+                  <sc-for list="{{ editingTask.dayChips }}" as="day" hint-placeholder-count="7">
+                    <button onClick="{{ day.toggle }}" style="flex:1; padding:10px 0; border-radius:14px; background:{{ day.bg }}; border:{{ day.border }}; color:{{ day.color }}; font-size:13px; font-weight:600; cursor:pointer;">
+                      {{ day.label }}
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:14px; color:#6B6B70;">Every</span>
+                  <input value="{{ editingTask.interval }}" onChange="{{ onEditInterval }}" inputMode="numeric" style="width:56px; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 12px; font-size:15px; outline:none; font-family:inherit; background:#fff; text-align:center;" />
+                  <span style="font-size:14px; color:#6B6B70;">week(s)</span>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ editingTask.isQuotaPeriod }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <input value="{{ editingTask.quota }}" onChange="{{ onEditQuota }}" inputMode="numeric" placeholder="15" style="width:64px; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 12px; font-size:15px; outline:none; font-family:inherit; background:#fff; text-align:center;" />
+                <span style="font-size:14px; color:#6B6B70;">times a</span>
+                <select value="{{ editingTask.period }}" onChange="{{ onEditPeriod }}" style="flex:1; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 12px; font-size:15px; outline:none; font-family:inherit; background:#fff;">
+                  <option value="day">day</option>
+                  <option value="week">week</option>
+                  <option value="month">month</option>
+                </select>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ editingTask.isQuotaSchedule }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <input value="{{ editingTask.quota }}" onChange="{{ onEditQuota }}" inputMode="numeric" placeholder="3" style="width:64px; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 12px; font-size:15px; outline:none; font-family:inherit; background:#fff; text-align:center;" />
+                  <span style="font-size:14px; color:#6B6B70;">times a week, on these days</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <sc-for list="{{ editingTask.dayChips }}" as="day" hint-placeholder-count="7">
+                    <button onClick="{{ day.toggle }}" style="flex:1; padding:10px 0; border-radius:14px; background:{{ day.bg }}; border:{{ day.border }}; color:{{ day.color }}; font-size:13px; font-weight:600; cursor:pointer;">
+                      {{ day.label }}
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ editingTask.isOngoing }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:13px; color:#6B6B70; line-height:1.4;">No schedule. This one resurfaces on its own when it fits the moment.</div>
+            </sc-if>
+
+            <sc-if value="{{ editingTask.isTargetCount }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <input value="{{ editingTask.target }}" onChange="{{ onEditTarget }}" inputMode="numeric" placeholder="10" style="width:64px; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 12px; font-size:15px; outline:none; font-family:inherit; background:#fff; text-align:center;" />
+                  <span style="font-size:14px; color:#6B6B70;">times total, then done</span>
+                </div>
+                <span style="font-size:13px; color:#6B6B70;">{{ editingTask.progressLabel }}</span>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Tools required</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <sc-for list="{{ editingTask.toolChips }}" as="chip" hint-placeholder-count="1">
+                <div style="display:flex; align-items:center; gap:6px; background:#fff; border:1px solid #E5E5EA; border-radius:20px; padding:8px 10px 8px 14px; font-size:14px; color:#1B1B1F;">
+                  {{ chip.label }}
+                  <button onClick="{{ chip.remove }}" style="background:none; border:none; color:#6B6B70; font-size:15px; cursor:pointer; line-height:1; padding:2px;">×</button>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input value="{{ newTool }}" onChange="{{ onNewToolChange }}" onKeyDown="{{ onNewToolKeyDown }}" placeholder="Add a tool…" style="flex:1; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 14px; font-size:15px; outline:none; font-family:inherit; background:#fff;" />
+              <button onClick="{{ addTool }}" style="padding:10px 16px; border-radius:12px; border:none; background:#3A5A40; color:#fff; font-size:14px; font-weight:600; cursor:pointer;">Add</button>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <label style="font-size:13px; font-weight:600; color:#6B6B70;">Contexts this task is in</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <sc-for list="{{ editingTask.contextChips }}" as="chip" hint-placeholder-count="1">
+                <div style="display:flex; align-items:center; gap:6px; background:#fff; border:1px solid #E5E5EA; border-radius:20px; padding:8px 10px 8px 14px; font-size:14px; color:#1B1B1F;">
+                  {{ chip.label }}
+                  <button onClick="{{ chip.remove }}" style="background:none; border:none; color:#6B6B70; font-size:15px; cursor:pointer; line-height:1; padding:2px;">×</button>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input value="{{ newContext }}" onChange="{{ onNewContextChange }}" onKeyDown="{{ onNewContextKeyDown }}" placeholder="Add a context…" style="flex:1; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:12px; padding:10px 14px; font-size:15px; outline:none; font-family:inherit; background:#fff;" />
+              <button onClick="{{ addContext }}" style="padding:10px 16px; border-radius:12px; border:none; background:#3A5A40; color:#fff; font-size:14px; font-weight:600; cursor:pointer;">Add</button>
+            </div>
+          </div>
+          <div style="flex:1;"></div>
+          <sc-if value="{{ editingTask.isDependency }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13px; color:#6B6B70; text-align:center;">Other tasks depend on this one, so it can't be deleted.</div>
+          </sc-if>
+          <button onClick="{{ deleteTask }}" style="width:100%; padding:14px; border-radius:24px; border:1px solid {{ editingTask.deleteBorder }}; background:transparent; color:{{ editingTask.deleteColor }}; font-size:16px; font-weight:600; cursor:{{ editingTask.deleteCursor }};">Delete task</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isEnergy }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Check in</div>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:32px;">
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">
+            How's your energy right now?
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+            <sc-for list="{{ energyLevels }}" as="level" hint-placeholder-count="3">
+              <button onClick="{{ level.select }}" style="width:100%; padding:16px; border-radius:16px; text-align:left; background:{{ level.bg }}; border:{{ level.border }}; color:{{ level.color }}; font-size:16px; font-weight:600; cursor:pointer;">
+                {{ level.label }}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDuration }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Check in</div>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:32px;">
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">
+            How much time do you have?
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+            <sc-for list="{{ durationOptions }}" as="opt" hint-placeholder-count="4">
+              <button onClick="{{ opt.select }}" style="width:100%; padding:16px; border-radius:16px; text-align:left; background:{{ opt.bg }}; border:{{ opt.border }}; color:{{ opt.color }}; font-size:16px; font-weight:600; cursor:pointer;">
+                {{ opt.label }}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isContext }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Check in</div>
+        </div>
+        <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:20px; padding:24px;">
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">
+            Where are you right now?
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <sc-for list="{{ topContextChips }}" as="chip" hint-placeholder-count="5">
+              <button onClick="{{ chip.select }}" style="width:100%; padding:14px 16px; border-radius:16px; text-align:left; background:{{ chip.bg }}; border:{{ chip.border }}; color:{{ chip.color }}; font-size:16px; font-weight:600; cursor:pointer;">
+                {{ chip.name }}
+              </button>
+            </sc-for>
+          </div>
+          <input value="{{ contextQuery }}" onChange="{{ onContextQueryChange }}" placeholder="Search another context…" style="width:100%; box-sizing:border-box; border:1px solid #D9D9DE; border-radius:20px; padding:12px 16px; font-size:15px; outline:none; font-family:inherit; background:#fff;" />
+          <sc-if value="{{ hasSearchResults }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <sc-for list="{{ searchResults }}" as="chip" hint-placeholder-count="0">
+                <button onClick="{{ chip.select }}" style="width:100%; padding:14px 16px; border-radius:16px; text-align:left; background:{{ chip.bg }}; border:{{ chip.border }}; color:{{ chip.color }}; font-size:16px; font-weight:600; cursor:pointer;">
+                  {{ chip.name }}
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isTools }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Tools check</div>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:20px; padding:32px;">
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F; text-align:center;">
+            {{ selectedTask.name }}
+          </div>
+          <div style="font-size:15px; color:#6B6B70; text-align:center;">
+            This task needs:
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <sc-for list="{{ selectedTask.tools }}" as="tool" hint-placeholder-count="2">
+              <div style="background:#fff; border:1px solid #E5E5EA; border-radius:14px; padding:12px 16px; font-size:15px; font-weight:500; color:#1B1B1F;">
+                {{ tool }}
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:16px; font-weight:600; color:#1B1B1F; text-align:center; margin-top:8px;">
+            Do you have all of these with you?
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <button onClick="{{ confirmToolsPresent }}" style="width:100%; padding:14px; border-radius:24px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600;">Yes</button>
+            <button onClick="{{ toolsMissing }}" style="width:100%; padding:14px; border-radius:24px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:600;">Not with me — pick something else</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isWork }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #E5E5EA; background:#fff;">
+          <button onClick="{{ goBack }}" style="background:none; border:none; padding:4px; font-size:20px; color:#1B1B1F; cursor:pointer; line-height:1;">←</button>
+          <div style="font-size:17px; font-weight:600; color:#1B1B1F;">Focus</div>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; padding:28px 32px 40px;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px; padding-top:8px;">
+            <div style="font-size:14px; color:#6B6B70; text-transform:uppercase; letter-spacing:0.04em;">Now working on</div>
+            <div style="font-size:22px; font-weight:600; color:#1B1B1F; text-align:center;">{{ selectedTask.name }}</div>
+            <sc-if value="{{ hasEasierNote }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:13px; color:#6B6B70; text-align:center; line-height:1.4; max-width:280px;">{{ easierNote }}</div>
+            </sc-if>
+            <sc-if value="{{ isResumed }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:13px; color:#3A5A40; font-weight:600;">Picking this back up</div>
+            </sc-if>
+          </div>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+            <sc-if value="{{ isTimerIdle }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ startTimer }}" style="width:160px; height:160px; border-radius:50%; border:none; background:#3A5A40; color:#fff; font-size:22px; font-weight:700; letter-spacing:0.04em; cursor:pointer; box-shadow:0 4px 16px rgba(58,90,64,0.35);">
+                START
+              </button>
+            </sc-if>
+            <sc-if value="{{ isTimerActive }}" hint-placeholder-val="{{ false }}">
+              <div style="width:176px; height:176px; border-radius:50%; background:{{ timerRingBg }}; display:flex; align-items:center; justify-content:center;">
+                <button onClick="{{ toggleTimerPause }}" style="width:160px; height:160px; border-radius:50%; border:none; background:{{ timerCircleBg }}; color:#fff; font-size:32px; font-weight:700; letter-spacing:0.02em; cursor:pointer; box-shadow:0 4px 16px rgba(58,90,64,0.35); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;">
+                  <div>{{ timeDisplay }}</div>
+                  <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; opacity:0.85;">{{ timerStatusLabel }}</div>
+                </button>
+              </div>
+            </sc-if>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:14px; width:100%; align-items:center;">
+            <sc-if value="{{ isTimerIdle }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ skipTask }}" style="width:100%; padding:14px; border-radius:24px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:600;">Not this one</button>
+            </sc-if>
+            <sc-if value="{{ isTimerActive }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ endBlock }}" style="width:100%; padding:14px; border-radius:24px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600;">End this block</button>
+            </sc-if>
+            <button onClick="{{ somethingEasier }}" style="background:none; border:none; padding:4px 8px; color:#6B6B70; font-size:13px; font-weight:500; cursor:pointer; text-decoration:underline; text-underline-offset:3px;">
+              This isn't landing → give me something easier
+            </button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isEndPrompt }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:20px; padding:32px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="font-size:14px; color:#6B6B70; text-transform:uppercase; letter-spacing:0.04em;">Block ended</div>
+          <div style="font-size:20px; font-weight:600; color:#1B1B1F;">{{ selectedTask.name }}</div>
+          <div style="font-size:15px; color:#6B6B70;">Where are you with it?</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <button onClick="{{ promptDone }}" style="width:100%; padding:16px; border-radius:28px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600;">Done</button>
+          <button onClick="{{ promptPlusFive }}" style="width:100%; padding:15px; border-radius:28px; border:1.5px solid #3A5A40; background:transparent; color:#3A5A40; font-size:16px; font-weight:600;">+5 minutes</button>
+          <button onClick="{{ promptKeepGoing }}" style="width:100%; padding:15px; border-radius:28px; border:1.5px solid #3A5A40; background:transparent; color:#3A5A40; font-size:16px; font-weight:600;">Keep going</button>
+          <sc-if value="{{ canPause }}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{ promptPause }}" style="width:100%; padding:15px; border-radius:28px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:500;">Pause for later</button>
+          </sc-if>
+          <sc-if value="{{ tooEarlyToPause }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ skipTask }}" style="width:100%; padding:15px; border-radius:28px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:500;">Not this one</button>
+          </sc-if>
+          <button onClick="{{ somethingEasier }}" style="width:100%; padding:15px; border-radius:28px; border:1px solid #C9C9CF; background:transparent; color:#49454F; font-size:16px; font-weight:500;">Something easier</button>
+        </div>
+        <div style="font-size:13px; color:#6B6B70; line-height:1.4;">Paused work keeps everything you got done — it comes back later.</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSummary }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:32px;">
+        <div style="font-size:22px; font-weight:600; color:#1B1B1F; text-align:center;">That's the session</div>
+        <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
+          <sc-for list="{{ summaryLines }}" as="line" hint-placeholder-count="2">
+            <div style="background:#fff; border:1px solid #E5E5EA; border-radius:14px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; font-size:15px; color:#1B1B1F;">
+              <span>{{ line.label }}</span>
+              <span style="font-weight:600; color:#3A5A40;">{{ line.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:14px; color:#6B6B70; text-align:center; line-height:1.45;">{{ summaryNote }}</div>
+        <button onClick="{{ goBack }}" style="width:100%; padding:16px; border-radius:28px; border:none; background:#3A5A40; color:#fff; font-size:16px; font-weight:600;">Back to start</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isChat }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; min-height:0; display:flex;">
+        <dc-import name="Coaching Screen" title="{{ chatTitle }}" on-back="{{ goBack }}" style="flex:1; min-height:0;" hint-size="100%,100%"></dc-import>
+      </div>
+    </sc-if>
+
+  </div>
+</x-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:412,&quot;height&quot;:892},&quot;hasTasks&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo state&quot;},&quot;agendaSize&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;min&quot;:2,&quot;max&quot;:6,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Session model&quot;},&quot;skipsBeforeCoaching&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:4,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Session model&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'main',
+    chatTitle: '',
+    energy: null,
+    duration: null,
+    context: null,
+    contextQuery: '',
+    timerState: 'idle',
+    timerMode: 'countdown',
+    secondsLeft: 0,
+    timerDuration: 25 * 60,
+    elapsedSeconds: 0,
+    countUpTarget: 0,
+    workedSeconds: 0,
+    agenda: [],
+    agendaIndex: 0,
+    selectedTask: null,
+    doneCount: 0,
+    pausedCount: 0,
+    skippedCount: 0,
+    sessionSkips: 0,
+    easierNote: '',
+    resumed: false,
+    editingTaskIndex: null,
+    tasks: [
+      { name: 'Submit expense report', estimatedLength: '20 min', recurrence: { kind: 'once', dueDate: 'Jul 30', days: [], interval: '1', quota: '', period: 'week', target: '' }, completedCount: '0', tools: [], contexts: ['Home', 'Office'], isDependency: true, inProgress: false },
+      { name: 'Drink water', estimatedLength: '2 min', recurrence: { kind: 'quotaPeriod', dueDate: '', days: [], interval: '1', quota: '8', period: 'day', target: '' }, completedCount: '4', tools: [], contexts: ['Home', 'Office', 'Gym'], isDependency: false, inProgress: false },
+      { name: 'Call dentist to reschedule', estimatedLength: '10 min', recurrence: { kind: 'once', dueDate: 'Aug 1', days: [], interval: '1', quota: '', period: 'week', target: '' }, completedCount: '0', tools: ['Phone'], contexts: ['Home', 'Commute'], isDependency: false, inProgress: false },
+      { name: 'Stretch break', estimatedLength: '5 min', recurrence: { kind: 'quotaSchedule', dueDate: '', days: ['Mon', 'Wed', 'Fri'], interval: '1', quota: '3', period: 'week', target: '' }, completedCount: '1', tools: ['Yoga mat', 'Water bottle'], contexts: ['Home', 'Gym'], isDependency: false, inProgress: false },
+      { name: 'Review flashcard deck', estimatedLength: '15 min', recurrence: { kind: 'targetCount', dueDate: '', days: [], interval: '1', quota: '', period: 'week', target: '10' }, completedCount: '3', tools: [], contexts: ['Home', 'Library'], isDependency: false, inProgress: false },
+      { name: 'Tidy the desk', estimatedLength: '8 min', recurrence: { kind: 'ongoing', dueDate: '', days: [], interval: '1', quota: '', period: 'week', target: '' }, completedCount: '0', tools: [], contexts: ['Home', 'Office'], isDependency: false, inProgress: false },
+    ],
+    newTool: '',
+    newContext: '',
+  };
+
+  dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  recurrenceKinds = [
+    { key: 'once', label: 'One-time' },
+    { key: 'schedule', label: 'Schedule' },
+    { key: 'quotaPeriod', label: 'Quota' },
+    { key: 'quotaSchedule', label: 'Quota + days' },
+    { key: 'ongoing', label: 'Ongoing' },
+    { key: 'targetCount', label: 'N times total' },
+  ];
+  timerDefault = 25 * 60;
+  pauseUnlockSeconds = 45;
+  allContexts = ['Home', 'Office', 'Commute', 'Coffee shop', 'Gym', 'Kitchen', 'Bedroom', 'Car', 'Library', 'Outdoors', 'Client site'];
+  topContexts = ['Home', 'Office', 'Commute', 'Coffee shop', 'Gym'];
+
+  get agendaSize() { return this.props.agendaSize ?? 4; }
+  get skipsBeforeCoaching() { return this.props.skipsBeforeCoaching ?? 2; }
+
+  openReview = () => this.setState({ screen: 'review' });
+  openAddTask = () => this.setState({ screen: 'chat', chatTitle: 'New Task' });
+  startWork = () => this.setState({ screen: 'energy', energy: null });
+
+  goBack = () => {
+    this.clearTimerInterval();
+    this.setState({ screen: 'main', timerState: 'idle', timerMode: 'countdown', easierNote: '', resumed: false });
+  };
+
+  selectEnergy = (level) => this.setState({ energy: level, screen: 'duration' });
+  selectDuration = (duration) => this.setState({ duration, screen: 'context', contextQuery: '', context: null });
+  onContextQueryChange = (e) => this.setState({ contextQuery: e.target.value });
+
+  // The plan: an ordered agenda built once at session start. Never shown to the user.
+  buildAgenda(easierFirst, exclude) {
+    const pool = this.state.tasks.filter(t => t.name !== exclude);
+    const ordered = easierFirst
+      ? [...pool].sort((a, b) => this.parseEstimatedSeconds(a) - this.parseEstimatedSeconds(b))
+      : pool;
+    return ordered.slice(0, this.agendaSize);
+  }
+
+  selectContext = (context) => {
+    if (this.state.energy === 'Low') {
+      this.setState({ context, screen: 'chat', chatTitle: 'Coaching session' });
+      return;
+    }
+    const agenda = this.buildAgenda(false);
+    const task = agenda[0];
+    if (!task) { this.setState({ context, screen: 'main' }); return; }
+    this.setState({
+      context, agenda, agendaIndex: 0, selectedTask: task,
+      doneCount: 0, pausedCount: 0, skippedCount: 0, sessionSkips: 0,
+      easierNote: '', resumed: false, timerState: 'idle', timerMode: 'countdown', workedSeconds: 0,
+      screen: task.tools && task.tools.length > 0 ? 'tools' : 'work',
+    });
+  };
+
+  confirmToolsPresent = () => this.setState({ screen: 'work', timerState: 'idle', workedSeconds: 0 });
+  // Missing tools isn't a failure — the match was wrong, so move on down the agenda.
+  toolsMissing = () => this.advance('skipped');
+
+  markTask(name, fields) {
+    if (!name) return;
+    this.setState(s => ({
+      tasks: s.tasks.map(t => (t.name === name ? { ...t, ...fields } : t)),
+      agenda: s.agenda.map(t => (t.name === name ? { ...t, ...fields } : t)),
+    }));
+  }
+
+  advance = (outcome) => {
+    this.clearTimerInterval();
+    this.setState(s => {
+      const skips = s.sessionSkips + (outcome === 'skipped' ? 1 : 0);
+      const base = {
+        doneCount: s.doneCount + (outcome === 'done' ? 1 : 0),
+        pausedCount: s.pausedCount + (outcome === 'paused' ? 1 : 0),
+        skippedCount: s.skippedCount + (outcome === 'skipped' ? 1 : 0),
+        sessionSkips: skips,
+        timerState: 'idle', timerMode: 'countdown',
+        secondsLeft: 0, elapsedSeconds: 0, countUpTarget: 0, workedSeconds: 0,
+        easierNote: '', resumed: false,
+      };
+      const nextIndex = s.agendaIndex + 1;
+      const next = s.agenda[nextIndex] || null;
+      // Repeated skips in one session: stop and ask what they can actually take on.
+      if (outcome === 'skipped' && skips >= this.skipsBeforeCoaching) {
+        return { ...base, agendaIndex: nextIndex, selectedTask: next, sessionSkips: 0, screen: 'chat', chatTitle: 'Coaching check-in' };
+      }
+      if (!next) return { ...base, agendaIndex: nextIndex, selectedTask: null, screen: 'summary' };
+      return { ...base, agendaIndex: nextIndex, selectedTask: next, screen: next.tools && next.tools.length > 0 ? 'tools' : 'work' };
+    });
+  };
+
+  openTaskDetail = (index) => this.setState({ screen: 'taskDetail', editingTaskIndex: index, newTool: '', newContext: '' });
+  backToReview = () => this.setState({ screen: 'review', editingTaskIndex: null });
+
+  updateEditingTask(fields) {
+    this.setState(s => {
+      const tasks = [...s.tasks];
+      tasks[s.editingTaskIndex] = { ...tasks[s.editingTaskIndex], ...fields };
+      return { tasks };
+    });
+  }
+
+  updateRecurrence(fields) {
+    const t = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ recurrence: { ...t.recurrence, ...fields } });
+  }
+
+  digits = (v) => String(v).replace(/[^0-9]/g, '');
+
+  onEditTaskName = (e) => this.updateEditingTask({ name: e.target.value });
+  onEditEstimatedLength = (e) => this.updateEditingTask({ estimatedLength: e.target.value });
+  setRecurrenceKind = (kind) => this.updateRecurrence({ kind });
+  onEditDueDate = (e) => this.updateRecurrence({ dueDate: e.target.value });
+  onEditInterval = (e) => this.updateRecurrence({ interval: this.digits(e.target.value) });
+  onEditQuota = (e) => this.updateRecurrence({ quota: this.digits(e.target.value) });
+  onEditPeriod = (e) => this.updateRecurrence({ period: e.target.value });
+  onEditTarget = (e) => this.updateRecurrence({ target: this.digits(e.target.value) });
+  toggleDay = (day) => {
+    const r = this.state.tasks[this.state.editingTaskIndex].recurrence;
+    const days = r.days.includes(day) ? r.days.filter(d => d !== day) : [...r.days, day];
+    this.updateRecurrence({ days });
+  };
+
+  onNewToolChange = (e) => this.setState({ newTool: e.target.value });
+  onNewToolKeyDown = (e) => { if (e.key === 'Enter') this.addTool(); };
+  addTool = () => {
+    const val = this.state.newTool.trim();
+    if (!val) return;
+    const task = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ tools: [...task.tools, val] });
+    this.setState({ newTool: '' });
+  };
+  removeTool = (i) => {
+    const task = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ tools: task.tools.filter((_, idx) => idx !== i) });
+  };
+
+  onNewContextChange = (e) => this.setState({ newContext: e.target.value });
+  onNewContextKeyDown = (e) => { if (e.key === 'Enter') this.addContext(); };
+  addContext = () => {
+    const val = this.state.newContext.trim();
+    if (!val) return;
+    const task = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ contexts: [...task.contexts, val] });
+    this.setState({ newContext: '' });
+  };
+  removeContext = (i) => {
+    const task = this.state.tasks[this.state.editingTaskIndex];
+    this.updateEditingTask({ contexts: task.contexts.filter((_, idx) => idx !== i) });
+  };
+
+  deleteTask = () => {
+    if (this.state.tasks[this.state.editingTaskIndex]?.isDependency) return;
+    this.setState(s => ({
+      tasks: s.tasks.filter((_, i) => i !== s.editingTaskIndex),
+      screen: 'review',
+      editingTaskIndex: null,
+    }));
+  };
+
+  clearTimerInterval() {
+    if (window.__focusTimerId) {
+      clearInterval(window.__focusTimerId);
+      window.__focusTimerId = null;
+    }
+  }
+  componentDidMount() { this.clearTimerInterval(); }
+  componentWillUnmount() { this.clearTimerInterval(); }
+
+  beginInterval() {
+    this.clearTimerInterval();
+    window.__focusTimerId = setInterval(() => {
+      this.setState(s => {
+        if (s.timerMode === 'countup') {
+          const elapsed = s.elapsedSeconds + 1;
+          if (s.countUpTarget && elapsed >= s.countUpTarget) {
+            this.clearTimerInterval();
+            return { elapsedSeconds: elapsed, workedSeconds: s.workedSeconds + 1, timerState: 'idle', screen: 'endPrompt' };
+          }
+          return { elapsedSeconds: elapsed, workedSeconds: s.workedSeconds + 1 };
+        }
+        if (s.secondsLeft <= 1) {
+          this.clearTimerInterval();
+          return { secondsLeft: 0, timerState: 'idle', workedSeconds: s.workedSeconds + 1, screen: 'endPrompt' };
+        }
+        return { secondsLeft: s.secondsLeft - 1, workedSeconds: s.workedSeconds + 1 };
+      });
+    }, 1000);
+  }
+
+  parseEstimatedSeconds(task) {
+    if (!task || !task.estimatedLength) return this.timerDefault;
+    const str = String(task.estimatedLength).toLowerCase();
+    const num = parseFloat(str);
+    if (isNaN(num)) return this.timerDefault;
+    if (str.includes('hr') || str.includes('hour')) return Math.round(num * 3600);
+    if (str.includes('sec')) return Math.round(num);
+    return Math.round(num * 60);
+  }
+
+  startTimer = () => {
+    const seconds = this.parseEstimatedSeconds(this.state.selectedTask);
+    this.setState({ timerState: 'running', timerMode: 'countdown', secondsLeft: seconds, timerDuration: seconds, elapsedSeconds: 0, countUpTarget: 0 });
+    this.beginInterval();
+  };
+
+  toggleTimerPause = () => {
+    if (this.state.timerState === 'running') {
+      this.clearTimerInterval();
+      this.setState({ timerState: 'paused' });
+    } else if (this.state.timerState === 'paused') {
+      this.setState({ timerState: 'running' });
+      this.beginInterval();
+    }
+  };
+
+  endBlock = () => {
+    this.clearTimerInterval();
+    this.setState({ timerState: 'idle', screen: 'endPrompt' });
+  };
+
+  // --- the five end-of-block options ---
+  promptDone = () => {
+    const t = this.state.selectedTask;
+    this.markTask(t && t.name, { inProgress: false, completedCount: String((parseInt(t && t.completedCount, 10) || 0) + 1) });
+    this.advance('done');
+  };
+
+  // Flat 5 minutes, uncapped, stays a countdown. No confirmation, no nagging.
+  promptPlusFive = () => {
+    this.setState(s => {
+      const left = (s.timerMode === 'countup' ? 0 : s.secondsLeft) + 5 * 60;
+      return {
+        screen: 'work', timerState: 'running', timerMode: 'countdown',
+        secondsLeft: left, timerDuration: Math.max(s.timerDuration, left), countUpTarget: 0,
+      };
+    });
+    this.beginInterval();
+  };
+
+  // Hyperfocus: countdown becomes a count-up, time added in 25-minute chunks.
+  promptKeepGoing = () => {
+    this.setState(s => {
+      const elapsed = s.timerMode === 'countup' ? s.elapsedSeconds : Math.max(0, s.timerDuration - s.secondsLeft);
+      return {
+        screen: 'work', timerState: 'running', timerMode: 'countup',
+        elapsedSeconds: elapsed, countUpTarget: elapsed + 25 * 60,
+      };
+    });
+    this.beginInterval();
+  };
+
+  // Park it. Progress is kept, the task comes back later — this is not quitting.
+  promptPause = () => {
+    const t = this.state.selectedTask;
+    this.markTask(t && t.name, { inProgress: true });
+    this.advance('paused');
+  };
+
+  // Declining a task: the match was wrong, not the person.
+  skipTask = () => this.advance('skipped');
+
+  // Escape valve: rebuild the rest of the session shortest-first, park the current task.
+  somethingEasier = () => {
+    this.clearTimerInterval();
+    const current = this.state.selectedTask;
+    if (current) this.markTask(current.name, { inProgress: true });
+    const easier = this.buildAgenda(true, current && current.name);
+    const next = easier[0];
+    if (!next) { this.setState({ screen: 'summary', timerState: 'idle' }); return; }
+    this.setState(s => ({
+      agenda: easier,
+      agendaIndex: 0,
+      selectedTask: next,
+      pausedCount: s.pausedCount + (current ? 1 : 0),
+      timerState: 'idle', timerMode: 'countdown',
+      secondsLeft: 0, elapsedSeconds: 0, countUpTarget: 0, workedSeconds: 0,
+      resumed: false,
+      easierNote: 'Shorter, lower-effort, same place. We can come back to the other one.',
+      screen: next.tools && next.tools.length > 0 ? 'tools' : 'work',
+    }));
+  };
+
+  buildContextChip(name) {
+    const selected = this.state.context === name;
+    return {
+      name,
+      select: () => this.selectContext(name),
+      bg: selected ? '#3A5A40' : '#fff',
+      color: selected ? '#fff' : '#1B1B1F',
+      border: selected ? '1.5px solid #3A5A40' : '1px solid #E5E5EA',
+    };
+  }
+
+  recurrenceSummary(t) {
+    const r = t.recurrence || { kind: 'once' };
+    const days = (r.days || []).join('/');
+    if (r.kind === 'once') return r.dueDate ? `Due ${r.dueDate}` : 'One-time';
+    if (r.kind === 'schedule') return `Every ${r.interval && r.interval !== '1' ? r.interval + ' weeks' : 'week'}${days ? ' on ' + days : ''}`;
+    if (r.kind === 'quotaPeriod') return `${t.completedCount || 0} of ${r.quota || '?'} this ${r.period}`;
+    if (r.kind === 'quotaSchedule') return `${t.completedCount || 0} of ${r.quota || '?'} a week${days ? ' on ' + days : ''}`;
+    if (r.kind === 'ongoing') return 'Ongoing';
+    if (r.kind === 'targetCount') return `${t.completedCount || 0} of ${r.target || '?'} times total`;
+    return '';
+  }
+
+  fmt(sec) {
+    return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+  }
+
+  renderVals() {
+    const hasTasks = this.props.hasTasks ?? false;
+    const s = this.state;
+    const screen = s.screen;
+    const countUp = s.timerMode === 'countup';
+    const canPause = s.workedSeconds >= this.pauseUnlockSeconds;
+    const total = s.doneCount + s.pausedCount + s.skippedCount;
+    return {
+      hasTasks,
+      noTasks: !hasTasks,
+      isMain: screen === 'main',
+      isReview: screen === 'review',
+      isEnergy: screen === 'energy',
+      isDuration: screen === 'duration',
+      isContext: screen === 'context',
+      isTools: screen === 'tools',
+      isWork: screen === 'work',
+      isEndPrompt: screen === 'endPrompt',
+      isSummary: screen === 'summary',
+      isChat: screen === 'chat',
+      isTaskDetail: screen === 'taskDetail',
+
+      durationOptions: ['15 min', '30 min', '1 hour', '2+ hours'].map(label => {
+        const selected = s.duration === label;
+        return {
+          label, select: () => this.selectDuration(label),
+          bg: selected ? '#3A5A40' : '#fff',
+          color: selected ? '#fff' : '#1B1B1F',
+          border: selected ? '1.5px solid #3A5A40' : '1px solid #E5E5EA',
+        };
+      }),
+      energyLevels: ['Low', 'Medium', 'High'].map(label => {
+        const selected = s.energy === label;
+        return {
+          label, select: () => this.selectEnergy(label),
+          bg: selected ? '#3A5A40' : '#fff',
+          color: selected ? '#fff' : '#1B1B1F',
+          border: selected ? '1.5px solid #3A5A40' : '1px solid #E5E5EA',
+        };
+      }),
+
+      selectedTask: s.selectedTask || { name: '', tools: [] },
+      confirmToolsPresent: this.confirmToolsPresent,
+      toolsMissing: this.toolsMissing,
+
+      isTimerIdle: s.timerState === 'idle',
+      isTimerActive: s.timerState === 'running' || s.timerState === 'paused',
+      timerStatusLabel: s.timerState === 'paused' ? 'Paused' : (countUp ? 'In flow' : 'Focusing'),
+      timerCircleBg: s.timerState === 'paused' ? '#6B6B70' : '#3A5A40',
+      timeDisplay: countUp ? this.fmt(s.elapsedSeconds) : this.fmt(s.secondsLeft),
+      timerRingBg: (() => {
+        const pct = countUp
+          ? (s.countUpTarget ? Math.max(0, Math.min(1, s.elapsedSeconds / s.countUpTarget)) : 0)
+          : (s.timerDuration > 0 ? Math.max(0, Math.min(1, s.secondsLeft / s.timerDuration)) : 0);
+        return `conic-gradient(#3A5A40 ${pct * 360}deg, #E5E5EA ${pct * 360}deg)`;
+      })(),
+      startTimer: this.startTimer,
+      toggleTimerPause: this.toggleTimerPause,
+      endBlock: this.endBlock,
+      skipTask: this.skipTask,
+      somethingEasier: this.somethingEasier,
+      easierNote: s.easierNote,
+      hasEasierNote: !!s.easierNote,
+      isResumed: !!(s.selectedTask && s.selectedTask.inProgress),
+
+      promptDone: this.promptDone,
+      promptPlusFive: this.promptPlusFive,
+      promptKeepGoing: this.promptKeepGoing,
+      promptPause: this.promptPause,
+      canPause,
+      tooEarlyToPause: !canPause,
+
+      summaryLines: [
+        { label: 'Finished', value: String(s.doneCount) },
+        { label: 'Paused for later', value: String(s.pausedCount) },
+        { label: 'Set aside', value: String(s.skippedCount) },
+      ],
+      summaryNote: s.doneCount > 0
+        ? 'Everything paused keeps its progress and comes back next session.'
+        : 'Nothing landed this time — that means the plan was off, not you.',
+
+      contextQuery: s.contextQuery,
+      onContextQueryChange: this.onContextQueryChange,
+      topContextChips: this.topContexts.map(n => this.buildContextChip(n)),
+      searchResults: s.contextQuery.trim()
+        ? this.allContexts.filter(c => c.toLowerCase().includes(s.contextQuery.trim().toLowerCase())).map(n => this.buildContextChip(n))
+        : [],
+      hasSearchResults: !!s.contextQuery.trim() && this.allContexts.some(c => c.toLowerCase().includes(s.contextQuery.trim().toLowerCase())),
+
+      tasks: s.tasks.map((task, i) => ({
+        ...task,
+        open: () => this.openTaskDetail(i),
+        summary: [this.recurrenceSummary(task), task.inProgress ? 'In progress' : null].filter(Boolean).join(' · '),
+      })),
+      openReview: this.openReview,
+
+      editingTask: s.editingTaskIndex !== null && s.tasks[s.editingTaskIndex] ? (() => {
+        const t = s.tasks[s.editingTaskIndex];
+        const r = t.recurrence || { kind: 'once', days: [] };
+        return {
+          ...t,
+          dueDate: r.dueDate || '',
+          interval: r.interval || '1',
+          quota: r.quota || '',
+          period: r.period || 'week',
+          target: r.target || '',
+          progressLabel: `${t.completedCount || 0} done so far`,
+          isOnce: r.kind === 'once',
+          isSchedule: r.kind === 'schedule',
+          isQuotaPeriod: r.kind === 'quotaPeriod',
+          isQuotaSchedule: r.kind === 'quotaSchedule',
+          isOngoing: r.kind === 'ongoing',
+          isTargetCount: r.kind === 'targetCount',
+          kindOptions: this.recurrenceKinds.map(k => {
+            const sel = r.kind === k.key;
+            return {
+              label: k.label,
+              select: () => this.setRecurrenceKind(k.key),
+              bg: sel ? '#3A5A40' : '#fff',
+              color: sel ? '#fff' : '#49454F',
+              border: sel ? '1.5px solid #3A5A40' : '1px solid #E5E5EA',
+            };
+          }),
+          dayChips: this.dayNames.map(d => {
+            const sel = (r.days || []).includes(d);
+            return {
+              label: d.charAt(0),
+              toggle: () => this.toggleDay(d),
+              bg: sel ? '#3A5A40' : '#fff',
+              color: sel ? '#fff' : '#49454F',
+              border: sel ? '1.5px solid #3A5A40' : '1px solid #E5E5EA',
+            };
+          }),
+          toolChips: (t.tools || []).map((tool, i) => ({ label: tool, remove: () => this.removeTool(i) })),
+          contextChips: (t.contexts || []).map((ctx, i) => ({ label: ctx, remove: () => this.removeContext(i) })),
+          deleteBorder: t.isDependency ? '#E5E5EA' : '#C9494A',
+          deleteColor: t.isDependency ? '#B3B3B8' : '#C9494A',
+          deleteCursor: t.isDependency ? 'not-allowed' : 'pointer',
+        };
+      })() : null,
+      backToReview: this.backToReview,
+      onEditTaskName: this.onEditTaskName,
+      onEditEstimatedLength: this.onEditEstimatedLength,
+      onEditDueDate: this.onEditDueDate,
+      onEditInterval: this.onEditInterval,
+      onEditQuota: this.onEditQuota,
+      onEditPeriod: this.onEditPeriod,
+      onEditTarget: this.onEditTarget,
+      deleteTask: this.deleteTask,
+      newTool: s.newTool,
+      onNewToolChange: this.onNewToolChange,
+      onNewToolKeyDown: this.onNewToolKeyDown,
+      addTool: this.addTool,
+      newContext: s.newContext,
+      onNewContextChange: this.onNewContextChange,
+      onNewContextKeyDown: this.onNewContextKeyDown,
+      addContext: this.addContext,
+      chatTitle: s.chatTitle,
+      openAddTask: this.openAddTask,
+      startWork: this.startWork,
+      goBack: this.goBack,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 **Owner:** Opus. **Branch:** `opus/batch-a-headless`. **Headless** — pure logic over the data layer with an injected clock. No device pass, no `P`.
 **Split from task 13 by Jason's ruling (2026-07-20)** so the critical path stays lean: task 13 is device-gated, this is not, and this can run while Jason is away from the phone.
-**Runs in parallel with task 13 — but they are NOT fully file-disjoint** (§5). Read that section before starting.
+**Runs headless and parallel-safe. Task 13 has landed** (took migration 005 / schema 2.6.0) — so if this task needs a migration it is **006 / schema 2.7.0** (§5).
 
 **Read first:**
 1. `src/services/taskCompletion.ts` — **the SCOPE LINE comment at the top is this task's charter.** It names precisely what completion deliberately does not do, and hands it here.
@@ -59,13 +59,13 @@ This is the last major piece of §4.2 that was specified and never built.
 - **Constraint #6** — no raw internal 1–1000 importance or 1–5 energy crosses a user-facing boundary; project through `scales.ts`.
 - **No guilt stacking.** Missed occurrences reset. That is a product rule, not an implementation convenience.
 
-## 5. Parallel-track hazard (read before starting)
+## 5. Migration number (task 13 has landed)
 
-Task 13 is likely running at the same time and is **not** fully file-disjoint from this one:
+**Task 13 shipped migration 005 (schema 2.6.0).** So:
 
-- Task 13 may add **migration 005** for timer state. If you also need a migration, **coordinate the number** — two migration 005s is a merge conflict that corrupts the runner's forward walk.
-- Both tasks touch the completion/episode neighbourhood. You own `src/services/recurrence*` (or equivalent); **task 13 owns the episode lifecycle and must not gain period logic.**
-- If either task adds a migration, **both must sweep prior migrations' test suites** (task 34 §4: `runMigrations` walks forward, so earlier suites' "latest version" and "full object list" assertions become assertions about the new one).
+- If this task needs a migration, it is **006 → schema 2.7.0**. Do not reuse 005.
+- Both tasks touch the completion/episode neighbourhood. You own `src/services/recurrence*` (or equivalent); **task 13 already owns the episode lifecycle — do not add period logic to `src/execution/`.**
+- **A migration here must sweep prior migrations' test suites** (task 34 §4: `runMigrations` walks forward, so 002–005's "latest version" and "full object list" assertions become assertions about 006). Task 13's report §2 confirms this trap is live — expect to touch other migrations' test files; that is correct, not scope creep.
 
 State in your report which files you touched, so the merge is auditable.
 

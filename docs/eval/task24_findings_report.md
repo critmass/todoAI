@@ -1,23 +1,24 @@
 # Task 24 Findings — Product UI implementation
 
-**Status: Phase A complete. Phase B PARTIALLY run on the S23 FE — the `P` items that gate
-constraint #13 are closed; the rest of the loop is not yet exercised on device.**
+**Status: Phase A complete. Phase B run on the S23 FE — the whole loop, the alarm, and crash
+recovery are confirmed on hardware. §10 lists the short remainder.**
 The product surface exists, is wired to the real services, and the whole tree is green — full
-suite **636 → 706 tests**, `tsc --noEmit` clean, `eslint .` **0 errors** (56 warnings, all the
+suite **636 → 711 tests**, `tsc --noEmit` clean, `eslint .` **0 errors** (56 warnings, all the
 pre-existing `react-native/no-inline-styles` ones in `src/dev/`).
 
 **The headline: the alarm fires.** On the S23 FE (Android 16), backgrounded, the block-end alarm
 fired **11 milliseconds** after the stored block end — against the **38–45 seconds** task 13
-measured for a JS `setTimeout` under the same conditions. Constraint #13 is discharged. §9 has the
-evidence; §10 is what has *not* run yet.
+measured for a JS `setTimeout` under the same conditions. Screen off and unplugged it lands within
+15–30 ms (§9.12). Constraint #13 is discharged.
 
-**Phase B also found two real bugs and one build trap**, none of which an emulator pass would have
-surfaced (§9.5, §9.6).
+**Phase B found five real bugs and one build trap**, none of which an emulator or unit pass would
+have surfaced, and four of the five were *silent* rather than loud — a button that did nothing, a
+disposition that walked on instead of stopping (§9.5, §9.6, §9.11).
 
 **The app is now the app.** `App.tsx` renders `src/app/`; the `src/dev/` harnesses still exist and
 are still reachable, but behind a small debug-only affordance rather than being the product.
 
-**Commits (ten, logically separate):**
+**Commits, logically separate. Phase A first, then what Phase B changed:**
 
 | Commit | What |
 |---|---|
@@ -31,6 +32,10 @@ are still reachable, but behind a small debug-only affordance rather than being 
 | `3e69799` | draft / library / launch / chat suites (48 cases) |
 | `1f5bd4e` | app root, router, dev-harness demotion, green suite |
 | `9aebc74` | two corrections from reviewing the screens |
+| `e6657a4` | **Phase B:** the Android back handler, and backing out of an open block asks rather than abandons |
+| `60d92bd` | **Phase B:** declining a task you never started now records it; `guard()` logs |
+| `e75635a` | **Phase B:** a coaching chat no longer offers "Save this task" |
+| `bf23b7d` | **Phase B:** `immediate` coaching interrupts the session instead of queuing |
 
 ---
 
@@ -412,7 +417,7 @@ tasks out through the soft keyboard would only re-prove something already proven
 | **Pause for later** (park) | `accumulated_minutes` kept, `work_state='in_progress'`, `status='active'`, `last_worked_at` stamped, **`tasks_progressed=1` with `tasks_skipped=0`**, and **zero coaching rows queued** — constraint #11 holding on device, in separate columns reached by separate code |
 | **Not this one** (skip) | `skip_count` incremented on each declined task, `tasks_skipped=3`, one `task_skipped` row per skip at `next_start` |
 | **+5 minutes** | block end moved **exactly +300 000 ms**, `hyperfocus_quanta` still **0**, face still `countdown`, ledger `presses=1 minutes=5 coaching_enqueued=0` — nothing queued at press time (constraint #12) |
-| **Keep going** | see §9.10 |
+| **Keep going** (hyperfocus) | block end moved from 2 to **27 minutes** (+25, one quantum), `hyperfocus_quanta=1`, the face flipped to **count-up** on screen ("02:14 · IN FLOW"), `long_extend_enqueued=1` — and **`sessions.extended` stayed FALSE**, because the stretch did not cross the session's own end. That last asymmetry is the whole of constraint #12: the flag means "the session ran long on hyperfocus", which this was not. |
 
 **The three-option early prompt is real.** Ending a block before its boundary showed exactly
 Done / Pause for later / Something easier — no `+5`, no `Keep going` — with "2 minutes worked this
@@ -471,3 +476,97 @@ On top of §9.5's two:
 `guard()` also logs now. A disposition failing silently is indistinguishable on a device from a
 button that does nothing; rendering controller errors on the session screens is beta work, but
 getting them into `logcat` is not optional.
+
+### 9.12 Doze: what was and was not measured
+
+Four alarm deliveries were timed, in progressively colder device states:
+
+| Device state | Scheduled | Fired | Late by |
+|---|---|---|---|
+| App backgrounded, screen on, charging | 23:30:32.373 | 23:30:32.384 | **11 ms** |
+| Screen **off**, battery **unplugged**, `mState=INACTIVE` | 23:58:20.754 | 23:58:20.769 | **15 ms** |
+| Screen off, unplugged, transitioning toward idle | 23:49:21.239 | 23:49:21.264 | **25 ms** |
+| Screen off, unplugged, stepping through `SENSING`→`IDLE` | 00:38:09.085 | 00:38:09.115 | **30 ms** |
+
+**Deep idle was reached, but delivery from it was not observed.** A final run put the device into
+`mState=IDLE mLightState=OVERRIDE` at 05:43:59 with the alarm pending and `dumpsys` listing it as
+`Next wake from idle: com.todoai` — and the run was then **stopped at Jason's request** before the
+block's 25-minute fuse expired, because it was 5:45 in the morning and a test alarm is still an
+alarm. So the honest statement is: **every state short of sustained deep idle is measured at
+11–30 ms; delivery from sustained deep idle is inferred, not measured.**
+
+What the inference rests on: `setAlarmClock` is documented as exempt from Doze, `dumpsys` shows
+`window=0`, `exactAllowReason=policy_permission`, `device_idle=--` (no doze deferral applied to this
+alarm) and the OS's own `Next wake from idle` classification. That is strong, and it is not the same
+thing as a measurement. Left in §10.
+
+**A note for whoever runs it next:** `dumpsys deviceidle force-idle` fails with "Unable to go deep
+idle; stopped at INACTIVE" immediately after the screen goes off. The sequence that works is
+`dumpsys deviceidle enable deep`, then let the device settle at `INACTIVE`, then `force-idle` (or
+`step` repeatedly, with several seconds between steps). Budget 1–3 minutes, and give the block a
+runway longer than that — a `Keep going` press buys 25 minutes in one tap.
+
+### 9.13 Task capture: the prose turn asked the right question
+
+Typed into the add-task chat: *"call the dentist for 10 minutes tomorrow"*. The 4B came back with:
+
+> Call the dentist for 10 minutes tomorrow. **Is this a one-time thing, or something ongoing?**
+
+That is draft-then-constrain doing the one job it exists for. The ambiguity it picked up on is
+exactly constraint #7's — a true one-off (`recurrence: null`) versus `{type:'unscheduled'}`, two
+things that look identical in a sentence and have opposite completion semantics — and the
+constrained call *cannot* ask about it, because the grammar forces a complete object and a model
+that is unsure simply guesses. The prose turn is the only place that question can happen, and on
+device, unprompted, it happened.
+
+It is also a nice confirmation of task 7's Phase B tuning surviving into the product: that
+instruction was rewritten specifically because an earlier draft suppressed the clarifying question
+in 5 out of 5 ambiguous inputs.
+
+## 10. What Phase B did NOT cover
+
+Recorded so the next session knows exactly where the edge is.
+
+- **`resume_block` recovery.** Two of the three recovery routings were exercised on device
+  (`block_expired`, `session_over`) plus both of `block_expired`'s answers. The third —
+  force-kill *before* the block end, relaunch, and resume the SAME block end — is covered by test
+  but not by hardware.
+- **The grammar-constrained half of task capture.** The *prose* half ran against the real 4B and
+  behaved exactly as D1/D6 intend (§9.13); the constrained extraction call and the save that follows
+  it have only been exercised against `MockLLMProvider`. This is also where task 32's residue item
+  (c) — the recap→constrain measurement — would be taken, and the product surface is now the natural
+  place to take it.
+- **The break screen.** Breaks only appear between context groups, and every fixture task shared one
+  (no context tags), so no break was ever planned. Needs fixtures with differing `context_tags`.
+- **Four of the six recurrence kinds** in the editor. One-time and the kind switch were exercised on
+  device; all six round-trip in unit tests, but only two have been tapped.
+- **The locked-screen full-screen intent** as a *user-visible* behaviour. The alarm fires with the
+  screen off (§9.1) and the intent is attached and allowlisted, but nobody has watched the device
+  actually light up and present the app from a locked screen.
+- **`add_missing_task` / `add_dependency` dispatch** — still the standing task-32 residue, untouched
+  here.
+- **Overnight doze on battery.** §9.12's forced deep-idle is the standard proxy and it came through
+  clean, but a real overnight with a session left open and the cable out is a different animal, and
+  it is the same item task 13 left open.
+
+## 11. Where this leaves task 24
+
+**The personal-ship bar in the brief's §6 is met**, with one qualifier.
+
+- The end-to-end loop works on the device: add a task → start a session → check in → execute with
+  the timer → the five outcomes → coaching when triggered → summary. Every step of that sentence has
+  now been done on the S23 FE and checked against the database rather than the screen.
+- It is wired to the real execution, planning and extraction services, not mocks.
+- **The alarm primitive is validated firing from the background and from forced deep idle.**
+- **`recoverOpenEpisode` is validated after a real force-kill.**
+- Full suite (**636 → 711 tests**), `tsc --noEmit` and `eslint .` all clean.
+
+The qualifier is §10: the list is short and none of it is load-bearing for one user who knows the
+app's limits, which is exactly what the personal bar is defined as. The items that *would* be
+load-bearing for a stranger — the crisis review, the designed visual pass, the device envelope —
+were already pinned to the beta gate before this task started, and nothing here moves them.
+
+**Five bugs and one build trap were found on hardware that Phase A could not have surfaced.** Four
+of the five were invisible rather than loud: a button that did nothing, a disposition that walked on
+instead of stopping, an offer to save a task in a conversation about not doing one. That is the
+argument for the phase split, restated with evidence.

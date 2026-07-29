@@ -1,3 +1,4 @@
+/* eslint-env jest */
 /**
  * Task 24 — Jest setup.
  *

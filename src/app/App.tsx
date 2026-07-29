@@ -584,6 +584,8 @@ function SessionFlow({
       );
 
     case 'planning':
+      return <Booting />;
+
     // The effect above navigates away; this render is the single frame in between.
     case 'coaching_interrupt':
       return <Booting />;

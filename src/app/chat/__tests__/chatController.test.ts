@@ -105,12 +105,12 @@ describe('chat controller (task 24)', () => {
 
     it('each purpose offers only its own closing action', async () => {
       const coach = new MockLLMProvider({ responses: ['Fair enough.'] });
-      const coaching = controller(coach);
-      coaching.open({ kind: 'coaching', trigger: 'task_skipped', candidateTaskIds: [] });
-      await coaching.send('I keep putting it off.');
+      const coachChat = controller(coach);
+      coachChat.open({ kind: 'coaching', trigger: 'task_skipped', candidateTaskIds: [] });
+      await coachChat.send('I keep putting it off.');
       // Never offer to extract a task out of a conversation about why something was hard.
-      expect(coaching.getState().canSave).toBe(false);
-      expect(coaching.getState().canResolve).toBe(true);
+      expect(coachChat.getState().canSave).toBe(false);
+      expect(coachChat.getState().canResolve).toBe(true);
 
       const capture = new MockLLMProvider({ responses: ['So: call the dentist?'] });
       const input = controller(capture);

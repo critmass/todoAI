@@ -207,7 +207,14 @@ export function createChatController(deps: ChatControllerDeps) {
     const trimmed = text.trim();
     if (!trimmed || state.status === 'thinking' || state.status === 'halted') return;
     append('user', trimmed);
-    publish({ canSave: true, canResolve: state.purpose.kind === 'coaching' });
+    // Each purpose gets ONLY its own closing action. Offering "Save this task" in a coaching
+    // conversation (as this did until Phase B put it on a screen) invites running task extraction
+    // over a transcript about why something was skipped, which would capture a task nobody asked
+    // for out of the user's explanation of their own difficulty.
+    publish({
+      canSave: state.purpose.kind === 'task_input',
+      canResolve: state.purpose.kind === 'coaching',
+    });
 
     // ── The gate. Before the model, always, and it short-circuits everything below. ──────────
     const crisis = checkCrisis(trimmed);

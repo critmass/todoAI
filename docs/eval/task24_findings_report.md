@@ -399,24 +399,75 @@ The six stale `coaching_queue` rows left by task 12's and task 13's device sessi
 **0/0/0** afterwards, so no phantom crash signal survives, and no `com.todoai` alarm is pending.
 Test rows on the device now include tasks 19 ("Alarm") and 20 ("Ping").
 
-## 10. Phase B — what has NOT run yet
 
-The alarm, recovery and backgrounding items are closed. These are not, and the task is not fully
-done until they are:
+### 9.8 The five outcomes, on hardware
 
-- **Forced deep doze.** §9.1 ran with the app backgrounded, which is the case task 13 measured a JS
-  timer failing. The stronger case — `dumpsys deviceidle force-idle` with `mState=IDLE` — has not
-  been run. `dumpsys` already reports `device_idle=--` and `Next wake from idle: com.todoai`, so the
-  expectation is good, but that is inference, not measurement.
-- **Screen-locked full-screen intent.** Whether the alarm actually *takes focus* on a locked screen
-  rather than surfacing as a heads-up. The permission is granted, so it should; unverified.
-- **One alarm, not a stack**, after several `+5` / `Keep going` presses.
-- **`resume_block` recovery.** Only `block_expired` was exercised; the "kill mid-block, relaunch
-  before the block end, resume the SAME block end" path is untested on device.
-- **The five outcomes end to end** — Done, `+5`, Keep going, Pause for later, Something easier — and
-  the session summary with its energy check.
-- **Three skips → the immediate `session_recalibration`.**
-- **The chat surface against the real 4B**: extraction (draft-then-constrain) and a coaching
-  disposition. This is also where task 32's residue item (c), the recap→constrain measurement, would
-  be taken.
-- **The other five recurrence kinds** in the editor, and the break screen.
+Fixture tasks were seeded straight into the database for these. Task *creation* through the editor
+is already verified above (§9.4); what is under test here is the execution paths, and tapping six
+tasks out through the soft keyboard would only re-prove something already proven.
+
+| Outcome | What the database says |
+|---|---|
+| **Done** | `status='completed'`, **`actual_duration_history=[1]`** — one entry equal to the total minutes worked — `average_actual_duration=1`, `accumulated_minutes` reset to 0, `tasks_completed=1`, and a `task_completion` interaction. The fold, on device. The agenda then served the next task. |
+| **Pause for later** (park) | `accumulated_minutes` kept, `work_state='in_progress'`, `status='active'`, `last_worked_at` stamped, **`tasks_progressed=1` with `tasks_skipped=0`**, and **zero coaching rows queued** — constraint #11 holding on device, in separate columns reached by separate code |
+| **Not this one** (skip) | `skip_count` incremented on each declined task, `tasks_skipped=3`, one `task_skipped` row per skip at `next_start` |
+| **+5 minutes** | block end moved **exactly +300 000 ms**, `hyperfocus_quanta` still **0**, face still `countdown`, ledger `presses=1 minutes=5 coaching_enqueued=0` — nothing queued at press time (constraint #12) |
+| **Keep going** | see §9.10 |
+
+**The three-option early prompt is real.** Ending a block before its boundary showed exactly
+Done / Pause for later / Something easier — no `+5`, no `Keep going` — with "2 minutes worked this
+block" above it. At a real boundary the same screen showed all five.
+
+**Choosing an outcome cancels the alarm.** After the park, `dumpsys` showed **0 pending
+`com.todoai` alarms**: `detachEpisode` → `scheduler.cancel()` reaching the platform.
+
+### 9.9 The third skip stops the session (spec §7.2)
+
+Three tasks declined in one session, and the app **stopped serving tasks and opened the coach** with
+the recalibration opener. The database agrees: three `task_skipped` rows at `next_start`, one
+**`session_recalibration` at `immediate`**, `tasks_skipped=3`, and the session closed.
+
+This did not work before Phase B — see §9.11.
+
+### 9.10 The session lapse and the chat, against the real 4B
+
+**The lapse loop, end to end.** A session left open past its planned end produced
+`pattern_detected` / `{"kind":"session_lapsed"}` at `next_start`, written at exactly the minute the
+session's clock ran out — and the next "Start work" surfaced it as a coaching conversation instead
+of a check-in. That is `checkSessionLapse` → `enqueueCoachingTrigger` → `pendingAtSessionStart`,
+three separate pieces meeting correctly on hardware.
+
+**The 4B answered through the product UI.** One user turn in that conversation took ~70 seconds
+end to end — the model loading, the constraint-#3 startup guard compiling all four registered
+grammars, and then ~60 tokens of prose — and came back supportive, on-scope, and ending in one
+concrete next step, which is what the task-7 coaching prompt asks for. The chat surface, the model
+host, the startup guard and the prompt layer are confirmed together.
+
+**"Wrap this up" resolved the queue row with no model call**, because a `session_lapsed`
+conversation has no candidate task to dispose of — the deliberate skip in §4's disposition path.
+
+### 9.11 ⚠ Three more bugs the device found (all fixed)
+
+On top of §9.5's two:
+
+3. **Declining a task you never STARTED did nothing.** The work screen offers "Not this one" and
+   the escape valve before the block begins, but every disposition call in the engine requires an
+   open episode and throws without one. The error went into controller state that no session screen
+   renders, so on a phone it was simply a button that did nothing. Fixed by opening a zero-length
+   episode first, which keeps every semantic in task 13 rather than reimplementing the outcome in
+   the UI — and lands on the right side of the 60-second gate for free, since a task never started
+   has worked 0 ms and the engine correctly reads an escape from it as a skip.
+4. **A coaching chat offered "Save this task".** `canSave` was set on any first user turn regardless
+   of purpose. Tapping it would have run grammar-constrained task extraction over a transcript about
+   why something was skipped — capturing a task nobody asked for out of the user's explanation of
+   their own difficulty.
+5. **`immediate` coaching did not interrupt.** The third skip queued `session_recalibration` and the
+   controller walked on to the next agenda item — precisely the thing the trigger fires to prevent
+   (§7.2: "stop serving tasks and talk about what they can take on RIGHT NOW"), and it would not
+   have surfaced until the next session start. Now any `immediate` coaching closes the session and
+   routes straight into the coach, keyed off `urgencyForTrigger` rather than the trigger's name so a
+   future immediate trigger needs no second edit.
+
+`guard()` also logs now. A disposition failing silently is indistinguishable on a device from a
+button that does nothing; rendering controller errors on the session screens is beta work, but
+getting them into `logcat` is not optional.

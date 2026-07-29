@@ -49,7 +49,12 @@ export default function EndOfBlockScreen(props: EndOfBlockProps) {
             {has('easier') ? <TertiaryButton title="Something easier" onPress={onSomethingEasier} /> : null}
           </Stack>
 
-          <Caption>Paused work keeps everything you got done — it comes back later.</Caption>
+          {/* Only where parking is actually on offer. Inside the 60-second gate the engine sends
+              `skip` instead, and promising that "paused work keeps everything" next to a button
+              that does not pause would be a lie of exactly the kind this tone must not tell. */}
+          {has('park') ? (
+            <Caption>Paused work keeps everything you got done — it comes back later.</Caption>
+          ) : null}
         </Stack>
       </ScrollBody>
     </Screen>

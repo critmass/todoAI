@@ -41,14 +41,18 @@ export const RECURRENCE_KINDS: ReadonlyArray<{ kind: RecurrenceKind; label: stri
   { kind: 'count', label: 'N times total' },
 ];
 
+/** TWO letters, not one. The prototype used single initials, which makes Tuesday/Thursday and
+ *  Saturday/Sunday indistinguishable — and task 23's review named the recurrence editor's
+ *  real-device usability as the one thing a mock could not settle. Two letters costs nothing and
+ *  removes the ambiguity outright. */
 export const WEEKDAYS: ReadonlyArray<{ day: Weekday; short: string }> = [
-  { day: 'monday', short: 'M' },
-  { day: 'tuesday', short: 'T' },
-  { day: 'wednesday', short: 'W' },
-  { day: 'thursday', short: 'T' },
-  { day: 'friday', short: 'F' },
-  { day: 'saturday', short: 'S' },
-  { day: 'sunday', short: 'S' },
+  { day: 'monday', short: 'Mo' },
+  { day: 'tuesday', short: 'Tu' },
+  { day: 'wednesday', short: 'We' },
+  { day: 'thursday', short: 'Th' },
+  { day: 'friday', short: 'Fr' },
+  { day: 'saturday', short: 'Sa' },
+  { day: 'sunday', short: 'Su' },
 ];
 
 export const PERIODS: readonly Period[] = ['day', 'week', 'month'];

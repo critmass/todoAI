@@ -545,13 +545,12 @@ export function createSessionController(deps: SessionControllerDeps) {
 
   /** Ends the break. An overrun of a full break length or more re-plans the tail rather than
    *  serving a stale one (spec §8.2's break-overrun caller of replanRemaining). */
-  async function endBreak(plannedMinutes: number, startedEndAtMs: number): Promise<void> {
-    const overrunMs = deps.now() - startedEndAtMs;
+  async function endBreak(breakEndAtMs: number): Promise<void> {
+    const overrunMs = deps.now() - breakEndAtMs;
     if (overrunMs >= BREAK_MINUTES * MS_PER_MINUTE) {
       await replanRemainder();
       return;
     }
-    void plannedMinutes;
     await serveFrom(session.cursor + 1);
   }
 

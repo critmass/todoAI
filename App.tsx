@@ -1,101 +1,112 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
+ * The app entry point.
  *
- * @format
+ * As of task 24 this renders the PRODUCT UI (`src/app/`). The `src/dev/` harnesses that used to
+ * live here are still reachable — task 13's in particular is the only way to drive the timer
+ * engine directly, and future device passes will want it — but they are dev tools now, not the
+ * app, and they are only reachable in a debug build.
  */
 
 import { useState } from 'react';
-import { Button, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-// TEMPORARY swap for the Q1 grammar smoke test (docs/briefs/Q1_grammar_smoke_test_brief.md) —
-// revert to NewAppScreen once Q1 is done. See src/dev/Q1GrammarSpikeScreen.tsx.
-import Q1GrammarSpikeScreen from './src/dev/Q1GrammarSpikeScreen';
-// Q1b follow-on: date_str isolation probes (docs/briefs/Q1b_bounded_integer_probe_brief.md),
-// split into its own screen to keep Q1GrammarSpikeScreen navigable. See
-// src/dev/DateStrProbeScreen.tsx.
+
+import ProductApp from './src/app/App';
 import DateStrProbeScreen from './src/dev/DateStrProbeScreen';
-// Q1c: reopens Q1b's "rule name must match its JSON key" conclusion - the underscore-vs-
-// key-matching confound (docs/briefs/Q1c_rule_name_disambiguation_brief.md). See
-// src/dev/RuleNameProbeScreen.tsx.
+import Q1GrammarSpikeScreen from './src/dev/Q1GrammarSpikeScreen';
 import RuleNameProbeScreen from './src/dev/RuleNameProbeScreen';
-// Phase B: Task 6 on-device confirmation, driving the REAL TernaryBonsaiProvider + ladder +
-// startup guard (docs/briefs/opus_batch_B_device.md). See src/dev/Task6DeviceScreen.tsx.
 import Task6DeviceScreen from './src/dev/Task6DeviceScreen';
-// Phase B: Task 7 prompt-tuning loop, driving the REAL task-7 prompts and scoring
-// valid-AND-correct against each fixture's gold. See src/dev/Task7PromptScreen.tsx.
 import Task7PromptScreen from './src/dev/Task7PromptScreen';
-// Phase B: Task 12 on-device — the DB de-risk spike, the three triggers, and real dispatch
-// through real repositories. See src/dev/Task12DeviceScreen.tsx.
 import Task12DeviceScreen from './src/dev/Task12DeviceScreen';
-// Phase B: Task 13 on-device — the timer engine, the episode lifecycle, and the force-kill
-// recovery path (docs/briefs/timer_crash_recovery_task_13.md §5). See src/dev/Task13DeviceScreen.tsx.
 import Task13DeviceScreen from './src/dev/Task13DeviceScreen';
 
+type DevScreen = 'task13' | 'task12' | 'task7' | 'task6' | 'q1' | 'dateStr' | 'ruleName';
+
 function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+  const [dev, setDev] = useState<DevScreen | null>(null);
+
+  if (dev) {
+    return (
+      <SafeAreaProvider>
+        <DevHarness screen={dev} onExit={() => setDev(null)} />
+      </SafeAreaProvider>
+    );
+  }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
+    <>
+      <ProductApp />
+      {__DEV__ ? <DevAffordance onOpen={() => setDev('task13')} /> : null}
+    </>
   );
 }
 
-function AppContent() {
-  // Defaults to task13: the crash-recovery pass needs the app to relaunch STRAIGHT into the
-  // harness after `adb shell am force-stop`, with no tap in between that could be mistaken for
-  // the thing under test.
-  const [screen, setScreen] = useState<
-    'task13' | 'task12' | 'task7' | 'task6' | 'q1' | 'dateStr' | 'ruleName'
-  >('task13');
-  // Bug fixed live (2026-07-13): this switcher was rendering under the status bar with no
-  // top inset - the "date_str Probes" button was visible on-screen but its taps were being
-  // intercepted by the status bar area instead of reaching the Button, so switching never
-  // fired. useSafeAreaInsets pushes it below the status bar/notch.
-  const insets = useSafeAreaInsets();
-
+/** A deliberately tiny, corner-parked way into the harnesses. Debug builds only, and small enough
+ *  that it cannot be mistaken for part of the product or fat-fingered mid-session. */
+function DevAffordance({ onOpen }: { onOpen: () => void }) {
   return (
-    <View style={styles.container}>
+    <Pressable onPress={onOpen} style={styles.devDot} accessibilityLabel="Developer harnesses">
+      <Text style={styles.devDotLabel}>dev</Text>
+    </Pressable>
+  );
+}
+
+function DevHarness({ screen, onExit }: { screen: DevScreen; onExit: () => void }) {
+  const [current, setCurrent] = useState<DevScreen>(screen);
+  const insets = useSafeAreaInsets();
+  const tabs: Array<[DevScreen, string]> = [
+    ['task13', 'T13'],
+    ['task12', 'T12'],
+    ['task7', 'T7'],
+    ['task6', 'T6'],
+    ['q1', 'Q1'],
+    ['dateStr', 'date'],
+    ['ruleName', 'rule'],
+  ];
+  return (
+    <View style={styles.harness}>
       <View style={[styles.switcher, { paddingTop: insets.top + 8 }]}>
-        <Button title="Task 13" onPress={() => setScreen('task13')} disabled={screen === 'task13'} />
-        <Button title="Task 12" onPress={() => setScreen('task12')} disabled={screen === 'task12'} />
-        <Button title="Task 7" onPress={() => setScreen('task7')} disabled={screen === 'task7'} />
-        <Button title="Task 6" onPress={() => setScreen('task6')} disabled={screen === 'task6'} />
-        <Button title="Q1" onPress={() => setScreen('q1')} disabled={screen === 'q1'} />
-        <Button
-          title="date_str Probes"
-          onPress={() => setScreen('dateStr')}
-          disabled={screen === 'dateStr'}
-        />
-        <Button
-          title="Rule Name Probes"
-          onPress={() => setScreen('ruleName')}
-          disabled={screen === 'ruleName'}
-        />
+        <Pressable onPress={onExit} hitSlop={8}>
+          <Text style={styles.exit}>← app</Text>
+        </Pressable>
+        {tabs.map(([key, label]) => (
+          <Pressable key={key} onPress={() => setCurrent(key)} hitSlop={8}>
+            <Text style={current === key ? styles.tabActive : styles.tab}>{label}</Text>
+          </Pressable>
+        ))}
       </View>
-      {screen === 'task13' && <Task13DeviceScreen />}
-      {screen === 'task12' && <Task12DeviceScreen />}
-      {screen === 'task7' && <Task7PromptScreen />}
-      {screen === 'task6' && <Task6DeviceScreen />}
-      {screen === 'q1' && <Q1GrammarSpikeScreen />}
-      {screen === 'dateStr' && <DateStrProbeScreen />}
-      {screen === 'ruleName' && <RuleNameProbeScreen />}
+      {current === 'task13' && <Task13DeviceScreen />}
+      {current === 'task12' && <Task12DeviceScreen />}
+      {current === 'task7' && <Task7PromptScreen />}
+      {current === 'task6' && <Task6DeviceScreen />}
+      {current === 'q1' && <Q1GrammarSpikeScreen />}
+      {current === 'dateStr' && <DateStrProbeScreen />}
+      {current === 'ruleName' && <RuleNameProbeScreen />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  harness: { flex: 1 },
   switcher: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingTop: 8,
-    paddingBottom: 4,
+    alignItems: 'center',
+    paddingBottom: 6,
   },
+  exit: { fontSize: 13, fontWeight: '700', color: '#3A5A40' },
+  tab: { fontSize: 13, color: '#6B6B70' },
+  tabActive: { fontSize: 13, fontWeight: '700', color: '#1B1B1F' },
+  devDot: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: 'rgba(27,27,31,0.35)',
+  },
+  devDotLabel: { fontSize: 10, color: '#FFFFFF' },
 });
 
 export default App;

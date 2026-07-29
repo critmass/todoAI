@@ -80,7 +80,14 @@ These cost real time during the spike. They are the whole reason this file exist
    ```sh
    adb push ternary-bonsai-4b-tq1_0.gguf /sdcard/Android/data/com.todoai/files/
    ```
-4. **`npm install llama.rn` fails in Git Bash / any MSYS shell, with `tar (child): Cannot connect to C: resolve failed`.** `llama.rn`'s postinstall script extracts its prebuilt native artifacts by shelling out to `tar`. If `tar` on `PATH` resolves to MSYS/Git-for-Windows' GNU tar (`/usr/bin/tar` — true in Git Bash by default) instead of Windows' native bsdtar (`C:\Windows\System32\tar.exe`), it misparses the `C:\...` temp path as a remote `host:path` spec and the extraction dies before any native libs land. **Run `npm install` from PowerShell or cmd.exe, not Git Bash**, or otherwise make sure System32 precedes any MSYS `bin` directory on `PATH`. Confirm it worked: `node_modules/llama.rn/android/src/main/jniLibs/` should contain `arm64-v8a`/`x86_64` folders.
+4. **An app-owned TurboModule can compile, link, register — and still resolve to `null` in JS, because CMake configured before codegen ran.** Cost a device session to find (task 24, findings §9.6). React Native only wires an app's *own* codegen'd module provider when the compile flag `-DREACT_NATIVE_APP_MODULE_PROVIDER` is set, and `ReactNative-application.cmake` sets it only `if(EXISTS <build>/generated/source/codegen/jni/CMakeLists.txt)`. On the **first** build after adding `codegenConfig`, CMake configures *before* codegen has produced that file — and the configure is then cached in `android/app/.cxx/`, so every later build silently reuses the flag-less configuration. Symptom: the Kotlin side logs that it resolved the module, but `TurboModuleRegistry.get('YourModule')` returns `null`.
+   **Fix (no code change):**
+   ```sh
+   rm -rf android/app/.cxx && (cd android && ./gradlew installDebug)
+   ```
+   Confirm it took: `-DREACT_NATIVE_APP_MODULE_PROVIDER=` should appear in `android/app/.cxx/Debug/*/arm64-v8a/build.ninja`.
+
+5. **`npm install llama.rn` fails in Git Bash / any MSYS shell, with `tar (child): Cannot connect to C: resolve failed`.** `llama.rn`'s postinstall script extracts its prebuilt native artifacts by shelling out to `tar`. If `tar` on `PATH` resolves to MSYS/Git-for-Windows' GNU tar (`/usr/bin/tar` — true in Git Bash by default) instead of Windows' native bsdtar (`C:\Windows\System32\tar.exe`), it misparses the `C:\...` temp path as a remote `host:path` spec and the extraction dies before any native libs land. **Run `npm install` from PowerShell or cmd.exe, not Git Bash**, or otherwise make sure System32 precedes any MSYS `bin` directory on `PATH`. Confirm it worked: `node_modules/llama.rn/android/src/main/jniLibs/` should contain `arm64-v8a`/`x86_64` folders.
 
 ---
 

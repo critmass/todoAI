@@ -1,11 +1,18 @@
 # Task 24 Findings — Product UI implementation
 
-**Status: Phase A complete. Phase B is NOT run, and this task is not done without it.**
+**Status: Phase A complete. Phase B PARTIALLY run on the S23 FE — the `P` items that gate
+constraint #13 are closed; the rest of the loop is not yet exercised on device.**
 The product surface exists, is wired to the real services, and the whole tree is green — full
 suite **636 → 706 tests**, `tsc --noEmit` clean, `eslint .` **0 errors** (56 warnings, all the
-pre-existing `react-native/no-inline-styles` ones in `src/dev/`). What Phase A structurally
-cannot establish is the one thing this task owed constraint #13: that a real `AlarmManager` alarm
-fires from background and doze on the S23 FE. **§9 is the device checklist Jason runs.**
+pre-existing `react-native/no-inline-styles` ones in `src/dev/`).
+
+**The headline: the alarm fires.** On the S23 FE (Android 16), backgrounded, the block-end alarm
+fired **11 milliseconds** after the stored block end — against the **38–45 seconds** task 13
+measured for a JS `setTimeout` under the same conditions. Constraint #13 is discharged. §9 has the
+evidence; §10 is what has *not* run yet.
+
+**Phase B also found two real bugs and one build trap**, none of which an emulator pass would have
+surfaced (§9.5, §9.6).
 
 **The app is now the app.** `App.tsx` renders `src/app/`; the `src/dev/` harnesses still exist and
 are still reachable, but behind a small debug-only affordance rather than being the product.
@@ -246,55 +253,170 @@ each case the *engine* already had the behaviour and only the surface was missin
   model calls on a distress transcript (tested). Its coverage and `CRISIS_REFERRAL_TEXT` remain the
   hard beta gate; nothing here changes that.
 
-## 9. Phase B — the device session Jason runs (closes the `P`)
 
-Run on the S23 FE against a debug build. **Batch with task 32's residue sweep — same setup cost.**
-Build first: the TurboModule is new, so this needs a real `npx react-native run-android`, not a
-Metro reload.
+## 9. Phase B — what ran on the S23 FE (2026-07-28/29)
 
-**A. The alarm — the thing Phase A cannot establish (constraint #13).**
-1. Start a session, start a block with a short estimate (2–3 min), then press HOME.
-2. Confirm the alarm fires **at the block end, not on return**. Watch the clock.
-3. Repeat under forced deep idle: `adb shell dumpsys deviceidle force-idle`, confirm `mState=IDLE`,
-   then wait out the block. This is the case a JS timer failed twice (38 s and 45 s late).
-4. Repeat with the screen locked, to see the full-screen intent actually take focus rather than
-   only posting a heads-up.
-5. Check `adb shell dumpsys alarm | grep todoai` shows one alarm, not a stack, after pressing `+5`
-   and `Keep going` a few times.
-6. **If `USE_FULL_SCREEN_INTENT` is not granted**, expect a heads-up with alarm sound instead —
-   record which behaviour you got, because that determines whether Settings needs a second grant
-   affordance.
+Run against a debug build on the real device (`SM-S711U`, Android 16, `adb` over USB). Every claim
+below was **re-checked by pulling `databases/todoai.db` off the device and querying it directly** —
+the on-screen state only proves what the app believed, not what it wrote. Same discipline as task
+13's Phase B, and it earned its keep again.
 
-**B. `recoverOpenEpisode` after a real force-kill.**
-7. Mid-block: `adb shell am force-stop com.todoai`, relaunch. Expect the app to open **straight into
-   the same block** with the original end-time — not a fresh block, not the dashboard.
-8. Kill mid-block and relaunch **after the block would have ended**. Expect the recovery screen
-   ("keep working / it's done / leave it for later"), and confirm by DB query that
-   `skip_count = 0` and no `coaching_queue` row was written.
-9. Take "leave it for later" and confirm **nothing new** was written — the credit from recovery is
-   the only record.
+### 9.1 ⭐ The alarm fires — constraint #13 discharged
 
-**C. Backgrounding is not a pause.**
-10. Mid-block, HOME for 60–90 s, return. Same PID, no recovery banner, `paused_at_ms` still NULL,
-    `pause_count` still 0, and the time away **counted as worked**.
-11. Then press pause explicitly, wait, resume — and confirm the block end moved out by the pause.
+The thing Phase A structurally could not establish.
 
-**D. The full loop end to end.**
-12. Add a task through the chat (real extraction, real save — watch that the prose turn asks or
-    recaps before the constrained call runs).
-13. Start a session: energy → duration → context → tools check → block → each of the five options
-    at least once across a couple of sessions, including a `+5` chain and a `Keep going` chain long
-    enough to see the self-care nudge (two consecutive quanta).
-14. Skip three tasks in one session and confirm the **immediate** `session_recalibration`
-    conversation appears.
-15. Reach a session summary with a `repeated_extension` queued and confirm the estimate note
-    appears and routes into the coach.
-16. Open the six-kind recurrence editor on the device and form a judgement on it — task 23's review
-    named this as the one thing a prototype could not settle. The day chips are now two letters.
+**Scheduled correctly.** With a 2-minute block open, `dumpsys alarm` showed exactly one entry:
 
-**E. Pull the database and check the writes, not the screen.**
-`adb` the DB off the device and query it directly, as task 13's Phase B did — the on-screen log only
-proves what the app believed, not what it wrote. Specifically: `sessions.status` transitions
-`abandoned → completed`, both energy columns populated and in the 1/3/5 band, `tasks_progressed` vs
-`tasks_skipped` on the right rows, `skip_count` untouched by every park, and one
-`actual_duration_history` entry per completion.
+```
+RTC_WAKEUP #4: Alarm{... com.todoai}
+  tag=*walarm*:com.todoai.BLOCK_ENDED
+  type=RTC_WAKEUP  origWhen=2026-07-28 23:30:32.373  window=0
+  exactAllowReason=policy_permission
+  policyWhenElapsed: device_idle=--  battery_saver=--
+  Alarm clock:
+    triggerTime=2026-07-28 23:30:32.373
+    showIntent=PendingIntent{... com.todoai startActivity}
+Next wake from idle: Alarm{... com.todoai}
+```
+
+`window=0` is the whole point: **exact, not batched.** `exactAllowReason=policy_permission` is the
+`USE_EXACT_ALARM` grant. And **`Next wake from idle: com.todoai`** is the OS stating it will bring
+the device out of Doze for this alarm.
+
+**Fired on time, from the background.** HOME pressed at 23:29:00, block end 23:30:32.373:
+
+```
+23:30:32.384  ActivityManager: Received BROADCAST intent ... act=com.todoai.BLOCK_ENDED
+              cmp=com.todoai/.EpisodeAlarmReceiver
+```
+
+**11 milliseconds late.** Task 13 measured the same moment at **38 s and 45 s late** with a JS
+`setTimeout`. That is the entire justification for constraint #13, now confirmed from both sides.
+
+**The notification is the right shape.** `dumpsys notification`: `importance=4`, `category=alarm`,
+`channel=todoai.block_end` with `mSound=content://settings/system/alarm_alert` and
+`usage=USAGE_ALARM`, and **`fullscreenIntent=PendingIntent{... com.todoai startActivity}`** —
+allowlisted by NotificationManagerService. The OS also showed the alarm-clock icon in the status bar
+for the duration, which is `setAlarmClock` doing exactly what it says on the tin.
+
+**All three permissions auto-granted on Android 16**, with no prompt to design around:
+`USE_EXACT_ALARM: granted=true`, `USE_FULL_SCREEN_INTENT: granted=true`,
+`POST_NOTIFICATIONS: granted=true`.
+
+### 9.2 Backgrounding is not a pause
+
+Mid-block, HOME for ~70 seconds, then read the row directly:
+
+| Checked | Result |
+|---|---|
+| `paused_at_ms` | **NULL** |
+| `paused_ms` / `pause_count` | **0 / 0** |
+| `block_end_at_ms` | **unchanged** — the block was never extended by the time away |
+
+The time away counted as worked, because backgrounding is normal, not abandonment.
+
+### 9.3 `recoverOpenEpisode` after a real force-kill
+
+`adb shell am force-stop com.todoai` mid-episode, then relaunch. The app opened **straight into the
+recovery screen** — "You're back. 2 minutes on 'Alarm' are already saved — nothing was lost while
+you were away." Confirmed by query, not by screen:
+
+| Checked | Result |
+|---|---|
+| Crash signal cleared | `active_episode` = 0 rows |
+| Episode closed as abandoned | `task_progress` / `completion_status='abandoned'` + the recovery note |
+| **Credit bounded by the block end** | **2 minutes**, though the process was dead ~90 s *past* the block end |
+| **No skip written** | **`skip_count = 0`, `skip_reasons = NULL`** |
+| **No coaching queued** | **0 pending `coaching_queue` rows** |
+| Task not abandoned by inference | `status='active'`, `work_state='in_progress'` |
+| Nothing folded | `actual_duration_history = NULL` |
+
+**"Leave it for later" wrote nothing at all** — interactions stayed at 4, credit stayed at 2,
+`skip_count` stayed 0 — then routed to the "You're back, where are you now?" re-check-in, exactly
+as §4.4 designed. Recovery had already parked it; a second disposition would have double-recorded.
+
+### 9.4 The rest of what ran
+
+- **Launch routing (spec §6.1).** With coaching queued, the app opened **into the coach chat, not
+  the dashboard** — twice, on real leftover rows. `pendingAtAppOpen` picked the `immediate` row.
+- **Session-start routing.** "Start work" with an `immediate` row queued opened the coach instead of
+  the check-in — `pendingAtSessionStart`, the other urgency seam, also correct.
+- **The `sessions` row is born `'abandoned'` on hardware**, with `user_energy_start = 3` for
+  "Medium" (constraint #6 through `scales.ts`), `session_type='quick'`, `planned_duration=10`.
+  `session_runtime` created; `active_episode` **absent until START is pressed** — so backing out of
+  a task you never started still costs nothing.
+- **The real planner ran**: for a 10-minute quick session it served the only task that fits and
+  nothing else. The block opened with `block_end_at_ms − started_at_ms = 120000` exactly.
+- **The timer face**: countdown, progress bar, `FOCUSING`, updating once a second off the stored
+  end-time.
+- **The editor round-tripped through SQLite**: create and update, `duration_source='user'`, energy
+  via `scales.ts`, **no `task_recurrence` row for a one-off**, delete correctly disabled for a
+  dependency-blocked task and enabled otherwise. Task-list summaries built from real rows.
+- **Settings reported the alarm honestly in both states** — "isn't available in this build" while
+  the module was unresolved, "set to fire exactly on time" after. That screen is what turned a
+  silent failure into a five-second diagnosis.
+
+### 9.5 ⚠ Two real bugs the device found (both fixed, commit `e6657a4`)
+
+1. **Android's back gesture was unhandled, so it quit the app from every screen.** React Native
+   wires nothing by default, and no emulator or unit pass would surface it because back is a
+   *platform* gesture. Now mapped to each screen's own back action: the dashboard lets Android leave
+   (it is the root), the prompt **consumes** the press because a disposition is required, and
+   everything else navigates. Found the hard way — a `KEYCODE_BACK` meant to dismiss a keyboard
+   exited the app instead.
+2. **Backing out of an open block abandoned the session instead of asking.** The work screen's back
+   was wired to `leaveSession`. It now raises the five-option prompt: the app never picks a
+   disposition by inference (constraint #11's spirit). This also made the code match what §7 of this
+   report already claimed, which is the more embarrassing half of the finding.
+
+### 9.6 ⚠ The build trap: app-level codegen and a cached CMake configure
+
+**Worth recording because it will bite anyone adding a second app-owned TurboModule.**
+
+The first build compiled everything — the codegen'd `NativeEpisodeAlarmSpec.java`, the JNI
+`TodoAiAppSpecs-generated.cpp`, the Kotlin module and package — and the Java side resolved fine
+(`getModule("EpisodeAlarm") match=true` in logcat). But `TurboModuleRegistry.get()` returned
+**null**, so every alarm call silently no-oped.
+
+The cause: `DefaultTurboModuleManagerDelegate::javaModuleProvider` is a static function pointer that
+**defaults to `nullptr`**, and RN's `OnLoad.cpp` only assigns the app's own provider when the compile
+flag `-DREACT_NATIVE_APP_MODULE_PROVIDER` is set. `ReactNative-application.cmake` sets it
+automatically — but only `if(EXISTS <build>/generated/source/codegen/jni/CMakeLists.txt)`, and on the
+**first** build CMake configured *before* codegen had produced that file. The configure is then
+cached in `android/app/.cxx/`, so every later build reused the flag-less configuration.
+
+**Fix — no code change:** delete `android/app/.cxx` and rebuild. The flag then appears in
+`build.ninja` (`-DREACT_NATIVE_APP_MODULE_PROVIDER=TodoAiAppSpecs_ModuleProvider`) and the module
+resolves. **Recorded in `README_build.md` as a gotcha.**
+
+The silver lining is that the failure mode was exactly the designed one: a build without the native
+module lost the alarm and **not the app**, and Settings said so in plain words.
+
+### 9.7 Housekeeping
+
+The six stale `coaching_queue` rows left by task 12's and task 13's device sessions were marked
+`resolved` (they intercepted every app open and every session start). The runtime tables were left
+**0/0/0** afterwards, so no phantom crash signal survives, and no `com.todoai` alarm is pending.
+Test rows on the device now include tasks 19 ("Alarm") and 20 ("Ping").
+
+## 10. Phase B — what has NOT run yet
+
+The alarm, recovery and backgrounding items are closed. These are not, and the task is not fully
+done until they are:
+
+- **Forced deep doze.** §9.1 ran with the app backgrounded, which is the case task 13 measured a JS
+  timer failing. The stronger case — `dumpsys deviceidle force-idle` with `mState=IDLE` — has not
+  been run. `dumpsys` already reports `device_idle=--` and `Next wake from idle: com.todoai`, so the
+  expectation is good, but that is inference, not measurement.
+- **Screen-locked full-screen intent.** Whether the alarm actually *takes focus* on a locked screen
+  rather than surfacing as a heads-up. The permission is granted, so it should; unverified.
+- **One alarm, not a stack**, after several `+5` / `Keep going` presses.
+- **`resume_block` recovery.** Only `block_expired` was exercised; the "kill mid-block, relaunch
+  before the block end, resume the SAME block end" path is untested on device.
+- **The five outcomes end to end** — Done, `+5`, Keep going, Pause for later, Something easier — and
+  the session summary with its energy check.
+- **Three skips → the immediate `session_recalibration`.**
+- **The chat surface against the real 4B**: extraction (draft-then-constrain) and a coaching
+  disposition. This is also where task 32's residue item (c), the recap→constrain measurement, would
+  be taken.
+- **The other five recurrence kinds** in the editor, and the break screen.

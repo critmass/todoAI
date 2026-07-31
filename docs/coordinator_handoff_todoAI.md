@@ -2,7 +2,7 @@
 
 *Add this to project knowledge. It supersedes the previous handoff; everything still true has been carried forward rather than assumed. You are picking up the **coordinator** role on the ADHD task-management app (todoAI), not starting it.*
 
-*Refreshed 2026-07-27, after task 13 (timer/lifecycle) landed and confirmed on-device, and the task 23 design prototype was built and reviewed.*
+*Refreshed 2026-07-29 — **personal ship is met.** Task 24 (product UI) landed and the whole loop is confirmed on the S23 FE; task 13 (timer/lifecycle) and task 23 (design) landed before it.*
 
 ---
 
@@ -38,22 +38,24 @@ You are the **coordinator**, not the builder. Jason is the sole developer and de
 
 ## 3. Where things stand (as of handoff)
 
-**Done & confirmed:** 0–7, Q1, 9, 10, 11, 12, 13, 18, 25, 26, 27, 28, 33, 34. The whole **backend is complete and device-confirmed** — provider + ladder + startup guard, prompts, coaching, scoring (R1–R8), session planning, multi-session/hyperfocus, the timer + episode lifecycle + crash recovery, and all migrations through **005 (schema 2.6.0)**.
+**PERSONAL SHIP IS MET (2026-07-29).** The whole loop — add a task through the chat → start a session → check in → execute with the timer → all five outcomes → coaching when triggered → summary — runs on the S23 FE, every step checked against the pulled database, not the screen. The alarm fires **11 ms** late from the background (vs 38–45 s for `setTimeout`). This is the milestone the whole project was aimed at.
 
-**Task 13 landed this session** and is the reason the backend is "done": `src/execution/` (timer engine, five-option prompt, both extension paths, park primitive, crash recovery), migration 005, force-kill confirmed on the S23 FE (credit bounded, no skip, task stays active), 531→636 tests. **Residue:** overnight-doze Phase B unrun; three handoffs it raised are pinned (§ below).
+**Done & confirmed:** 0–13, Q1, 18, 23, 24, 25, 26, 27, 28, 33, 34. Backend + design + functional UI, all real.
 
-**Task 23 (design) is substantially done** — a real interactive prototype (`docs/design/*.dc.html`), reviewed in `docs/eval/task23_review.md`. Built in two passes; six divergences from rulings caught and reconciled, all verified in-code. **Three small follow-ups open** (guardrail-B nudge, repeated-+5 note, skip threshold 2→3) — a Claude Design prompt is in the review §5.
+**Task 24 landed this session** (`src/app/`, `docs/eval/task24_findings_report.md`): the product surface in four non-leaking layers (controllers / presentational screens / shell / alarm), an `AlarmManager.setAlarmClock` TurboModule that discharges constraint #13, and Phase B on the device that found **five bugs and one build trap, four of them silent** — all fixed. 636→711 tests. It also **closed task 23's three follow-ups for free** (the engine already had each behaviour).
 
-**The personal-ship path is now a single task: `24` (functional product UI).** The backend is confirmed beneath it and the design is substantially settled above it. Task 24 carries `P` (needs Jason + phone), consumes task 13's `src/execution/` API (report §8) and the task 23 prototype. Brief: `docs/briefs/product_ui_task_24.md`.
+**The one open qualifier on "met":** five bug-fix commits followed the reported 711-green run, so **re-confirm the merged green** (`jest` + `tsc --noEmit` + `eslint .`) before building on it. Do this first.
 
-**In flight, headless, parallel-safe (set-and-forget while Jason's away from the phone):**
+**In flight, headless, parallel-safe (set-and-forget):**
 - **Task 35** — spec fold-in v2.3→v2.4, docs-only. `docs/briefs/spec_foldin_task_35.md`.
-- **Task 36** — recurrence period engine (the time-driven half of §4.2, a live bug: `scheduled` tasks never advance `next_due_at`). Headless. `docs/briefs/recurrence_period_engine_task_36.md`. If it migrates, it's **006 / 2.7.0** (13 took 005).
+- **Task 36** — recurrence period engine (a live bug: `scheduled` tasks never advance `next_due_at`). Headless. `docs/briefs/recurrence_period_engine_task_36.md`. Migrates as **006 / 2.7.0** (13 took 005).
 
-**Three task-13 handoffs, pinned to owners** (don't let them rot):
-- **→ task 24:** the expiry alarm can't be a JS `setTimeout` (fires 38–45 s late from doze) — needs a platform primitive. Now constraint #13.
-- **→ task 19:** decide whether a recovered crash (`completion_status='abandoned'`) counts as a friction incident — §1.3 says a crash isn't user failure.
-- **→ task 17:** `completion_count`/`success_rate` have **no writer anywhere** — `historicalSuccessFactor` currently scores every task off a permanent n=0.
+**Five handoffs task 24 raised, pinned in orientation §9** (don't let them rot):
+- **→ task 26:** its `learning_state` table is what unblocks spec §6.1's 5-day re-orientation — needs a `last_opened_at` watermark (`sessions.started_at` answers a different question). Task 24 wired everything but the watermark.
+- **→ task 36:** the recurrence editor's "every N weeks" interval was dropped — the `scheduled` union carries weekdays only; adding an interval is a schema change here.
+- **Decisions owed:** `sessions.model_tier` (never written — what does it mean for a no-model session?); `session_ended_early` (a real trigger type but not one of §7.2's five — should backing out with time left coach?); per-episode `interactions` energy left null (beta if the learning loop wants it).
+
+**The frontier is now beta + general work** (orientation §8): the designed/polished visual pass of task 24, task 21 (crisis — human), task 30 (device envelope — Jason), task 20 (real eval numbers), task 32 (device residue — one item, `add_missing_task`, was on the personal path and is now the natural first beta sweep). Task 24 already **wired** D1's recap→constrain flow in the product; measuring it is still task 32's.
 
 **The R-series ledger** (all folded into scoring + spec v2.3; history, not pending): R1 neglect linear+swappable (still uncapped), R2 subtask ordering via real deps, R3 context/tools as a hard pre-filter (weights 31/23/23/23), R4 buried-task coaching, R6 smoothed historical success, R7 parent-kept-after-breakdown + immediate `breakdown_complete` coaching, R8 neglect accrual gate `anchor + period/(1+quota)`. U1 (dep-blocked pre-filter) landed with task 25 and unblocked 11.
 
@@ -98,15 +100,19 @@ The ones that bite most, including the two newest:
 11. **`sessions` is born `'abandoned'`** (crash-truthful); task 24 creates the row, task 13 owns every write after.
 12. **Migrations that change a CHECK need the full rebuild discipline** (task 26 report), **and every migration must sweep prior migrations' test suites** (task 34 §4 — `runMigrations` walks forward, so earlier suites' assertions become assertions about the new one).
 
-## 7. Open items & residue (nothing blocks the personal path except task 24 itself)
+## 7. Open items & residue (personal ship is met; these are beta/general/parallel)
 
-- **Task 23 follow-ups** — the three "make-a-ruled-behavior-visible" tweaks; Claude Design prompt in `docs/eval/task23_review.md` §5. Not blocking task 24's functional pass.
-- **Extend guardrail switches** — ruled B; the three flags ship on. No open ruling.
-- **`which:"next"` weekday semantics (task 22)** — still an open decision; affects every resolved date; not on the personal path.
+- **Re-confirm merged green** — five task-24 bug-fix commits followed the reported 711-green run. One clean `jest` + `tsc --noEmit` + `eslint .`. **Do this first.**
+- **Two still-live task-13 handoffs** (pinned on their task rows in orientation §2, repeated here so they don't vanish):
+  - **→ task 19:** decide whether a recovered crash (`completion_status='abandoned'`) counts as a friction incident — §1.3 says a crash isn't user failure.
+  - **→ task 17:** `completion_count`/`success_rate` have **no writer anywhere** — `historicalSuccessFactor` scores every task off a permanent n=0; 17 is the natural owner.
+- **Five task-24 handoffs** — see §3 (learning_state watermark → 26; recurrence interval → 36; model_tier / session_ended_early / per-episode energy decisions).
+- **Task 23 designed pass** — the polished visual layer (task 23's tokens applied throughout, motion, dark mode). Beta gate. The functional pass already speaks the right visual language via `theme.ts`.
+- **`which:"next"` weekday semantics (task 22)** — still an open decision; affects every resolved date.
 - **Multi-day `scheduled` neglect gap (task 25 §3.1)** — reasoned, not ruled; revisit with real multi-day schedules.
-- **Overnight-doze Phase B (task 13)** — the one open device check for 13; batch with task 24's or task 32's device session.
-- **Verification residue → task 32:** `add_missing_task` dispatch (personal-ship path per R7), `add_dependency` dispatch, the unmeasured D1 recap→constrain flow, task 19's grammars when they land. One device session.
-- **Beta gates** (not personal): task 21 (crisis coverage — human), task 30 (device envelope — Jason), task 20 (real eval numbers), the designed/polished UI pass of task 24.
+- **Task-24 device edges not covered** (report §10): `resume_block` recovery on hardware (tested, not device-run); overnight doze on battery; the locked-screen full-screen intent as a watched behaviour; four of six recurrence kinds tapped; deep-idle alarm delivery (inferred at 11–30 ms for shallower states, run stopped at 5:45am before the deep-idle fuse blew).
+- **Verification residue → task 32:** `add_missing_task` dispatch (was personal-path per R7, now the natural first beta sweep), `add_dependency` dispatch, D1 recap→constrain **measurement** (task 24 wired the flow; measuring it is 32's).
+- **Beta gates:** task 21 (crisis coverage — human), task 30 (device envelope — Jason), task 20 (real eval numbers).
 - **A stray file to delete:** `docs/briefs/SECTION7_TEMP.md` — created by accident when the edit tool was briefly down; overwritten with a "DELETE ME" tombstone but **there is no delete tool**, so Jason must `rm` it by hand. Harmless until then.
 
 ## 8. Model allocation going forward

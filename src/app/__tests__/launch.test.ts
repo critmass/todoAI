@@ -12,6 +12,7 @@ import { createTasksRepository } from '../../db/repositories/tasks';
 import { MS_PER_MINUTE, startEpisode, startSessionRuntime, type EpisodeServiceDeps } from '../../execution';
 import type { AgendaTaskItem } from '../../planning/agenda';
 import type { CoachingPriorityQueueEntry } from '../../types/domain';
+import { sweepDateFrom, type RecurrenceSweepDeps } from '../../services/recurrence';
 import { pendingAtAppOpen, pendingAtSessionStart, runLaunchSequence } from '../launch';
 
 const min = (n: number) => n * MS_PER_MINUTE;
@@ -35,11 +36,13 @@ function entry(
 describe('launch sequence (task 24)', () => {
   let conn: TestSqliteConnection;
   let deps: EpisodeServiceDeps;
+  let recurrenceDeps: RecurrenceSweepDeps;
   let repos: {
     tasks: ReturnType<typeof createTasksRepository>;
     sessions: ReturnType<typeof createSessionsRepository>;
     coaching: ReturnType<typeof createCoachingRepository>;
     runtime: ReturnType<typeof createRuntimeRepository>;
+    recurrence: ReturnType<typeof createRecurrenceRepository>;
   };
   let clock: number;
 
@@ -51,15 +54,17 @@ describe('launch sequence (task 24)', () => {
       sessions: createSessionsRepository(conn),
       coaching: createCoachingRepository(conn),
       runtime: createRuntimeRepository(conn),
+      recurrence: createRecurrenceRepository(conn),
     };
     deps = {
       tasks: repos.tasks,
-      recurrence: createRecurrenceRepository(conn),
+      recurrence: repos.recurrence,
       interactions: createInteractionsRepository(conn),
       sessions: repos.sessions,
       coaching: repos.coaching,
       runtime: repos.runtime,
     };
+    recurrenceDeps = { tasks: repos.tasks, recurrence: repos.recurrence };
     clock = Date.now();
   });
 
@@ -97,6 +102,7 @@ describe('launch sequence (task 24)', () => {
     const outcome = await runLaunchSequence({
       episode: deps,
       coaching: repos.coaching,
+      recurrence: recurrenceDeps,
       now: () => clock,
     });
 
@@ -127,6 +133,7 @@ describe('launch sequence (task 24)', () => {
     await runLaunchSequence({
       episode: { ...deps, runtime: watchedRuntime },
       coaching: watchedCoaching,
+      recurrence: recurrenceDeps,
       now: () => clock,
     });
 
@@ -142,6 +149,7 @@ describe('launch sequence (task 24)', () => {
     const outcome = await runLaunchSequence({
       episode: deps,
       coaching: repos.coaching,
+      recurrence: recurrenceDeps,
       now: () => clock,
     });
     expect(outcome.kind).toBe('recovered');
@@ -153,6 +161,7 @@ describe('launch sequence (task 24)', () => {
     const outcome = await runLaunchSequence({
       episode: deps,
       coaching: repos.coaching,
+      recurrence: recurrenceDeps,
       now: () => clock,
     });
     expect(outcome.kind).toBe('coaching');
@@ -162,6 +171,7 @@ describe('launch sequence (task 24)', () => {
     const outcome = await runLaunchSequence({
       episode: deps,
       coaching: repos.coaching,
+      recurrence: recurrenceDeps,
       now: () => clock,
     });
     expect(outcome.kind).toBe('dashboard');
@@ -170,9 +180,106 @@ describe('launch sequence (task 24)', () => {
   it('does not let a crash queue anything', async () => {
     await leaveCrashSignal(25, 60);
     clock += min(3);
-    await runLaunchSequence({ episode: deps, coaching: repos.coaching, now: () => clock });
+    await runLaunchSequence({
+      episode: deps,
+      coaching: repos.coaching,
+      recurrence: recurrenceDeps,
+      now: () => clock,
+    });
     // A crash is not user failure: no skip, no pattern, nothing to talk about.
     expect(await repos.coaching.priorityQueue()).toHaveLength(0);
+  });
+
+  // Task 36 — app open is one of the sweep's two seams, and the ORDERING matters twice over: after
+  // the crash recovery (like everything else), but before the branch that returns on a recovery.
+  describe('the recurrence period sweep (task 36)', () => {
+    async function scheduledTask(days: Array<'monday' | 'tuesday'>, nextDueAt: string | null) {
+      const task = await repos.tasks.create({ title: 'Bins out', estimatedDuration: 10, nextDueAt });
+      await repos.recurrence.create(task.id, { type: 'scheduled', scheduledDays: days });
+      return task.id;
+    }
+
+    it('brings a stale due date up to date on a clean launch', async () => {
+      const id = await scheduledTask(['monday', 'tuesday'], '2020-01-01');
+
+      await runLaunchSequence({
+        episode: deps,
+        coaching: repos.coaching,
+        recurrence: recurrenceDeps,
+        now: () => clock,
+      });
+
+      const after = await repos.tasks.getById(id);
+      expect(after!.nextDueAt).not.toBe('2020-01-01');
+      expect(after!.nextDueAt! >= sweepDateFrom(clock)).toBe(true);
+    });
+
+    it('sweeps even when the launch ends in a crash recovery', async () => {
+      // The recovered branch returns early. A sweep placed after it would never run for the user
+      // who relaunches straight into a recovered session — which is exactly the user most likely to
+      // have been away.
+      const id = await scheduledTask(['monday', 'tuesday'], '2020-01-01');
+      await leaveCrashSignal(25, 60);
+      clock += min(3);
+
+      const outcome = await runLaunchSequence({
+        episode: deps,
+        coaching: repos.coaching,
+        recurrence: recurrenceDeps,
+        now: () => clock,
+      });
+
+      expect(outcome.kind).toBe('recovered');
+      expect((await repos.tasks.getById(id))!.nextDueAt).not.toBe('2020-01-01');
+    });
+
+    it('runs AFTER the crash recovery, never before it', async () => {
+      await leaveCrashSignal(25, 60);
+      const order: string[] = [];
+      const watchedRuntime = {
+        ...repos.runtime,
+        getActiveEpisode: async () => {
+          order.push('recovery');
+          return repos.runtime.getActiveEpisode();
+        },
+      };
+      const watchedRecurrence: RecurrenceSweepDeps = {
+        tasks: recurrenceDeps.tasks,
+        recurrence: {
+          ...recurrenceDeps.recurrence,
+          listSweepable: async () => {
+            order.push('sweep');
+            return recurrenceDeps.recurrence.listSweepable();
+          },
+        },
+      };
+
+      await runLaunchSequence({
+        episode: { ...deps, runtime: watchedRuntime },
+        coaching: repos.coaching,
+        recurrence: watchedRecurrence,
+        now: () => clock,
+      });
+
+      expect(order).toEqual(['recovery', 'sweep']);
+    });
+
+    it('is idempotent across two launches in the same second', async () => {
+      const id = await scheduledTask(['monday', 'tuesday'], null);
+      const launch = () =>
+        runLaunchSequence({
+          episode: deps,
+          coaching: repos.coaching,
+          recurrence: recurrenceDeps,
+          now: () => clock,
+        });
+
+      await launch();
+      const afterFirst = (await repos.tasks.getById(id))!.nextDueAt;
+      await launch();
+
+      expect((await repos.tasks.getById(id))!.nextDueAt).toBe(afterFirst);
+    });
   });
 
   describe('the urgency tiers decide which seam a conversation belongs to', () => {

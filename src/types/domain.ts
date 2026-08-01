@@ -123,7 +123,16 @@ export interface TaskRecurrenceEntity {
   /** Raw task_recurrence.current_period_progress: authoritative quota progress for period
    *  types; for 'count' it mirrors recurrence.progress (same underlying column). */
   currentPeriodProgress: number;
+  /** 'YYYY-MM-DD' local calendar date the CURRENT period ends, EXCLUSIVE — the period that is
+   *  running is `[resetDate − one period, resetDate)` and the sweep rolls when today >= resetDate
+   *  (task 36, migration 006). Null for 'unscheduled'/'count' (they have no period at all — CHECK
+   *  enforced) and for a period type no sweep has seeded yet. */
   resetDate: string | null;
+  /** How many occurrences the immediately PRECEDING period ended short by (0 if it was met, or if
+   *  no period has closed yet). The missed-quota importance boost (spec §4.2) is DERIVED from this
+   *  at scoring time — see `src/scoring/factors.ts`. Replaced at each roll and capped at the quota,
+   *  never summed across missed periods: missed occurrences reset, they do not stack guilt. */
+  lastPeriodShortfall: number;
   isCurrentlyActive: boolean;
   createdAt: string | null;
 }
@@ -189,6 +198,7 @@ export function taskRecurrenceRowToDomain(row: TaskRecurrenceRow): TaskRecurrenc
     ),
     currentPeriodProgress,
     resetDate: row.reset_date,
+    lastPeriodShortfall: row.last_period_shortfall ?? 0,
     isCurrentlyActive: boolFromRow(row.is_currently_active, true),
     createdAt: row.created_at,
   };

@@ -8,6 +8,7 @@
 // Every factor returns a value in [0,1]; since the weights sum to 1.0 the weighted sum is also
 // in [0,1], which keeps the neglect multiplier the sole source of unbounded growth.
 
+import type { MissedQuota } from '../db/repositories/tasks';
 import { userToInternalEnergy, type UserEnergy } from '../types/scales';
 
 /** Default weights (spec §5.1). Fractions of 1.0, not percentages, so the weighted sum lands
@@ -72,6 +73,50 @@ function clamp01(value: number): number {
 export function importanceFactor(importance: number | null): number {
   const internal = importance == null ? DEFAULT_IMPORTANCE_INTERNAL : importance;
   return clamp01(internal / 1000);
+}
+
+/** The most the missed-quota boost can move the importance factor, as a fraction of the distance
+ *  from where it already is to 1.0 (task 36). Deliberately modest: a missed quota is a NUDGE toward
+ *  the remaining occurrences of the new period, not a fail-safe. The fail-safe is the uncapped
+ *  neglect multiplier (§5.2), which is a whole different order of magnitude — a single week of
+ *  neglect already doubles a score. Tunable seam, like the neglect curve; the shape below is what
+ *  keeps it bounded. */
+export const MISSED_QUOTA_BOOST_MAX = 0.25;
+
+/**
+ * The missed-quota importance boost (spec §4.2: "a missed quota gives remaining occurrences in the
+ * period an importance boost"), DERIVED here at scoring time — nothing writes it to
+ * `tasks.importance` (task 36, brief §3b; the reasoning is in the findings report §3b).
+ *
+ * Returns a fraction in [0, MISSED_QUOTA_BOOST_MAX], scaled by how much of last period's quota was
+ * missed: miss one of three and the nudge is a third of the maximum, miss all three and it is the
+ * whole of it.
+ *
+ * Two ways it comes back 0, both meaning "there is nothing to boost":
+ *  - no missed quota — the task has no quota, or last period was met;
+ *  - the CURRENT period's quota is already met. The spec boosts the occurrences REMAINING in the
+ *    new period, and once the quota is met there are none; a task that has already done its three
+ *    this week should not be pushed up the list because it missed last week.
+ */
+export function missedQuotaBoost(missed: MissedQuota | null): number {
+  if (missed === null || missed.quota <= 0) return 0;
+  if (missed.progress >= missed.quota) return 0;
+  const missedFraction = clamp01(missed.shortfall / missed.quota);
+  return MISSED_QUOTA_BOOST_MAX * missedFraction;
+}
+
+/**
+ * The importance factor a task is actually scored on: `importanceFactor` moved a fraction of the
+ * way toward 1.0 by any missed-quota boost.
+ *
+ * `f + (1 − f)·boost` rather than `f · (1 + boost)` on purpose. It cannot exceed 1, so the factor
+ * stays in [0,1] and the neglect multiplier remains the ONLY source of unbounded growth (the
+ * invariant this module's header rests on); and it still moves a high-importance task, which a
+ * multiply-then-clamp would silently refuse to do at exactly the top of the range.
+ */
+export function boostedImportanceFactor(importance: number | null, missed: MissedQuota | null): number {
+  const base = importanceFactor(importance);
+  return clamp01(base + (1 - base) * missedQuotaBoost(missed));
 }
 
 /**
@@ -150,6 +195,8 @@ export function historicalSuccessFactor(successRate: number, attemptCount: numbe
 }
 
 export interface FactorBreakdown {
+  /** As scored — `boostedImportanceFactor`, so it INCLUDES §4.2's missed-quota boost when one
+   *  applies. The boost is derived per scoring run; the stored `tasks.importance` never moves. */
   importance: number;
   urgency: number;
   energyMatch: number;

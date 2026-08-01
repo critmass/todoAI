@@ -7,6 +7,7 @@ import {
   type Period,
   type Recurrence,
   type Task,
+  type TaskRecurrenceEntity,
   type TaskWriteInput,
 } from '../../types/domain';
 import type { TaskRecurrenceRow, TaskRow } from '../../types/db';
@@ -57,6 +58,26 @@ export function neglectAccrualGapDays(recurrence: Recurrence | undefined): numbe
   }
 }
 
+/** The missed-quota FACT a task carries into scoring (spec §4.2, task 36) — never the boost itself.
+ *
+ *  Present only when a quota-bearing task's immediately preceding period closed with the quota
+ *  unmet; `null` otherwise, including for every type that has no quota. The importance boost is
+ *  DERIVED from this at scoring time (`src/scoring/factors.ts`), exactly as urgency is derived from
+ *  `next_due_at` — nothing writes a boost into `tasks.importance`, which is the user's own 1–10
+ *  projection (constraint #6) and is banded 1–99 per hundred for subtasks, with no room for a
+ *  silent bump. See the task 36 findings report §3b. */
+export interface MissedQuota {
+  /** How many occurrences the period that just closed came up short by. Always ≥ 1 here, and never
+   *  more than `quota`: one period's worth, replaced at each roll rather than accumulated, because
+   *  missed occurrences reset (§4.2 — no guilt stacking). */
+  shortfall: number;
+  /** The per-period quota, so the shortfall can be read as a fraction rather than a raw count. */
+  quota: number;
+  /** Progress inside the CURRENT (new) period. The boost is for the occurrences still remaining in
+   *  it, so a period whose quota is already met carries none. */
+  progress: number;
+}
+
 /** A task from the active pool, annotated with its neglect standing (spec §5.2).
  *
  *  Deliberately NOT sourced from a SQL view. An `active_tasks_with_neglect` view existed through
@@ -78,6 +99,9 @@ export interface TaskWithNeglect {
   task: Task;
   weeksNeglected: number;
   neglectMultiplier: number;
+  /** Task 36 — see `MissedQuota`. Null for everything without a quota, and for a quota task whose
+   *  last period was met. Read by scoring; nothing here mutates the task. */
+  missedQuota: MissedQuota | null;
 }
 
 /** The recurrence columns the neglect read pulls in via its LEFT JOIN (aliased where they would
@@ -91,13 +115,15 @@ interface NeglectJoinColumns {
   target_count: number | null;
   current_period_progress: number | null;
   reset_date: string | null;
+  last_period_shortfall: number | null;
   is_currently_active: TaskRecurrenceRow['is_currently_active'];
   rec_created_at: string | null;
 }
 
-/** Reconstructs the domain Recurrence from the neglect read's joined columns, or undefined for a
- *  one-off (no task_recurrence row). Reuses the canonical mapper so the parse stays in one place. */
-function recurrenceFromJoin(row: NeglectJoinColumns): Recurrence | undefined {
+/** Reconstructs the domain recurrence entity from the neglect read's joined columns, or undefined
+ *  for a one-off (no task_recurrence row). Reuses the canonical mapper so the parse stays in one
+ *  place. */
+function recurrenceEntityFromJoin(row: NeglectJoinColumns): TaskRecurrenceEntity | undefined {
   if (row.recurrence_type == null || row.recurrence_pattern == null || row.rec_id == null) {
     return undefined;
   }
@@ -109,10 +135,25 @@ function recurrenceFromJoin(row: NeglectJoinColumns): Recurrence | undefined {
     target_count: row.target_count,
     current_period_progress: row.current_period_progress,
     reset_date: row.reset_date,
+    last_period_shortfall: row.last_period_shortfall ?? 0,
     is_currently_active: row.is_currently_active,
     created_at: row.rec_created_at,
   };
-  return taskRecurrenceRowToDomain(recRow).recurrence;
+  return taskRecurrenceRowToDomain(recRow);
+}
+
+/** The missed-quota fact, read off the same join (task 36). Null unless this is a quota-bearing
+ *  recurrence whose last closed period came up short — the boost policy itself lives in scoring. */
+function missedQuotaFromEntity(entity: TaskRecurrenceEntity | undefined): MissedQuota | null {
+  if (!entity) return null;
+  const { recurrence } = entity;
+  if (recurrence.type !== 'quota' && recurrence.type !== 'scheduled_quota') return null;
+  if (entity.lastPeriodShortfall <= 0) return null;
+  return {
+    shortfall: Math.min(entity.lastPeriodShortfall, recurrence.quota),
+    quota: recurrence.quota,
+    progress: entity.currentPeriodProgress,
+  };
 }
 
 export function createTasksRepository(db: SqliteConnection) {
@@ -278,6 +319,7 @@ export function createTasksRepository(db: SqliteConnection) {
          tr.target_count             AS target_count,
          tr.current_period_progress  AS current_period_progress,
          tr.reset_date               AS reset_date,
+         tr.last_period_shortfall    AS last_period_shortfall,
          tr.is_currently_active      AS is_currently_active,
          tr.created_at               AS rec_created_at
        FROM tasks t
@@ -287,7 +329,8 @@ export function createTasksRepository(db: SqliteConnection) {
     const withNeglect = (
       result.rows as unknown as Array<TaskRow & NeglectJoinColumns>
     ).map((row): TaskWithNeglect => {
-      const gapDays = neglectAccrualGapDays(recurrenceFromJoin(row));
+      const entity = recurrenceEntityFromJoin(row);
+      const gapDays = neglectAccrualGapDays(entity?.recurrence);
       // R8 gate: shift the clock start forward by the gap; a task still inside its gap clamps to 0
       // (multiplier 1.0). Uncapped ABOVE (task 10, R1: linear) — never cap this (spec §5.2).
       const weeksNeglected = Math.max(0, row.weeks_from_anchor - gapDays / 7);
@@ -295,6 +338,7 @@ export function createTasksRepository(db: SqliteConnection) {
         task: taskRowToDomain(row),
         weeksNeglected,
         neglectMultiplier: weeksNeglected,
+        missedQuota: missedQuotaFromEntity(entity),
       };
     });
     return withNeglect.sort((a, b) => b.neglectMultiplier - a.neglectMultiplier);

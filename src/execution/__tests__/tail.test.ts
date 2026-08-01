@@ -47,6 +47,7 @@ function repos(pool: Task[]): PlanningRepositories {
     task,
     weeksNeglected: 0,
     neglectMultiplier: 0,
+    missedQuota: null,
   }));
   return {
     tasks: { listActiveByNeglect: async () => withNeglect },

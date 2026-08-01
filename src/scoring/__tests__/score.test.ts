@@ -47,7 +47,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 // neglectMultiplier mirrors the real repo (task 10, R1: linear, uncapped) — scoreTask now
 // derives the actual multiplier from weeksNeglected via neglectCurve, not this field.
 function withNeglect(task: Task, weeksNeglected: number): TaskWithNeglect {
-  return { task, weeksNeglected, neglectMultiplier: weeksNeglected };
+  return { task, weeksNeglected, neglectMultiplier: weeksNeglected, missedQuota: null };
 }
 
 const CHECK_IN: SessionCheckIn = { energy: 'med', contexts: ['home', 'computer'], tools: [] };

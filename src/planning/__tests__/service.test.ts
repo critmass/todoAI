@@ -44,7 +44,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 }
 
 function withNeglect(task: Task, weeksNeglected = 0): TaskWithNeglect {
-  return { task, weeksNeglected, neglectMultiplier: weeksNeglected };
+  return { task, weeksNeglected, neglectMultiplier: weeksNeglected, missedQuota: null };
 }
 
 function breakdownCompleteRow(parentId: number): CoachingPriorityQueueEntry {

@@ -57,6 +57,7 @@ import {
 } from '../../execution';
 import { BREAK_MINUTES } from '../../planning/planner';
 import { urgencyForTrigger } from '../../services/coaching/triggers';
+import { advanceRecurrence, sweepDateFrom, type RecurrenceSweepDeps } from '../../services/recurrence';
 import type { SessionPhase, SessionSummary } from './types';
 
 export interface SessionControllerDeps {
@@ -66,6 +67,10 @@ export interface SessionControllerDeps {
   planning: PlanningRepositories;
   /** The active pool, used only to derive the check-in's context/tool vocabulary. */
   catalog: Pick<TasksRepository, 'listActive'>;
+  /** Task 36's period sweep. Session start is its second seam (the first is app open) — the app can
+   *  sit open for days, and the plan must be built against today's due dates, not the ones that
+   *  were current when the process started. */
+  recurrence: RecurrenceSweepDeps;
   sessions: Pick<SessionsRepository, 'create' | 'getById' | 'update'>;
   /** Injected clock — the whole engine below it takes `now` as an argument, and so does this. */
   now: () => number;
@@ -192,6 +197,13 @@ export function createSessionController(deps: SessionControllerDeps) {
    *  hardcoded, so it always offers exactly the contexts the user's own tasks are tagged with. */
   async function begin(): Promise<void> {
     session = emptyState();
+    // Task 36's period sweep — session start is its second seam (app open is the first). It runs
+    // before anything here reads the pool, and long before planning (which happens at
+    // `setContexts`), so the agenda is built against today's due dates rather than the ones that
+    // were current when the process started. Its own `guard` on purpose: a failed sweep must not
+    // cost the user their session — the check-in proceeds on yesterday's dates, exactly as it did
+    // before this engine existed, and `guard` logs the failure the way every other step does.
+    await guard(() => advanceRecurrence(deps.recurrence, sweepDateFrom(deps.now())));
     await guard(async () => {
       const active = await deps.catalog.listActive();
       const counts = new Map<string, number>();

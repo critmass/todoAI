@@ -9,13 +9,18 @@
 //   • 'unscheduled'                          → reset the neglect clock, STAY active (never close).
 // Both look period-less; they are not interchangeable.
 //
-// SCOPE LINE (flagged for task 13). Completion here does the COMPLETION-driven work: close, or
-// record progress + reset the neglect clock. It deliberately does NOT do the TIME-driven period
-// machinery — advancing next_due_at to the next scheduled occurrence, rolling reset_date at a
-// period boundary, applying the missed-quota importance boost (spec §4.2). Those fire when a
-// period boundary passes, not when the user completes an occurrence, and belong to the
-// recurrence/timer engine (task 13). Completing a 'scheduled'/'quota'/'scheduled_quota' task
-// therefore leaves next_due_at where it was for task 13 to advance.
+// SCOPE LINE. Completion here does the COMPLETION-driven work: close, or record progress + reset
+// the neglect clock. It deliberately does NOT do the TIME-driven period machinery — advancing
+// next_due_at to the next scheduled occurrence, rolling reset_date at a period boundary, applying
+// the missed-quota importance boost (spec §4.2). Those fire when a period boundary passes, not when
+// the user completes an occurrence.
+//
+// The other side of the line is BUILT as of task 36: `src/services/recurrence/` — an idempotent
+// `advanceRecurrence(deps, today)` sweep at app open and session start. (It was split out of task
+// 13 by ruling; 13 correctly built none of it.) Completing a 'scheduled'/'quota'/'scheduled_quota'
+// task still leaves next_due_at exactly where it was, on purpose: the sweep notices that the
+// occurrence has been completed — via `last_completed_at`, which the primitives below do write —
+// and advances it. Do not move logic across this line in either direction.
 
 import type { Task } from '../types/domain';
 import type { TasksRepository } from '../db/repositories/tasks';
@@ -74,9 +79,9 @@ async function requireTask(deps: TaskCompletionDeps, taskId: number): Promise<Ta
  * - unscheduled: reset the neglect clock, stay active.
  * - count: increment the running total; close only when it reaches `target`, otherwise reset the
  *   neglect clock and stay active (§5.2: resetting on each incremental completion is fine).
- * - scheduled: reset the neglect clock, stay active (next_due_at advancement → task 13).
+ * - scheduled: reset the neglect clock, stay active (next_due_at advancement → task 36's sweep).
  * - quota / scheduled_quota: increment period progress, reset the neglect clock, stay active
- *   (period rollover / quota-satisfied hiding → task 13).
+ *   (period rollover → task 36's sweep).
  */
 export async function completeTask(
   deps: TaskCompletionDeps,

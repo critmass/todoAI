@@ -57,6 +57,7 @@ describe('session controller (task 24)', () => {
       planning,
       catalog: repos.tasks,
       sessions: repos.sessions,
+      recurrence: { tasks: repos.tasks, recurrence: repos.recurrence },
       now,
       // Deterministic: the novelty shuffle is proportional sampling, and a test that re-rolls
       // the agenda between runs is a flake generator, not a test.
@@ -146,6 +147,54 @@ describe('session controller (task 24)', () => {
       const ctl = controller();
       await startSession(ctl);
       expect(ctl.getState().phase.kind).toBe('tools');
+    });
+
+    // Task 36 — session start is the sweep's second seam. The app can sit open for days, so the
+    // plan has to be built against today's due dates rather than the ones that were current when
+    // the process started.
+    it('sweeps recurrence before planning, so the plan sees today’s due dates', async () => {
+      const task = await makeTask({ title: 'Bins out' });
+      await repos.tasks.update(task.id, { nextDueAt: '2020-01-01' });
+      await repos.recurrence.create(task.id, {
+        type: 'scheduled',
+        scheduledDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+      });
+
+      await controller().begin();
+
+      const after = await repos.tasks.getById(task.id);
+      expect(after!.nextDueAt).not.toBe('2020-01-01');
+    });
+
+    it('still opens the check-in when the sweep fails, rather than costing the user a session', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const ctl = createSessionController({
+        episode,
+        planning,
+        catalog: repos.tasks,
+        sessions: repos.sessions,
+        recurrence: {
+          tasks: repos.tasks,
+          recurrence: {
+            ...repos.recurrence,
+            listSweepable: async () => {
+              throw new Error('sweep exploded');
+            },
+          },
+        },
+        now,
+        rng: () => 0,
+        newSessionId: () => 'sess-1',
+      });
+
+      await ctl.begin();
+
+      // The check-in opens regardless; a failed repair pass costs today's due dates, not the
+      // session. It is LOGGED rather than shown, because `setPhase` clears the error banner on
+      // every phase change by design — silent failure was a Phase B finding, so the log matters.
+      expect(ctl.getState().phase.kind).toBe('check_in_energy');
+      expect(warn).toHaveBeenCalledWith('[todoAI] session step failed:', expect.any(Error));
+      warn.mockRestore();
     });
 
     it('reports plan_empty rather than pretending, when nothing is eligible', async () => {

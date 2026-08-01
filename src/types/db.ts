@@ -133,7 +133,13 @@ export interface TaskRecurrenceRow {
   recurrence_pattern: string;
   target_count: number | null;
   current_period_progress: number | null;
+  /** 'YYYY-MM-DD' local calendar date the CURRENT period ends, exclusive (migration 006). NULL for
+   *  'unscheduled' and 'count' — CHECK-enforced since 006 — and for a period type the sweep has
+   *  not seeded yet. */
   reset_date: string | null;
+  /** Occurrences the immediately preceding period ended short by (migration 006, task 36).
+   *  Replaced at every roll, never summed — no guilt stacking (spec §4.2). */
+  last_period_shortfall: number;
   is_currently_active: SqliteBoolean | null;
   created_at: string | null;
 }

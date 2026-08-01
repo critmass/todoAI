@@ -383,16 +383,12 @@ than optional on purpose: the repository always populates it, and an optional fi
 `undefined` mean both "no quota" and "not populated" — the exact ambiguity `domain.ts`'s header
 warns about for `recurrence` on `Task`. Six test fixtures now pass `missedQuota: null`.
 
-**Incidental, pre-existing — since FIXED, see `docs/briefs/nul_byte_score_ts.md`:**
-`src/scoring/score.ts` contained a literal **NUL byte** in `contextGroupKey`'s sentinel
-(`return '\x00flexible'`, which reads as a leading space). It was functionally harmless — the value
-is only ever compared with itself — but git classified the file as **binary**, so every diff of
-`score.ts` showed as `Bin 8860 -> 9177 bytes` instead of reviewable lines. It predated this task
-(present in `1280f25`; in fact present since `8903e74`, the file's first commit, which is why no
-readable diff of it has ever existed). Left alone here rather than changed silently, since the
-sentinel's whole point may have been a byte no real context tag can contain. That question was
-later settled — the byte was accidental, but the collision-proofing is worth keeping — and the raw
-byte is now written as the `\x00` **escape**: same runtime key, and the file is text again.
+**Incidental, pre-existing, not fixed:** `src/scoring/score.ts` contains a literal **NUL byte** in
+`contextGroupKey`'s sentinel (`return '\x00flexible'`, which reads as a leading space). It is
+functionally harmless — the value is only ever compared with itself — but git classifies the file as
+**binary**, so every diff of `score.ts` shows as `Bin 8860 -> 9177 bytes` instead of reviewable
+lines. It predates this task (present in `1280f25`). Left alone rather than changed silently, since
+the sentinel's whole point may have been a byte no real context tag can contain.
 
 ---
 

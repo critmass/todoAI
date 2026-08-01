@@ -3,6 +3,8 @@
 **Status:** Done. **Scope:** one line of `src/scoring/score.ts`, plus its doc comment.
 **Not a task** — a defect fix carved out of task 36's findings report (§6, "Incidental, pre-existing"), which flagged it but deliberately left it alone pending the question below.
 
+> **Reconciling this with task 36's report.** That report still reads "Incidental, pre-existing, **not fixed**", and it is *left that way on purpose*: it is a point-in-time record of what was true when task 36 ran, and back-editing it would erase the history of how this was found and deferred. **This brief is the forward record — where the report says "not fixed", read on to here.** Same convention applies to anything downstream of this document: add the resolution here, don't rewrite the report that raised it.
+
 ---
 
 ## 1. What was wrong

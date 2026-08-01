@@ -3,14 +3,18 @@ import {
   DEFAULT_IMPORTANCE_INTERNAL,
   FACTOR_WEIGHTS,
   HISTORICAL_SUCCESS_PRIOR_K,
+  MISSED_QUOTA_BOOST_MAX,
   URGENCY_HORIZON_DAYS,
+  boostedImportanceFactor,
   energyMatchFactor,
   historicalSuccessFactor,
   importanceFactor,
+  missedQuotaBoost,
   urgencyFactor,
   weightedSum,
   type FactorBreakdown,
 } from '../factors';
+import type { MissedQuota } from '../../db/repositories/tasks';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 6, 15); // 2026-07-15, matches the project's "today"
@@ -46,6 +50,66 @@ describe('importanceFactor', () => {
   it('clamps out-of-range values', () => {
     expect(importanceFactor(5000)).toBe(1);
     expect(importanceFactor(-100)).toBe(0);
+  });
+});
+
+// Task 36 — the missed-quota boost (spec §4.2). DERIVED here, never written to tasks.importance.
+describe('missedQuotaBoost', () => {
+  const missed = (over: Partial<MissedQuota> = {}): MissedQuota => ({
+    shortfall: 3,
+    quota: 3,
+    progress: 0,
+    ...over,
+  });
+
+  it('is 0 for a task with no missed quota at all', () => {
+    expect(missedQuotaBoost(null)).toBe(0);
+  });
+
+  it('scales with how much of last period was missed', () => {
+    expect(missedQuotaBoost(missed({ shortfall: 3, quota: 3 }))).toBeCloseTo(MISSED_QUOTA_BOOST_MAX);
+    expect(missedQuotaBoost(missed({ shortfall: 1, quota: 3 }))).toBeCloseTo(MISSED_QUOTA_BOOST_MAX / 3);
+    expect(missedQuotaBoost(missed({ shortfall: 0, quota: 3 }))).toBe(0);
+  });
+
+  it('stops once the CURRENT period’s quota is met — there are no remaining occurrences to boost', () => {
+    expect(missedQuotaBoost(missed({ progress: 2 }))).toBeGreaterThan(0);
+    expect(missedQuotaBoost(missed({ progress: 3 }))).toBe(0);
+    expect(missedQuotaBoost(missed({ progress: 9 }))).toBe(0);
+  });
+
+  it('never exceeds its ceiling, even on nonsense input', () => {
+    expect(missedQuotaBoost(missed({ shortfall: 99, quota: 3 }))).toBeCloseTo(MISSED_QUOTA_BOOST_MAX);
+    expect(missedQuotaBoost(missed({ quota: 0 }))).toBe(0);
+  });
+});
+
+describe('boostedImportanceFactor', () => {
+  it('is exactly importanceFactor when nothing was missed', () => {
+    expect(boostedImportanceFactor(700, null)).toBe(importanceFactor(700));
+  });
+
+  it('moves the factor a fraction of the way toward 1, and stays in [0,1]', () => {
+    const missed: MissedQuota = { shortfall: 3, quota: 3, progress: 0 };
+    const base = importanceFactor(500);
+    expect(boostedImportanceFactor(500, missed)).toBeCloseTo(base + (1 - base) * MISSED_QUOTA_BOOST_MAX);
+    expect(boostedImportanceFactor(1000, missed)).toBe(1);
+    expect(boostedImportanceFactor(0, missed)).toBeCloseTo(MISSED_QUOTA_BOOST_MAX);
+  });
+
+  it('still lifts a high-importance task — the reason it is not a multiply-then-clamp', () => {
+    const missed: MissedQuota = { shortfall: 3, quota: 3, progress: 0 };
+    expect(boostedImportanceFactor(900, missed)).toBeGreaterThan(importanceFactor(900));
+    expect(boostedImportanceFactor(900, missed)).toBeLessThanOrEqual(1);
+  });
+
+  it('is bounded well below the neglect fail-safe — a nudge, not a klaxon', () => {
+    // A fully missed quota moves the base score by at most 0.31 x 0.25 x (1 - f). One week of
+    // neglect DOUBLES the whole score (neglectCurve is 1 + weeks). The orders of magnitude are
+    // deliberate: §5.2 is the fail-safe, §4.2 is a nudge.
+    const missed: MissedQuota = { shortfall: 3, quota: 3, progress: 0 };
+    const lift = boostedImportanceFactor(500, missed) - importanceFactor(500);
+    expect(lift * FACTOR_WEIGHTS.importance).toBeLessThan(0.05);
   });
 });
 

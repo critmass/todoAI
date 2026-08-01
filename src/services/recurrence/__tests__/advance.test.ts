@@ -9,6 +9,8 @@ import { createTestConnection, type TestSqliteConnection } from '../../../db/tes
 import { runMigrations } from '../../../db/migrations';
 import { createRecurrenceRepository, type RecurrenceRepository } from '../../../db/repositories/recurrence';
 import { createTasksRepository, type TasksRepository } from '../../../db/repositories/tasks';
+import { importanceFactor } from '../../../scoring/factors';
+import { scoreTask, type SessionCheckIn } from '../../../scoring/score';
 import type { Recurrence } from '../../../types/domain';
 import { advanceRecurrence, sweepDateFrom, type RecurrenceSweepDeps } from '../advance';
 
@@ -406,6 +408,80 @@ describe('advanceRecurrence (task 36)', () => {
       expect(after!.createdAt).toBe(before!.createdAt);
       expect(after!.lastCompletedAt).toBe(before!.lastCompletedAt);
       expect(after!.lastWorkedAt).toBe(before!.lastWorkedAt);
+    });
+  });
+
+  // ── composition: the first time period data and the scorer have ever run together ────────
+
+  describe('composition with scoring and R8 (brief §3e)', () => {
+    const CHECK_IN: SessionCheckIn = { energy: 'med', contexts: [], tools: [] };
+    const NOW = Date.UTC(2026, 7, 10);
+
+    it('a rolled-with-shortfall period reaches scoring as a boost, with importance UNCHANGED on disk', async () => {
+      const id = await makeTask('Gym', { type: 'quota', quota: 3, period: 'week' }, { progress: 1 });
+      await tasks.update(id, { importance: 500 });
+      await advanceRecurrence(deps, MONDAY);
+      await advanceRecurrence(deps, '2026-08-10'); // rolls: shortfall 2
+
+      const pool = await tasks.listActiveByNeglect();
+      const item = pool.find((entry) => entry.task.id === id)!;
+
+      expect(item.missedQuota).toEqual({ shortfall: 2, quota: 3, progress: 0 });
+      // The whole point of deriving it: the user's own importance value never moved.
+      expect(item.task.importance).toBe(500);
+      expect(scoreTask(item, CHECK_IN, NOW).factors.importance).toBeGreaterThan(importanceFactor(500));
+      expect(
+        scoreTask({ ...item, missedQuota: null }, CHECK_IN, NOW).factors.importance,
+      ).toBe(importanceFactor(500));
+    });
+
+    it('a met period reaches scoring with no boost at all', async () => {
+      const id = await makeTask('Gym', { type: 'quota', quota: 3, period: 'week' }, { progress: 3 });
+      await advanceRecurrence(deps, MONDAY);
+      await advanceRecurrence(deps, '2026-08-10');
+
+      const item = (await tasks.listActiveByNeglect()).find((entry) => entry.task.id === id)!;
+      expect(item.missedQuota).toBeNull();
+    });
+
+    it('R8’s accrual gate is untouched by rollovers — it reads the DEFINITION, not the period state', async () => {
+      // The gate is period/(1+quota) off the anchor. Both come from the recurrence pattern, which
+      // no sweep writes; and the anchor's three columns are completion/work-driven, which no sweep
+      // writes either. So a period rolling cannot move the gate, in either direction. This is the
+      // composition the brief asked to check: they compose by NOT overlapping.
+      const id = await makeTask('Gym', { type: 'quota', quota: 3, period: 'week' });
+      const before = (await tasks.listActiveByNeglect()).find((entry) => entry.task.id === id)!;
+
+      await advanceRecurrence(deps, MONDAY);
+      await advanceRecurrence(deps, '2026-08-24'); // three periods roll at once
+
+      const after = (await tasks.listActiveByNeglect()).find((entry) => entry.task.id === id)!;
+      expect(after.weeksNeglected).toBeCloseTo(before.weeksNeglected, 5);
+    });
+
+    it('a scheduled task’s urgency stops being a constant — the bug this task exists for', async () => {
+      // Before the engine: a due date set once by extraction and never advanced reads urgency 1.0
+      // forever (overdue), so the factor carried no information for ANY recurring task; one created
+      // through the editor had no due date at all and never carried urgency. Both are now truthful.
+      const id = await makeTask(
+        'Standup notes',
+        { type: 'scheduled', scheduledDays: ['monday'] },
+        { nextDueAt: '2026-06-01' }, // stale: months overdue
+      );
+      const stale = (await tasks.listActiveByNeglect()).find((entry) => entry.task.id === id)!;
+      expect(scoreTask(stale, CHECK_IN, NOW).factors.urgency).toBe(1);
+
+      await advanceRecurrence(deps, '2026-08-10'); // a Monday, uncompleted -> due today
+      const dueToday = (await tasks.listActiveByNeglect()).find((entry) => entry.task.id === id)!;
+      expect(scoreTask(dueToday, CHECK_IN, Date.UTC(2026, 7, 10)).factors.urgency).toBe(1);
+
+      conn.raw
+        .prepare('UPDATE tasks SET last_completed_at = ? WHERE id = ?')
+        .run('2026-08-10 09:00:00', id);
+      await advanceRecurrence(deps, '2026-08-10');
+      const done = (await tasks.listActiveByNeglect()).find((entry) => entry.task.id === id)!;
+      expect(done.task.nextDueAt).toBe('2026-08-17');
+      expect(scoreTask(done, CHECK_IN, Date.UTC(2026, 7, 10)).factors.urgency).toBeLessThan(1);
     });
   });
 

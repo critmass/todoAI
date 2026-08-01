@@ -155,6 +155,7 @@ function AppRoot() {
         planning: services.planning,
         catalog: services.repos.tasks,
         sessions: services.repos.sessions,
+        recurrence: services.recurrence,
         now,
       });
       const chat = createChatController({
@@ -171,10 +172,12 @@ function AppRoot() {
         dependencies: services.repos.dependencies,
       });
 
-      // Crash recovery FIRST, before any screen is chosen (see ./launch.ts).
+      // Crash recovery FIRST, before any screen is chosen (see ./launch.ts); the recurrence sweep
+      // runs immediately after it, still ahead of every routing decision.
       const outcome = await runLaunchSequence({
         episode: services.episode,
         coaching: services.repos.coaching,
+        recurrence: services.recurrence,
         now,
       });
 

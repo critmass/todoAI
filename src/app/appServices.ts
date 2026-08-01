@@ -6,6 +6,7 @@
 import { getConnection, getCurrentSchemaVersion, getRepositories, runMigrations, type Repositories } from '../db';
 import type { EpisodeServiceDeps } from '../execution';
 import type { PlanningRepositories } from '../planning/service';
+import type { RecurrenceSweepDeps } from '../services/recurrence';
 import { createEpisodeAlarm, type EpisodeAlarm } from './alarm/episodeExpiryScheduler';
 
 export interface AppServices {
@@ -14,6 +15,8 @@ export interface AppServices {
   episode: EpisodeServiceDeps;
   /** Task 11's three planning reads. */
   planning: PlanningRepositories;
+  /** Task 36's two repositories: the period sweep runs at app open and at session start. */
+  recurrence: RecurrenceSweepDeps;
   alarm: EpisodeAlarm;
   schemaVersion: string;
 }
@@ -39,6 +42,10 @@ export function planningDepsFrom(repos: Repositories): PlanningRepositories {
   return { tasks: repos.tasks, dependencies: repos.dependencies, coaching: repos.coaching };
 }
 
+export function recurrenceDepsFrom(repos: Repositories): RecurrenceSweepDeps {
+  return { tasks: repos.tasks, recurrence: repos.recurrence };
+}
+
 /**
  * Opens the database, applies migrations and wires everything. Runs once, before the launch
  * sequence — which then runs `recoverOpenEpisode` as its very first act, because until the
@@ -53,6 +60,7 @@ export async function initAppServices(): Promise<AppServices> {
     repos,
     episode: episodeDepsFrom(repos, alarm),
     planning: planningDepsFrom(repos),
+    recurrence: recurrenceDepsFrom(repos),
     alarm,
     schemaVersion: (await getCurrentSchemaVersion(connection)) ?? 'unknown',
   };

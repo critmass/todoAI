@@ -136,6 +136,7 @@ describe('breakdownToSubtaskWrites', () => {
       },
       weeksNeglected: 0,
       neglectMultiplier: 0,
+      missedQuota: null,
     }));
 
     const ranked = scoreTasks(pool, checkIn, now);

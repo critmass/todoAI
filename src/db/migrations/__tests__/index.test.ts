@@ -48,8 +48,8 @@ describe('runMigrations', () => {
     await runMigrations(conn);
 
     // A fresh DB walks the whole MIGRATIONS list, not just 001 - it should land on the latest
-    // recorded version (005 bumps schema_metadata to 2.6.0), with each migration's additions present.
-    expect(await getCurrentSchemaVersion(conn)).toBe('2.6.0');
+    // recorded version (006 bumps schema_metadata to 2.7.0), with each migration's additions present.
+    expect(await getCurrentSchemaVersion(conn)).toBe('2.7.0');
     expect(tableNames(conn.raw)).toEqual(
       expect.arrayContaining([
         'tasks',

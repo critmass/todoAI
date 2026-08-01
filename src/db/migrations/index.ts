@@ -10,6 +10,7 @@ import { MIGRATION_002_SQL } from './002_skill_layer_schema';
 import { MIGRATION_003_SQL } from './003_multisession_work';
 import { MIGRATION_004_SQL } from './004_algorithm_weights_reconciliation';
 import { MIGRATION_005_SQL } from './005_session_runtime';
+import { MIGRATION_006_SQL } from './006_recurrence_period';
 import { splitSqlStatements } from './statementSplitter';
 
 interface Migration {
@@ -31,6 +32,9 @@ const MIGRATIONS: Migration[] = [
   // 005 adds three tables and changes no CHECK or DEFAULT, so it deliberately does NOT set
   // rebuildsTables - it needs no foreign_keys dance (see 005_session_runtime.sql's header).
   { version: '2.6.0', sql: MIGRATION_005_SQL },
+  // 006 rebuilds task_recurrence to add a CHECK (reset_date is NULL for unscheduled/count), so it
+  // does need the dance - task 36.
+  { version: '2.7.0', sql: MIGRATION_006_SQL, rebuildsTables: true },
 ];
 
 export async function getCurrentSchemaVersion(db: SqliteConnection): Promise<string | null> {

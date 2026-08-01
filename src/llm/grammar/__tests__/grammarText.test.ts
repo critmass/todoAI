@@ -10,6 +10,14 @@ import {
 // grammarText.ts embeds byte-identical copies of task 5's checked-in .gbnf files so the RN
 // bundle (which cannot import a raw .gbnf) has the grammar text at runtime. These guard against
 // the copies drifting from source; on failure, regenerate grammarText.ts — don't hand-patch it.
+//
+// Line endings are normalized on both sides: ECMAScript turns CRLF into LF inside a template
+// literal at parse time, so on a checkout with core.autocrlf=true the embedded string is LF while
+// the file on disk is CRLF, and a byte-exact compare can never hold. Content drift is still
+// caught; only the line-ending style the .ts cannot carry is out of scope. (Same fix as
+// src/db/migrations/__tests__/schemaDrift.test.ts.)
+const lf = (text: string): string => text.replace(/\r\n/g, '\n');
+
 const llmRoot = path.join(__dirname, '..', '..');
 
 const cases: Array<[string, string, string]> = [
@@ -26,6 +34,6 @@ const cases: Array<[string, string, string]> = [
 describe('grammarText embedded constants', () => {
   it.each(cases)('%s is byte-identical to its source .gbnf', (_name, constant, relPath) => {
     const fileContents = fs.readFileSync(path.join(llmRoot, relPath), 'utf-8');
-    expect(constant).toBe(fileContents);
+    expect(lf(constant)).toBe(lf(fileContents));
   });
 });

@@ -247,5 +247,184 @@
         "predictedN": 127
       }
     ]
+  },
+  "MBRESULT:bonsai4b:g0a:r3": {
+    "modelKey": "bonsai4b",
+    "modelFilename": "Ternary-Bonsai-4B-TQ1_0.gguf",
+    "modelSha256": "da1f7ecd5aba89d920589b23e205d0212830b492dc3f8326638dc13b8c45431c",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, phone idle and cool at the start of the run. Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "info": {
+      "version": 3,
+      "alignment": 32,
+      "data_offset": 5946176,
+      "general.architecture": "qwen3",
+      "general.type": "model",
+      "general.sampling.top_k": "20",
+      "general.sampling.top_p": "0.850000",
+      "general.sampling.min_p": "0.000000",
+      "general.sampling.temp": "0.500000",
+      "general.size_label": "4.0B",
+      "qwen3.block_count": "36",
+      "qwen3.context_length": "32768",
+      "qwen3.embedding_length": "2560",
+      "qwen3.feed_forward_length": "9728",
+      "qwen3.attention.head_count": "32",
+      "qwen3.attention.head_count_kv": "8",
+      "qwen3.rope.scaling.type": "yarn",
+      "qwen3.rope.scaling.factor": "4.000000",
+      "qwen3.rope.scaling.original_context_length": "8192",
+      "qwen3.rope.freq_base": "5000000.000000",
+      "qwen3.attention.layer_norm_rms_epsilon": "0.000001",
+      "qwen3.attention.key_length": "128",
+      "qwen3.attention.value_length": "128",
+      "tokenizer.ggml.model": "gpt2",
+      "tokenizer.ggml.pre": "qwen2",
+      "tokenizer.ggml.eos_token_id": "151645",
+      "tokenizer.ggml.padding_token_id": "151643",
+      "tokenizer.ggml.add_bos_token": "false",
+      "general.quantization_version": "2",
+      "general.file_type": "36"
+    }
+  },
+  "MBRESULT:bonsai4b:g0b:r4": {
+    "modelKey": "bonsai4b",
+    "modelFilename": "Ternary-Bonsai-4B-TQ1_0.gguf",
+    "modelSha256": "da1f7ecd5aba89d920589b23e205d0212830b492dc3f8326638dc13b8c45431c",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, phone idle and cool at the start of the run. Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "loadMs": 2906
+  },
+  "MBRESULT:bonsai4b:g1:r5": {
+    "modelKey": "bonsai4b",
+    "modelFilename": "Ternary-Bonsai-4B-TQ1_0.gguf",
+    "modelSha256": "da1f7ecd5aba89d920589b23e205d0212830b492dc3f8326638dc13b8c45431c",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, phone idle and cool at the start of the run. Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "sustainMs": 270000,
+    "nPredictPerIter": 128,
+    "iterations": 17,
+    "burstTokPerSec": 9.918872216418857,
+    "steadyTokPerSec": 7.532945689756759,
+    "retention": 0.7594558660900341,
+    "samples": [
+      {
+        "i": 0,
+        "atMs": 15455,
+        "tokPerSec": 9.918872216418857,
+        "predictedN": 127
+      },
+      {
+        "i": 1,
+        "atMs": 30042,
+        "tokPerSec": 8.819229834572608,
+        "predictedN": 128
+      },
+      {
+        "i": 2,
+        "atMs": 44338,
+        "tokPerSec": 8.99435456687299,
+        "predictedN": 128
+      },
+      {
+        "i": 3,
+        "atMs": 59331,
+        "tokPerSec": 8.584985182852135,
+        "predictedN": 128
+      },
+      {
+        "i": 4,
+        "atMs": 74337,
+        "tokPerSec": 8.57526581146702,
+        "predictedN": 128
+      },
+      {
+        "i": 5,
+        "atMs": 89307,
+        "tokPerSec": 8.591174849872575,
+        "predictedN": 128
+      },
+      {
+        "i": 6,
+        "atMs": 104215,
+        "tokPerSec": 8.626647782395505,
+        "predictedN": 128
+      },
+      {
+        "i": 7,
+        "atMs": 119222,
+        "tokPerSec": 8.578607793826029,
+        "predictedN": 128
+      },
+      {
+        "i": 8,
+        "atMs": 134627,
+        "tokPerSec": 8.34976159799825,
+        "predictedN": 128
+      },
+      {
+        "i": 9,
+        "atMs": 151303,
+        "tokPerSec": 7.714648182208899,
+        "predictedN": 128
+      },
+      {
+        "i": 10,
+        "atMs": 168144,
+        "tokPerSec": 7.637247908169731,
+        "predictedN": 128
+      },
+      {
+        "i": 11,
+        "atMs": 185129,
+        "tokPerSec": 7.578520578051657,
+        "predictedN": 128
+      },
+      {
+        "i": 12,
+        "atMs": 201974,
+        "tokPerSec": 7.636097934865038,
+        "predictedN": 128
+      },
+      {
+        "i": 13,
+        "atMs": 219314,
+        "tokPerSec": 7.4215667947969255,
+        "predictedN": 128
+      },
+      {
+        "i": 14,
+        "atMs": 236456,
+        "tokPerSec": 7.5109273724423025,
+        "predictedN": 128
+      },
+      {
+        "i": 15,
+        "atMs": 253518,
+        "tokPerSec": 7.545539690010365,
+        "predictedN": 128
+      },
+      {
+        "i": 16,
+        "atMs": 270674,
+        "tokPerSec": 7.505021768374273,
+        "predictedN": 128
+      }
+    ]
   }
 }

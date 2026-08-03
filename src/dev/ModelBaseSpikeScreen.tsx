@@ -110,8 +110,11 @@ const DEVICE_LABEL = 'Samsung Galaxy S23 FE';
 // Edit before each run. Thermal state is the whole point of Gate 1 — a burst number taken on a
 // cold phone and a steady number taken on a hot one are different measurements.
 const RUN_NOTE =
-  '2026-08-03, debug build over the personal release install, phone idle and cool at the ' +
-  'start of the run. Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.';
+  '2026-08-03, debug build over the personal release install, USB-powered throughout, phone ' +
+  'OUT of its case. Each model starts from ~31C battery temp after a cooldown. IMPORTANT: the ' +
+  'first Qwen3.5-2B run (tags r0-r2) was taken with the phone IN a case, which changes heat ' +
+  'dissipation, so it is NOT comparable to these caseless runs and is being re-taken. Gate 0 ' +
+  'is cold; Gate 1 starts warm because Gate 0b precedes it.';
 
 // ---- GATE 1 PARAMETERS ----
 

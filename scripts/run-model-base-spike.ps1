@@ -47,7 +47,11 @@ $modelLabels = @{
 }
 $deviceDir = '/sdcard/Android/data/com.todoai/files'
 
-function Adb { param([Parameter(ValueFromRemainingArguments)]$a) & adb -s $Serial @a 2>&1 }
+# MUST invoke `adb.exe`, not `adb`. PowerShell command resolution is case-insensitive and puts
+# functions ahead of applications, so `& adb` inside a function named `Adb` calls this function
+# again — infinite recursion, "The script failed due to call depth overflow", and not one command
+# reaches the device. The .exe suffix forces the application.
+function Adb { param([Parameter(ValueFromRemainingArguments)]$a) & adb.exe -s $Serial @a 2>&1 }
 
 function Get-UiNodes {
   $remote = '/sdcard/ui_spike.xml'
@@ -73,16 +77,17 @@ function Tap-Label {
       if ($t -and $t.ToLower().Contains($Label.ToLower())) {
         $x = [int](([int]$n.Groups[2].Value + [int]$n.Groups[4].Value) / 2)
         $y = [int](([int]$n.Groups[3].Value + [int]$n.Groups[5].Value) / 2)
+        # `break`, not `continue`: after scrolling every coordinate in this dump is stale, so the
+        # only safe move is to abandon it and re-dump on the next attempt.
         if ($y -gt $script:SafeBottomY) {
-          # too low - scroll content up to raise it
           Adb shell input swipe 540 1600 540 1000 250 *>$null
           Start-Sleep -Milliseconds 600
-          continue
+          break
         }
         if ($y -lt $script:SafeTopY) {
           Adb shell input swipe 540 1000 540 1600 250 *>$null
           Start-Sleep -Milliseconds 600
-          continue
+          break
         }
         Adb shell input tap $x $y *>$null
         Write-Host "    tapped '$t' at ($x,$y)"

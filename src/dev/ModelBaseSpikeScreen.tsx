@@ -121,6 +121,11 @@ const RUN_NOTE =
 /** Sustained-decode duration. The brief asks for >= 4 min; 4.5 gives margin so the last
  *  window is a full one. */
 const SUSTAIN_MS = 4.5 * 60 * 1000;
+/** The long run. 4.5 min was enough to show Bonsai plateau but not enough for the 2B, whose
+ *  curve was still descending at cutoff — so its floor, the number the envelope question
+ *  actually turns on, went unmeasured. 20 min is long enough for the SoC's thermal governor
+ *  to reach its own steady state rather than the measurement window's. */
+const SUSTAIN_LONG_MS = 20 * 60 * 1000;
 /** Tokens per iteration. Big enough that per-call overhead doesn't dominate the tok/s figure,
  *  small enough that the loop can stop promptly and report per-iteration drift. */
 const SUSTAIN_N_PREDICT = 128;
@@ -277,19 +282,20 @@ export default function ModelBaseSpikeScreen() {
   // shape of the curve is visible rather than just its endpoints. The brief's question is
   // specifically plateau-vs-collapse: the 4B TQ1_0 held ~5.2 tok/s flat, and a model that
   // starts faster but decays below that is a regression for us even if its burst number wins.
-  const runGate1 = useCallback(async () => {
+  const runGate1 = useCallback(
+    async (durationMs: number, gateLabel: string) => {
     const ctx = contextRef.current;
     if (!ctx) {
       appendLog('Gate 1 needs a loaded context — run Gate 0b first.');
       return;
     }
     setRunning(true);
-    appendLog(`GATE 1 — sustained decode for ${(SUSTAIN_MS / 60000).toFixed(1)} min ...`);
+    appendLog(`GATE ${gateLabel} — sustained decode for ${(durationMs / 60000).toFixed(1)} min ...`);
     const started = Date.now();
     const samples: { i: number; atMs: number; tokPerSec: number; predictedN: number }[] = [];
     try {
       let i = 0;
-      while (Date.now() - started < SUSTAIN_MS) {
+      while (Date.now() - started < durationMs) {
         const result = await ctx.completion({
           messages: SUSTAIN_MESSAGES,
           n_predict: SUSTAIN_N_PREDICT,
@@ -320,26 +326,40 @@ export default function ModelBaseSpikeScreen() {
         : 0;
       const retention = burst > 0 ? steady / burst : 0;
 
-      appendLog(`GATE 1 DONE — ${samples.length} iterations over ${((Date.now() - started) / 1000).toFixed(0)}s`);
+      // Has it actually floored? "Steady" is a mean, so it stays respectable while a curve is
+      // still sliding — which is exactly what the 4.5-min runs could not distinguish. Compare
+      // the last five samples against the five before them: near zero means a real plateau,
+      // persistently negative means the floor is below whatever this window measured.
+      const lastFive = samples.slice(-5);
+      const prevFive = samples.slice(-10, -5);
+      const mean = (xs: typeof samples) =>
+        xs.length ? xs.reduce((acc, s) => acc + s.tokPerSec, 0) / xs.length : 0;
+      const tailDrift = prevFive.length && mean(prevFive) > 0 ? mean(lastFive) / mean(prevFive) - 1 : 0;
+
+      appendLog(
+        `GATE ${gateLabel} DONE — ${samples.length} iterations over ${((Date.now() - started) / 1000).toFixed(0)}s`,
+      );
       appendLog(`  burst (iter 0):      ${burst.toFixed(2)} tok/s`);
       appendLog(`  steady (final 1/3):  ${steady.toFixed(2)} tok/s`);
       appendLog(`  retention:           ${(retention * 100).toFixed(0)}% of burst`);
+      appendLog(`  last5 vs prev5:      ${(tailDrift * 100).toFixed(1)}%  (~0 = floored)`);
       appendLog('  Take the end-of-loop meminfo reading now, while the context is still live.');
-      logResultJson('1', {
+      logResultJson(gateLabel, {
         ...buildManifest(),
         ok: true,
-        sustainMs: SUSTAIN_MS,
+        sustainMs: durationMs,
         nPredictPerIter: SUSTAIN_N_PREDICT,
         iterations: samples.length,
         burstTokPerSec: burst,
         steadyTokPerSec: steady,
         retention,
+        tailDrift,
         samples,
       });
     } catch (err: any) {
-      appendLog(`GATE 1 FAILED at ${((Date.now() - started) / 1000).toFixed(0)}s: ${String(err)}`);
+      appendLog(`GATE ${gateLabel} FAILED at ${((Date.now() - started) / 1000).toFixed(0)}s: ${String(err)}`);
       appendLog(`  message: ${err?.message}`);
-      logResultJson('1', {
+      logResultJson(gateLabel, {
         ...buildManifest(),
         ok: false,
         error: String(err?.message ?? err),
@@ -348,7 +368,9 @@ export default function ModelBaseSpikeScreen() {
     } finally {
       setRunning(false);
     }
-  }, [appendLog]);
+    },
+    [appendLog],
+  );
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -370,7 +392,17 @@ export default function ModelBaseSpikeScreen() {
       <View style={styles.spacer} />
       <Button title="Gate 0b: full load (initLlama)" onPress={runGate0b} disabled={running} />
       <View style={styles.spacer} />
-      <Button title="Gate 1: sustained decode (4.5 min)" onPress={runGate1} disabled={running} />
+      <Button
+        title="Gate 1: sustained decode (4.5 min)"
+        onPress={() => runGate1(SUSTAIN_MS, '1')}
+        disabled={running}
+      />
+      <View style={styles.spacer} />
+      <Button
+        title="Gate 1L: long sustained (20 min)"
+        onPress={() => runGate1(SUSTAIN_LONG_MS, '1L')}
+        disabled={running}
+      />
       <View style={styles.spacer} />
       <Button title="Release context" onPress={releaseModel} disabled={running} />
 

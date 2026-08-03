@@ -105,7 +105,28 @@ function Wait-Cool {
 # ---- preflight ----
 Write-Host "== preflight =="
 if (-not (Adb shell echo ok | Select-String 'ok')) { throw "device $Serial not reachable" }
+
+# `adb reverse` does NOT survive a disconnect/reconnect. Without it a debug build cannot reach
+# Metro, falls back to a packaged bundle that a debug build does not have, and dies on a red box
+# at `loadJSBundleFromAssets` — which looks like a crash but is just a missing port forward.
+# Re-establish it before anything else, then confirm the JS bundle is actually live.
 Adb reverse tcp:8081 tcp:8081 *>$null
+
+if (-not (Adb logcat -d -s ReactNativeJS | Select-String 'Running "todoAI"')) {
+  Write-Host "  JS bundle not loaded; restarting the app ..."
+  Adb shell am force-stop com.todoai *>$null
+  Start-Sleep -Seconds 3
+  Adb shell am start -n com.todoai/.MainActivity *>$null
+  $bundleDeadline = (Get-Date).AddMinutes(3)
+  while ((Get-Date) -lt $bundleDeadline) {
+    if (Adb logcat -d -s ReactNativeJS | Select-String 'Running "todoAI"') { break }
+    Start-Sleep -Seconds 5
+  }
+  if (-not (Adb logcat -d -s ReactNativeJS | Select-String 'Running "todoAI"')) {
+    throw "JS bundle never loaded - is Metro running (npm start)?"
+  }
+  Write-Host "  bundle live."
+}
 
 if (-not $SkipPush) {
   foreach ($key in $Models) {

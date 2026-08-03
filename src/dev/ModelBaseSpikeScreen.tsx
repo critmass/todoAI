@@ -31,9 +31,10 @@
  *   adb shell dumpsys meminfo com.todoai
  * taken (a) before load, (b) right after load, (c) at the end of the Gate 1 loop.
  *
- * Results are logged as tagged, chunked JSON ([MBRESULT] lines) — same convention as the
- * Q1 screens, so scripts/q1-reassemble.js can pull them. Capture with `adb logcat`, or
- * read straight off the on-screen log.
+ * Results are logged as tagged, chunked JSON — same convention as the Q1 screens, so
+ * scripts/q1-reassemble.js can pull them. Capture with `adb logcat`, or read straight off
+ * the on-screen log. Tags are `MBRESULT:<model>:g<gate>:r<seq>`: that reassembler keys its
+ * output by tag and a repeated tag silently overwrites, so every result gets a unique one.
  *
  * BEFORE RUNNING:
  *  1. Push the GGUF to /sdcard/Android/data/com.todoai/files/ and make sure its filename
@@ -137,9 +138,16 @@ function appendAndLog(setLog: React.Dispatch<React.SetStateAction<string[]>>, li
   console.log('[ModelBaseSpike]', line);
 }
 
+/** Monotonic per-session counter. scripts/q1-reassemble.js keys its output by tag, so two
+ *  results sharing a tag silently overwrite each other — the Q1 screen dodged that with a
+ *  distinct tag per stage. This spike runs the same gates against three models and may re-run
+ *  any of them, so model+gate alone isn't unique enough; the sequence number makes it so. */
+let runSeq = 0;
+
 /** Tagged, chunked JSON — logcat truncates long lines and splits multi-line console.log calls
  *  into separate untagged lines, so this must stay compact (no pretty-print newlines). */
-function logResultJson(tag: string, value: unknown): void {
+function logResultJson(gate: string, value: unknown): void {
+  const tag = `MBRESULT:${activeModel.key}:g${gate}:r${runSeq++}`;
   const json = JSON.stringify(value);
   const CHUNK_SIZE = 3000;
   const totalChunks = Math.max(1, Math.ceil(json.length / CHUNK_SIZE));
@@ -218,18 +226,13 @@ export default function ModelBaseSpikeScreen() {
       appendLog(`HEADER OK: ${JSON.stringify(info)}`);
       const arch = (info as Record<string, unknown>)?.['general.architecture'];
       appendLog(`  -> reported architecture: ${String(arch ?? '(not in header keys)')}`);
-      logResultJson('MBRESULT', { gate: '0a', ...buildManifest(), ok: true, info });
+      logResultJson('0a', { ...buildManifest(), ok: true, info });
     } catch (err: any) {
       appendLog(`HEADER READ FAILED: ${String(err)}`);
       appendLog(`  message: ${err?.message}`);
       appendLog('  If this says "unknown model architecture", Gate 0 is a hard fail: the');
       appendLog('  pinned llama.rn build cannot see this arch. Stop and report.');
-      logResultJson('MBRESULT', {
-        gate: '0a',
-        ...buildManifest(),
-        ok: false,
-        error: String(err?.message ?? err),
-      });
+      logResultJson('0a', { ...buildManifest(), ok: false, error: String(err?.message ?? err) });
     } finally {
       setRunning(false);
     }
@@ -253,17 +256,12 @@ export default function ModelBaseSpikeScreen() {
       const loadMs = Date.now() - start;
       appendLog(`MODEL LOADED in ${loadMs}ms`);
       appendLog('  Take the post-load meminfo reading now, before running Gate 1.');
-      logResultJson('MBRESULT', { gate: '0b', ...buildManifest(), ok: true, loadMs });
+      logResultJson('0b', { ...buildManifest(), ok: true, loadMs });
     } catch (err: any) {
       appendLog(`LOAD FAILED after ${Date.now() - start}ms: ${String(err)}`);
       appendLog(`  message: ${err?.message}`);
       appendLog(`  code: ${err?.code}`);
-      logResultJson('MBRESULT', {
-        gate: '0b',
-        ...buildManifest(),
-        ok: false,
-        error: String(err?.message ?? err),
-      });
+      logResultJson('0b', { ...buildManifest(), ok: false, error: String(err?.message ?? err) });
     } finally {
       setRunning(false);
     }
@@ -322,8 +320,7 @@ export default function ModelBaseSpikeScreen() {
       appendLog(`  steady (final 1/3):  ${steady.toFixed(2)} tok/s`);
       appendLog(`  retention:           ${(retention * 100).toFixed(0)}% of burst`);
       appendLog('  Take the end-of-loop meminfo reading now, while the context is still live.');
-      logResultJson('MBRESULT', {
-        gate: '1',
+      logResultJson('1', {
         ...buildManifest(),
         ok: true,
         sustainMs: SUSTAIN_MS,
@@ -337,8 +334,7 @@ export default function ModelBaseSpikeScreen() {
     } catch (err: any) {
       appendLog(`GATE 1 FAILED at ${((Date.now() - started) / 1000).toFixed(0)}s: ${String(err)}`);
       appendLog(`  message: ${err?.message}`);
-      logResultJson('MBRESULT', {
-        gate: '1',
+      logResultJson('1', {
         ...buildManifest(),
         ok: false,
         error: String(err?.message ?? err),

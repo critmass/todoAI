@@ -169,7 +169,7 @@ const EXTRACTION_MAX_TOKENS = 200;
  *  that leads to the suggested response...") including speculation about depression and anxiety.
  *  Setting it false makes the template stub an empty <think></think> so generation starts on the
  *  answer. Bonsai is unaffected either way — qwen3's template has no thinking branch. */
-const ENABLE_THINKING = false;
+const ENABLE_THINKING = true;
 
 /** Gate 2c established that `title ::= "\"" jchar{1,80} "\""` can be satisfied by the single
  *  token `","` (id 2129 on this model) — `"` opens the string, the comma is a legal jchar, `"`

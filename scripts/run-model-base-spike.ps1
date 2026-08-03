@@ -232,7 +232,17 @@ try {
       Adb shell input keyevent KEYCODE_WAKEUP *>$null   # keep the display alive
       Start-Sleep -Seconds 30
     }
-    Write-Host "  $key done."
+    # Dump and merge NOW, not at the end. The device caps the logcat ring buffer at 5 MiB and a
+    # single model's suite generates far more than that, so results captured earlier in a
+    # multi-model run are gone by the time the last one finishes. This already cost one full
+    # Bonsai capture — the numbers survived only because they had been read live.
+    $perModelLog = Join-Path $env:TEMP "spike_${key}_$stamp.txt"
+    Adb logcat -d > $perModelLog
+    $perModelJson = Join-Path $env:TEMP "spike_${key}_$stamp.json"
+    node (Join-Path $PSScriptRoot 'q1-reassemble.js') $perModelLog $perModelJson
+    node (Join-Path $PSScriptRoot 'merge-results.js') $resultsPath $perModelJson
+    Adb logcat -c *>$null
+    Write-Host "  $key done (captured to $perModelJson)."
   }
 }
 finally {

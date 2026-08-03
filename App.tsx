@@ -43,18 +43,27 @@ function App() {
   }
 
   return (
-    <>
+    // The provider is here, not just inside ProductApp, so DevAffordance can read the bottom
+    // inset — it renders as ProductApp's sibling and would otherwise have no safe-area context.
+    <SafeAreaProvider>
       <ProductApp />
       {__DEV__ ? <DevAffordance onOpen={() => setDev('task13')} /> : null}
-    </>
+    </SafeAreaProvider>
   );
 }
 
 /** A deliberately tiny, corner-parked way into the harnesses. Debug builds only, and small enough
  *  that it cannot be mistaken for part of the product or fat-fingered mid-session. */
 function DevAffordance({ onOpen }: { onOpen: () => void }) {
+  // `bottom: 6` alone parks the dot underneath a 3-button navigation bar, where SystemUI eats
+  // the touch and the harnesses become unreachable on this device. Offset by the bottom inset.
+  const insets = useSafeAreaInsets();
   return (
-    <Pressable onPress={onOpen} style={styles.devDot} accessibilityLabel="Developer harnesses">
+    <Pressable
+      onPress={onOpen}
+      style={[styles.devDot, { bottom: insets.bottom + 6 }]}
+      accessibilityLabel="Developer harnesses"
+    >
       <Text style={styles.devDotLabel}>dev</Text>
     </Pressable>
   );

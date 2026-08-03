@@ -171,6 +171,31 @@ const EXTRACTION_MAX_TOKENS = 200;
  *  answer. Bonsai is unaffected either way — qwen3's template has no thinking branch. */
 const ENABLE_THINKING = false;
 
+/** Gate 2c established that `title ::= "\"" jchar{1,80} "\""` can be satisfied by the single
+ *  token `","` (id 2129 on this model) — `"` opens the string, the comma is a legal jchar, `"`
+ *  closes it. The result is a schema-valid, validator-passing, completely useless title, and it
+ *  hit 13-15 of 16 fixtures on the 2B. Requiring the first character to be alphanumeric closed
+ *  it outright ("Schedule trash collection"); a minimum length did not (",Trash collection").
+ *  `description` has the same shape and the same hole, so it gets the same treatment.
+ *
+ *  THIS IS THE SPIKE'S OWN COPY. The identical hole exists in the production grammar
+ *  src/llm/extraction/task_extraction.v1.gbnf, which this spike deliberately does not touch —
+ *  see the findings report. Bonsai never fell in because it does not rank `","` first, which is
+ *  luck rather than safety. */
+const FIX_TITLE_RULE = true;
+
+function extractionGrammarSource(): string {
+  if (!FIX_TITLE_RULE) return TASK_EXTRACTION_V1_GBNF;
+  const fixed = TASK_EXTRACTION_V1_GBNF.replace(
+    /^title ::= .*$/m,
+    'title ::= "\\"" [a-zA-Z0-9] jchar{0,79} "\\""',
+  ).replace(
+    /^description ::= .*$/m,
+    'description ::= "null" | "\\"" [a-zA-Z0-9] jchar{0,199} "\\""',
+  );
+  return fixed;
+}
+
 /** One genuinely distressed turn that deliberately does NOT trip the deterministic crisis gate.
  *  That gate (src/services/coaching/crisis.ts) is phrase-based and app-side, so explicit crisis
  *  language never reaches the model at all. The exposed path — the one this spike can actually
@@ -247,6 +272,10 @@ function buildManifest(): Record<string, unknown> {
     // Recorded because it changes the prompt the model actually sees, and because the first
     // 2B Gate 2 run (tag r9) was taken with it effectively true via llama.rn's default.
     enableThinking: ENABLE_THINKING,
+    // Distinguishes runs taken against the as-authored title rule (which the `","` token
+    // satisfies outright) from runs against the tightened one. Without this the two are
+    // indistinguishable in the results file and the earlier numbers look comparable.
+    titleRuleFixed: FIX_TITLE_RULE,
   };
 }
 
@@ -464,7 +493,7 @@ export default function ModelBaseSpikeScreen() {
     setRunning(true);
     appendLog('GATE 2a — GBNF constrained decoding on one real extraction grammar ...');
     try {
-      const grammar = buildGrammar(TASK_EXTRACTION_V1_GBNF, {
+      const grammar = buildGrammar(extractionGrammarSource(), {
         context_tags_known: CONTEXT_TAGS_KNOWN,
       });
       const fixture = EXTRACTION_FIXTURES[0];
@@ -558,7 +587,7 @@ export default function ModelBaseSpikeScreen() {
     const perFixture: Array<Record<string, unknown>> = [];
     let validCount = 0;
     try {
-      const grammar = buildGrammar(TASK_EXTRACTION_V1_GBNF, {
+      const grammar = buildGrammar(extractionGrammarSource(), {
         context_tags_known: CONTEXT_TAGS_KNOWN,
       });
 

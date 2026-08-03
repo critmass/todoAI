@@ -1,0 +1,188 @@
+# Unattended driver for the model-base spike (docs/briefs/model_base_spike_qwen35.md).
+#
+# Runs every model through gates 0-2 in one pass: pushes any missing GGUF, verifies its hash,
+# starts the host-side thermal sampler, drives the on-device harness by tapping controls found
+# by label, waits for each model's suite to finish, cools the phone to a matched thermal state
+# between models, then reassembles results and joins the thermal readings onto them.
+#
+# WHY THE COOLDOWN IS ON AP/SKIN AND NOT BATTERY. The first day of this spike gated cooldowns on
+# `dumpsys battery` temperature. That is the wrong sensor: it reads the battery pack, not the SoC
+# (13C lower than AP under load), and at low state of charge it partly measures discharge heating
+# rather than compute. SKIN's mStatus is the throttling signal, so that is what we wait on.
+#
+#   .\scripts\run-model-base-spike.ps1                    # all three models
+#   .\scripts\run-model-base-spike.ps1 -Models qwen08b    # just one
+#   .\scripts\run-model-base-spike.ps1 -SkipPush          # models already on device
+#
+# Expect roughly 30 min per model plus cooldown, so ~2h for all three. Leave it plugged into a
+# real charger: sustained decode draws ~1700mA, which a PC USB port does not cover, and the
+# battery's lower half both drains and heats faster.
+
+param(
+  [string]$Serial = 'R5CWC240D5H',
+  [string[]]$Models = @('bonsai4b', 'qwen2b', 'qwen08b'),
+  [switch]$SkipPush,
+  [int]$CoolToApC = 40,
+  [int]$CoolMaxMinutes = 20
+)
+
+$ErrorActionPreference = 'Stop'
+$repo = Split-Path -Parent $PSScriptRoot
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$workDir = Join-Path $repo "docs\eval"
+$thermalPath = Join-Path $workDir "qwen35_spike_thermals_$stamp.jsonl"
+$logcatPath = Join-Path $env:TEMP "spike_logcat_$stamp.txt"
+$resultsPath = Join-Path $workDir 'qwen35_spike_results.json'
+
+# label shown in the harness picker -> the filename it expects on the device
+$modelFiles = @{
+  'bonsai4b' = 'Ternary-Bonsai-4B-TQ1_0.gguf'
+  'qwen2b'   = 'Qwen3.5-2B-Q4_K_M.gguf'
+  'qwen08b'  = 'Qwen3.5-0.8B-Q4_K_M.gguf'
+}
+$modelLabels = @{
+  'bonsai4b' = 'BONSAI-4B'
+  'qwen2b'   = 'QWEN3.5-2B'
+  'qwen08b'  = 'QWEN3.5-0.8B'
+}
+$deviceDir = '/sdcard/Android/data/com.todoai/files'
+
+function Adb { param([Parameter(ValueFromRemainingArguments)]$a) & adb -s $Serial @a 2>&1 }
+
+function Get-UiNodes {
+  $remote = '/sdcard/ui_spike.xml'
+  Adb shell uiautomator dump $remote *>$null
+  $xml = Adb shell cat $remote
+  Adb shell rm -f $remote *>$null
+  if (-not $xml) { return @() }
+  [regex]::Matches($xml, '<node[^>]*?text="([^"]*)"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*?>')
+}
+
+function Tap-Label {
+  param([string]$Label, [int]$Retries = 3)
+  for ($try = 1; $try -le $Retries; $try++) {
+    foreach ($n in Get-UiNodes) {
+      $t = $n.Groups[1].Value
+      if ($t -and $t.ToLower().Contains($Label.ToLower())) {
+        $x = [int](([int]$n.Groups[2].Value + [int]$n.Groups[4].Value) / 2)
+        $y = [int](([int]$n.Groups[3].Value + [int]$n.Groups[5].Value) / 2)
+        Adb shell input tap $x $y *>$null
+        Write-Host "    tapped '$t'"
+        return $true
+      }
+    }
+    Start-Sleep -Seconds 2
+  }
+  return $false
+}
+
+function Get-Zone {
+  param([string]$Name)
+  $out = Adb shell dumpsys thermalservice
+  $m = [regex]::Match($out, "Temperature\{mValue=([-\d.]+),\s*mType=\d+,\s*mName=$Name,\s*mStatus=(-?\d+)\}")
+  if ($m.Success) { return @{ Value = [double]$m.Groups[1].Value; Status = [int]$m.Groups[2].Value } }
+  return $null
+}
+
+function Wait-Cool {
+  param([int]$TargetC, [int]$MaxMinutes)
+  Write-Host "  cooling to AP <= $TargetC C (max $MaxMinutes min) ..."
+  $deadline = (Get-Date).AddMinutes($MaxMinutes)
+  while ((Get-Date) -lt $deadline) {
+    $ap = Get-Zone 'AP'; $skin = Get-Zone 'SKIN'
+    if ($ap) {
+      Write-Host ("    AP={0:N1}C SKIN={1:N1}C status={2}" -f $ap.Value, $(if ($skin) { $skin.Value } else { 0 }), $(if ($skin) { $skin.Status } else { '?' }))
+      if ($ap.Value -le $TargetC -and (-not $skin -or $skin.Status -eq 0)) {
+        Write-Host "    cooled."; return $true
+      }
+    }
+    Start-Sleep -Seconds 30
+  }
+  Write-Host "    WARNING: cooldown timed out; proceeding and recording the fact."
+  return $false
+}
+
+# ---- preflight ----
+Write-Host "== preflight =="
+if (-not (Adb shell echo ok | Select-String 'ok')) { throw "device $Serial not reachable" }
+Adb reverse tcp:8081 tcp:8081 *>$null
+
+if (-not $SkipPush) {
+  foreach ($key in $Models) {
+    $file = $modelFiles[$key]
+    $remote = "$deviceDir/$file"
+    $onDevice = Adb shell ls -l $remote
+    if ($onDevice -match 'No such file') {
+      $local = Join-Path $env:USERPROFILE "Downloads\$file"
+      if (-not (Test-Path $local)) { throw "missing $local - download it before running" }
+      Write-Host "  pushing $file ..."
+      Adb push $local $remote | Select-Object -Last 1
+    }
+    $deviceHash = (Adb shell sha256sum $remote) -split '\s+' | Select-Object -First 1
+    Write-Host "  $file sha256=$deviceHash"
+  }
+}
+
+# ---- thermal sampler ----
+Write-Host "== starting thermal sampler -> $thermalPath =="
+$sampler = Start-Process -FilePath 'node' `
+  -ArgumentList @((Join-Path $PSScriptRoot 'thermal-sampler.js'), $Serial, $thermalPath, '10') `
+  -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $env:TEMP "thermal_stdout_$stamp.txt")
+
+try {
+  Adb logcat -c *>$null
+
+  foreach ($key in $Models) {
+    Write-Host "== $key =="
+    Wait-Cool -TargetC $CoolToApC -MaxMinutes $CoolMaxMinutes | Out-Null
+
+    # The harness lives behind the dev affordance; make sure the screen is up and we are on it.
+    Adb shell input keyevent KEYCODE_WAKEUP *>$null
+    Start-Sleep -Seconds 2
+    Adb shell input swipe 540 1800 540 700 300 *>$null   # dismiss lockscreen if present
+    Start-Sleep -Seconds 2
+    if (-not (Tap-Label 'base')) {
+      if (Tap-Label 'dev') { Start-Sleep -Seconds 3; Tap-Label 'base' | Out-Null }
+    }
+    Start-Sleep -Seconds 2
+    # scroll to the top so the model picker is on screen
+    for ($i = 0; $i -lt 8; $i++) { Adb shell input swipe 540 600 540 1900 250 *>$null; Start-Sleep -Milliseconds 300 }
+
+    if (-not (Tap-Label $modelLabels[$key])) { Write-Host "  ERROR: could not select $key - skipping"; continue }
+    Start-Sleep -Seconds 2
+    if (-not (Tap-Label 'RUN FULL SUITE')) { Write-Host "  ERROR: no RUN FULL SUITE button - skipping"; continue }
+
+    Write-Host "  suite running; waiting for completion ..."
+    $suiteDeadline = (Get-Date).AddMinutes(60)
+    while ((Get-Date) -lt $suiteDeadline) {
+      $log = Adb logcat -d -s ReactNativeJS
+      $done = ($log | Select-String 'SUITE COMPLETE').Count
+      $aborted = ($log | Select-String 'Suite aborted').Count
+      if ($done -ge ($Models.IndexOf($key) + 1) -or $aborted -ge 1) { break }
+      Adb shell input keyevent KEYCODE_WAKEUP *>$null   # keep the display alive
+      Start-Sleep -Seconds 30
+    }
+    Write-Host "  $key done."
+  }
+}
+finally {
+  Write-Host "== stopping sampler =="
+  if ($sampler -and -not $sampler.HasExited) { Stop-Process -Id $sampler.Id -Force }
+}
+
+# ---- collect ----
+Write-Host "== collecting =="
+Adb logcat -d > $logcatPath
+$fresh = Join-Path $env:TEMP "spike_fresh_$stamp.json"
+node (Join-Path $PSScriptRoot 'q1-reassemble.js') $logcatPath $fresh
+
+# Merge rather than overwrite: the logcat ring buffer rotates during a multi-hour run, so a fresh
+# dump can be missing tags that are already recorded.
+node (Join-Path $PSScriptRoot 'merge-results.js') $resultsPath $fresh
+
+node (Join-Path $PSScriptRoot 'join-thermals.js') $resultsPath $thermalPath
+
+Write-Host ""
+Write-Host "results : $resultsPath"
+Write-Host "thermals: $thermalPath"
+Write-Host "logcat  : $logcatPath"

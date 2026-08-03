@@ -103,7 +103,7 @@ const MODELS: SpikeModel[] = [
     key: 'qwen08b',
     label: 'Qwen3.5-0.8B Q4_K_M',
     filename: 'Qwen3.5-0.8B-Q4_K_M.gguf',
-    sha256: '<unset - paste adb shell sha256sum output>',
+    sha256: 'bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517',
     note: 'arch qwen35, hybrid. The rung most likely to fit the envelope.',
   },
 ];

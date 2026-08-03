@@ -58,21 +58,40 @@ function Get-UiNodes {
   [regex]::Matches($xml, '<node[^>]*?text="([^"]*)"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*?>')
 }
 
+# Taps outside this band are unreliable: below ~2150 the system navigation bar takes the touch
+# (this is what made the dev affordance unreachable, and RUN FULL SUITE renders at y=2326), and
+# above ~220 the harness tab strip covers the content. When a control is found outside the band,
+# scroll it into view and look again rather than tapping at a coordinate SystemUI will eat.
+$script:SafeTopY = 220
+$script:SafeBottomY = 2150
+
 function Tap-Label {
-  param([string]$Label, [int]$Retries = 3)
+  param([string]$Label, [int]$Retries = 5)
   for ($try = 1; $try -le $Retries; $try++) {
     foreach ($n in Get-UiNodes) {
       $t = $n.Groups[1].Value
       if ($t -and $t.ToLower().Contains($Label.ToLower())) {
         $x = [int](([int]$n.Groups[2].Value + [int]$n.Groups[4].Value) / 2)
         $y = [int](([int]$n.Groups[3].Value + [int]$n.Groups[5].Value) / 2)
+        if ($y -gt $script:SafeBottomY) {
+          # too low - scroll content up to raise it
+          Adb shell input swipe 540 1600 540 1000 250 *>$null
+          Start-Sleep -Milliseconds 600
+          continue
+        }
+        if ($y -lt $script:SafeTopY) {
+          Adb shell input swipe 540 1000 540 1600 250 *>$null
+          Start-Sleep -Milliseconds 600
+          continue
+        }
         Adb shell input tap $x $y *>$null
-        Write-Host "    tapped '$t'"
+        Write-Host "    tapped '$t' at ($x,$y)"
         return $true
       }
     }
     Start-Sleep -Seconds 2
   }
+  Write-Host "    FAILED to tap '$Label'"
   return $false
 }
 

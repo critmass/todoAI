@@ -47,11 +47,18 @@ $modelLabels = @{
 }
 $deviceDir = '/sdcard/Android/data/com.todoai/files'
 
-# MUST invoke `adb.exe`, not `adb`. PowerShell command resolution is case-insensitive and puts
-# functions ahead of applications, so `& adb` inside a function named `Adb` calls this function
-# again — infinite recursion, "The script failed due to call depth overflow", and not one command
-# reaches the device. The .exe suffix forces the application.
-function Adb { param([Parameter(ValueFromRemainingArguments)]$a) & adb.exe -s $Serial @a 2>&1 }
+# Two traps here, both of which cost an unattended run:
+#
+# 1. MUST invoke `adb.exe`, not `adb`. PowerShell command resolution is case-insensitive and puts
+#    functions ahead of applications, so `& adb` inside a function named `Adb` re-enters this
+#    function — infinite recursion, "call depth overflow", nothing reaches the device.
+#
+# 2. MUST be a simple function using $args, NOT an advanced one. A `[Parameter(...)]` attribute
+#    makes the function advanced, which adds the common parameters, and PowerShell prefix-matches
+#    `-d` to `-Debug` and swallows it. `Adb logcat -d -s ReactNativeJS` then runs as
+#    `adb logcat -s ReactNativeJS` — a STREAMING logcat that never returns, so preflight hangs
+#    forever with no error. $args takes every argument literally.
+function Adb { & adb.exe -s $Serial @args 2>&1 }
 
 function Get-UiNodes {
   $remote = '/sdcard/ui_spike.xml'

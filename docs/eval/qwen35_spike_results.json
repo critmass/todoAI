@@ -1,4 +1,584 @@
 {
+  "MBRESULT:qwen2b:g0b:r0": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "loadMs": 3128
+  },
+  "MBRESULT:qwen2b:g1L:r1": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "sustainMs": 1200000,
+    "nPredictPerIter": 128,
+    "iterations": 91,
+    "burstTokPerSec": 16.109540818468687,
+    "steadyTokPerSec": 10.02631400436583,
+    "retention": 0.6223835997157177,
+    "tailDrift": -0.04514437883110489,
+    "samples": [
+      {
+        "i": 0,
+        "atMs": 9603,
+        "tokPerSec": 16.109540818468687,
+        "predictedN": 127
+      },
+      {
+        "i": 1,
+        "atMs": 18768,
+        "tokPerSec": 15.141074277103119,
+        "predictedN": 127
+      },
+      {
+        "i": 2,
+        "atMs": 28556,
+        "tokPerSec": 14.201324234347346,
+        "predictedN": 127
+      },
+      {
+        "i": 3,
+        "atMs": 38137,
+        "tokPerSec": 14.483288167142161,
+        "predictedN": 127
+      },
+      {
+        "i": 4,
+        "atMs": 48376,
+        "tokPerSec": 13.484330942005803,
+        "predictedN": 127
+      },
+      {
+        "i": 5,
+        "atMs": 62336,
+        "tokPerSec": 9.93011932641264,
+        "predictedN": 127
+      },
+      {
+        "i": 6,
+        "atMs": 72196,
+        "tokPerSec": 14.144211709669896,
+        "predictedN": 127
+      },
+      {
+        "i": 7,
+        "atMs": 82147,
+        "tokPerSec": 13.923924064400012,
+        "predictedN": 127
+      },
+      {
+        "i": 8,
+        "atMs": 92388,
+        "tokPerSec": 13.517566769861403,
+        "predictedN": 127
+      },
+      {
+        "i": 9,
+        "atMs": 108160,
+        "tokPerSec": 8.583323764391682,
+        "predictedN": 127
+      },
+      {
+        "i": 10,
+        "atMs": 119988,
+        "tokPerSec": 12.438264096274906,
+        "predictedN": 127
+      },
+      {
+        "i": 11,
+        "atMs": 130627,
+        "tokPerSec": 13.034366698609418,
+        "predictedN": 127
+      },
+      {
+        "i": 12,
+        "atMs": 141464,
+        "tokPerSec": 12.802982066550506,
+        "predictedN": 127
+      },
+      {
+        "i": 13,
+        "atMs": 153040,
+        "tokPerSec": 11.947820200170206,
+        "predictedN": 127
+      },
+      {
+        "i": 14,
+        "atMs": 163714,
+        "tokPerSec": 13.013489762994636,
+        "predictedN": 127
+      },
+      {
+        "i": 15,
+        "atMs": 175640,
+        "tokPerSec": 11.555460523771721,
+        "predictedN": 127
+      },
+      {
+        "i": 16,
+        "atMs": 188389,
+        "tokPerSec": 10.888264628383526,
+        "predictedN": 127
+      },
+      {
+        "i": 17,
+        "atMs": 201302,
+        "tokPerSec": 10.759265252317476,
+        "predictedN": 127
+      },
+      {
+        "i": 18,
+        "atMs": 212312,
+        "tokPerSec": 12.783620216560566,
+        "predictedN": 127
+      },
+      {
+        "i": 19,
+        "atMs": 225017,
+        "tokPerSec": 10.94685182763725,
+        "predictedN": 127
+      },
+      {
+        "i": 20,
+        "atMs": 237832,
+        "tokPerSec": 10.852926354861806,
+        "predictedN": 127
+      },
+      {
+        "i": 21,
+        "atMs": 250552,
+        "tokPerSec": 10.926195527968392,
+        "predictedN": 127
+      },
+      {
+        "i": 22,
+        "atMs": 261738,
+        "tokPerSec": 12.61269116792825,
+        "predictedN": 127
+      },
+      {
+        "i": 23,
+        "atMs": 274456,
+        "tokPerSec": 10.931529889126743,
+        "predictedN": 127
+      },
+      {
+        "i": 24,
+        "atMs": 287500,
+        "tokPerSec": 10.664677270490898,
+        "predictedN": 127
+      },
+      {
+        "i": 25,
+        "atMs": 300483,
+        "tokPerSec": 10.747268585920096,
+        "predictedN": 127
+      },
+      {
+        "i": 26,
+        "atMs": 311695,
+        "tokPerSec": 12.485867374526864,
+        "predictedN": 127
+      },
+      {
+        "i": 27,
+        "atMs": 324432,
+        "tokPerSec": 10.916622362657932,
+        "predictedN": 127
+      },
+      {
+        "i": 28,
+        "atMs": 337146,
+        "tokPerSec": 10.93843410028408,
+        "predictedN": 127
+      },
+      {
+        "i": 29,
+        "atMs": 349595,
+        "tokPerSec": 11.204679497642164,
+        "predictedN": 127
+      },
+      {
+        "i": 30,
+        "atMs": 361248,
+        "tokPerSec": 11.759972479812433,
+        "predictedN": 127
+      },
+      {
+        "i": 31,
+        "atMs": 374047,
+        "tokPerSec": 10.85619195730559,
+        "predictedN": 127
+      },
+      {
+        "i": 32,
+        "atMs": 386957,
+        "tokPerSec": 10.770264740739798,
+        "predictedN": 127
+      },
+      {
+        "i": 33,
+        "atMs": 399038,
+        "tokPerSec": 11.56217555351867,
+        "predictedN": 127
+      },
+      {
+        "i": 34,
+        "atMs": 411132,
+        "tokPerSec": 11.348271113235015,
+        "predictedN": 127
+      },
+      {
+        "i": 35,
+        "atMs": 424776,
+        "tokPerSec": 10.156101681930409,
+        "predictedN": 127
+      },
+      {
+        "i": 36,
+        "atMs": 437643,
+        "tokPerSec": 10.804065799653145,
+        "predictedN": 127
+      },
+      {
+        "i": 37,
+        "atMs": 449077,
+        "tokPerSec": 12.283803843321724,
+        "predictedN": 127
+      },
+      {
+        "i": 38,
+        "atMs": 462563,
+        "tokPerSec": 10.306877958205853,
+        "predictedN": 127
+      },
+      {
+        "i": 39,
+        "atMs": 475995,
+        "tokPerSec": 10.346017251780104,
+        "predictedN": 127
+      },
+      {
+        "i": 40,
+        "atMs": 489337,
+        "tokPerSec": 10.456542526923128,
+        "predictedN": 127
+      },
+      {
+        "i": 41,
+        "atMs": 501720,
+        "tokPerSec": 11.36973630448118,
+        "predictedN": 127
+      },
+      {
+        "i": 42,
+        "atMs": 515772,
+        "tokPerSec": 9.939859156109089,
+        "predictedN": 127
+      },
+      {
+        "i": 43,
+        "atMs": 529258,
+        "tokPerSec": 10.305390092284362,
+        "predictedN": 127
+      },
+      {
+        "i": 44,
+        "atMs": 541932,
+        "tokPerSec": 11.072166726255848,
+        "predictedN": 127
+      },
+      {
+        "i": 45,
+        "atMs": 555520,
+        "tokPerSec": 10.020772192814807,
+        "predictedN": 127
+      },
+      {
+        "i": 46,
+        "atMs": 570081,
+        "tokPerSec": 9.575783732658596,
+        "predictedN": 127
+      },
+      {
+        "i": 47,
+        "atMs": 583552,
+        "tokPerSec": 10.323427286817974,
+        "predictedN": 127
+      },
+      {
+        "i": 48,
+        "atMs": 595912,
+        "tokPerSec": 11.363094440825256,
+        "predictedN": 127
+      },
+      {
+        "i": 49,
+        "atMs": 610596,
+        "tokPerSec": 9.501683107197017,
+        "predictedN": 127
+      },
+      {
+        "i": 50,
+        "atMs": 624539,
+        "tokPerSec": 9.93928972270399,
+        "predictedN": 127
+      },
+      {
+        "i": 51,
+        "atMs": 637383,
+        "tokPerSec": 10.986814956948121,
+        "predictedN": 127
+      },
+      {
+        "i": 52,
+        "atMs": 651548,
+        "tokPerSec": 9.64485077365373,
+        "predictedN": 127
+      },
+      {
+        "i": 53,
+        "atMs": 705193,
+        "tokPerSec": 2.4378949149811984,
+        "predictedN": 127
+      },
+      {
+        "i": 54,
+        "atMs": 721056,
+        "tokPerSec": 11.364229182678374,
+        "predictedN": 127
+      },
+      {
+        "i": 55,
+        "atMs": 731510,
+        "tokPerSec": 13.282019419149051,
+        "predictedN": 127
+      },
+      {
+        "i": 56,
+        "atMs": 742463,
+        "tokPerSec": 12.719642944599343,
+        "predictedN": 127
+      },
+      {
+        "i": 57,
+        "atMs": 755115,
+        "tokPerSec": 10.983491207326109,
+        "predictedN": 127
+      },
+      {
+        "i": 58,
+        "atMs": 767720,
+        "tokPerSec": 11.061608718498695,
+        "predictedN": 127
+      },
+      {
+        "i": 59,
+        "atMs": 782404,
+        "tokPerSec": 9.483308294661471,
+        "predictedN": 127
+      },
+      {
+        "i": 60,
+        "atMs": 795454,
+        "tokPerSec": 10.688479468693359,
+        "predictedN": 127
+      },
+      {
+        "i": 61,
+        "atMs": 808317,
+        "tokPerSec": 10.826895167010399,
+        "predictedN": 127
+      },
+      {
+        "i": 62,
+        "atMs": 822425,
+        "tokPerSec": 9.6303383259181,
+        "predictedN": 127
+      },
+      {
+        "i": 63,
+        "atMs": 837029,
+        "tokPerSec": 9.541447069385853,
+        "predictedN": 127
+      },
+      {
+        "i": 64,
+        "atMs": 851488,
+        "tokPerSec": 9.66874940664712,
+        "predictedN": 127
+      },
+      {
+        "i": 65,
+        "atMs": 863625,
+        "tokPerSec": 11.617006858973562,
+        "predictedN": 127
+      },
+      {
+        "i": 66,
+        "atMs": 878144,
+        "tokPerSec": 9.545173963801846,
+        "predictedN": 127
+      },
+      {
+        "i": 67,
+        "atMs": 891975,
+        "tokPerSec": 10.072316855736743,
+        "predictedN": 127
+      },
+      {
+        "i": 68,
+        "atMs": 904541,
+        "tokPerSec": 11.182239152699728,
+        "predictedN": 127
+      },
+      {
+        "i": 69,
+        "atMs": 918937,
+        "tokPerSec": 9.43167895990712,
+        "predictedN": 127
+      },
+      {
+        "i": 70,
+        "atMs": 933764,
+        "tokPerSec": 9.396148733191993,
+        "predictedN": 127
+      },
+      {
+        "i": 71,
+        "atMs": 948295,
+        "tokPerSec": 9.597688332528614,
+        "predictedN": 127
+      },
+      {
+        "i": 72,
+        "atMs": 961135,
+        "tokPerSec": 10.661053300313728,
+        "predictedN": 127
+      },
+      {
+        "i": 73,
+        "atMs": 976057,
+        "tokPerSec": 9.335276148861931,
+        "predictedN": 127
+      },
+      {
+        "i": 74,
+        "atMs": 990088,
+        "tokPerSec": 9.980907388653547,
+        "predictedN": 127
+      },
+      {
+        "i": 75,
+        "atMs": 1002696,
+        "tokPerSec": 11.22285163469671,
+        "predictedN": 127
+      },
+      {
+        "i": 76,
+        "atMs": 1017526,
+        "tokPerSec": 9.410932673076129,
+        "predictedN": 127
+      },
+      {
+        "i": 77,
+        "atMs": 1032532,
+        "tokPerSec": 9.299469498216004,
+        "predictedN": 127
+      },
+      {
+        "i": 78,
+        "atMs": 1045854,
+        "tokPerSec": 10.569376471702451,
+        "predictedN": 127
+      },
+      {
+        "i": 79,
+        "atMs": 1058998,
+        "tokPerSec": 10.39151208201472,
+        "predictedN": 127
+      },
+      {
+        "i": 80,
+        "atMs": 1073400,
+        "tokPerSec": 9.707075617354723,
+        "predictedN": 127
+      },
+      {
+        "i": 81,
+        "atMs": 1087942,
+        "tokPerSec": 9.542759074637901,
+        "predictedN": 127
+      },
+      {
+        "i": 82,
+        "atMs": 1100432,
+        "tokPerSec": 11.317906996391459,
+        "predictedN": 127
+      },
+      {
+        "i": 83,
+        "atMs": 1115355,
+        "tokPerSec": 9.351942766699366,
+        "predictedN": 127
+      },
+      {
+        "i": 84,
+        "atMs": 1129884,
+        "tokPerSec": 9.594819099885088,
+        "predictedN": 127
+      },
+      {
+        "i": 85,
+        "atMs": 1142875,
+        "tokPerSec": 10.85570848712966,
+        "predictedN": 127
+      },
+      {
+        "i": 86,
+        "atMs": 1157644,
+        "tokPerSec": 9.359006783879751,
+        "predictedN": 127
+      },
+      {
+        "i": 87,
+        "atMs": 1172575,
+        "tokPerSec": 9.322719820557463,
+        "predictedN": 127
+      },
+      {
+        "i": 88,
+        "atMs": 1186756,
+        "tokPerSec": 9.853574333657853,
+        "predictedN": 127
+      },
+      {
+        "i": 89,
+        "atMs": 1199800,
+        "tokPerSec": 10.47498705060656,
+        "predictedN": 127
+      },
+      {
+        "i": 90,
+        "atMs": 1214685,
+        "tokPerSec": 9.365692612511282,
+        "predictedN": 127
+      }
+    ]
+  },
   "MBRESULT:qwen2b:g0a:r6": {
     "modelKey": "qwen2b",
     "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",

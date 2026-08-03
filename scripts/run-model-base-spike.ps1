@@ -89,7 +89,7 @@ $script:SafeTopY = 110
 $script:SafeBottomY = 2200
 
 function Tap-Label {
-  param([string]$Label, [int]$Retries = 5)
+  param([string]$Label, [int]$Retries = 8)
   $lastY = -1
   for ($try = 1; $try -le $Retries; $try++) {
     foreach ($n in Get-UiNodes) {
@@ -117,9 +117,14 @@ function Tap-Label {
         return $true
       }
     }
-    Start-Sleep -Seconds 2
+    # Not found AT ALL. `uiautomator dump` only reports visible nodes, so a control below the
+    # fold is invisible rather than out-of-band — the band check above never fires for it and
+    # nothing ever scrolls. This is how RUN FULL SUITE was missed: selecting a model appends log
+    # lines and pushes the button off-screen. Scroll down and look again.
+    Adb shell input swipe 540 1700 540 900 250 *>$null
+    Start-Sleep -Milliseconds 700
   }
-  Write-Host "    FAILED to tap '$Label'"
+  Write-Host "    FAILED to tap '$Label' (searched $Retries dumps, scrolling between each)"
   return $false
 }
 

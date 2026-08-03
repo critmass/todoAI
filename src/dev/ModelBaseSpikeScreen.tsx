@@ -79,7 +79,7 @@ const MODELS: SpikeModel[] = [
     key: 'qwen2b',
     label: 'Qwen3.5-2B Q4_K_M',
     filename: 'Qwen3.5-2B-Q4_K_M.gguf',
-    sha256: '<unset - paste adb shell sha256sum output>',
+    sha256: 'aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223',
     note: 'arch qwen35, hybrid. Quality-ceiling probe: bigger/hotter than the incumbent.',
   },
   {
@@ -109,7 +109,9 @@ const LLAMA_RN_VERSION = '0.12.5'; // pinned in package.json
 const DEVICE_LABEL = 'Samsung Galaxy S23 FE';
 // Edit before each run. Thermal state is the whole point of Gate 1 — a burst number taken on a
 // cold phone and a steady number taken on a hot one are different measurements.
-const RUN_NOTE = '<edit: cold start / N minutes in, warm>';
+const RUN_NOTE =
+  '2026-08-03, debug build over the personal release install, phone idle and cool at the ' +
+  'start of the run. Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.';
 
 // ---- GATE 1 PARAMETERS ----
 

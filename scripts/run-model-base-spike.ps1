@@ -26,7 +26,11 @@ param(
   [int]$CoolMaxMinutes = 20
 )
 
-$ErrorActionPreference = 'Stop'
+# NOT 'Stop'. The Adb helper merges stderr with 2>&1, and adb writes to stderr routinely — an
+# `ls` on a file that is not there yet is a normal part of deciding whether to push it. Under
+# 'Stop' every such line becomes a terminating NativeCommandError and kills a two-hour run over
+# an expected condition. Failures that actually matter are thrown explicitly below.
+$ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $workDir = Join-Path $repo "docs\eval"
@@ -163,8 +167,10 @@ if (-not $SkipPush) {
   foreach ($key in $Models) {
     $file = $modelFiles[$key]
     $remote = "$deviceDir/$file"
-    $onDevice = Adb shell ls -l $remote
-    if ($onDevice -match 'No such file') {
+    # Ask the device's shell to answer yes/no rather than reading adb's stderr: the test exits 0
+    # either way, so a missing file is an answer instead of an error.
+    $present = ((Adb shell "if [ -f '$remote' ]; then echo YES; else echo NO; fi") -join '') -match 'YES'
+    if (-not $present) {
       $local = Join-Path $env:USERPROFILE "Downloads\$file"
       if (-not (Test-Path $local)) { throw "missing $local - download it before running" }
       Write-Host "  pushing $file ..."

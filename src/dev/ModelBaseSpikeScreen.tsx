@@ -106,6 +106,27 @@ const MODELS: SpikeModel[] = [
     sha256: 'bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517',
     note: 'arch qwen35, hybrid. The rung most likely to fit the envelope.',
   },
+  {
+    key: 'smollm2',
+    label: 'SmolLM2-1.7B Q4_K_M',
+    filename: 'SmolLM2-1.7B-Instruct-Q4_K_M.gguf',
+    sha256: '<unset - filled after push>',
+    note:
+      'arch llama, dense — the most well-trodden path in llama.cpp, and NOT a reasoning model, ' +
+      'so the enable_thinking problem does not apply. Within 3% of Bonsai on disk, which makes ' +
+      'it the closest like-for-like swap tested.',
+  },
+  {
+    key: 'gemma4e2b',
+    label: 'Gemma 4 E2B Q4_K_M',
+    filename: 'gemma-4-E2B-it-Q4_K_M.gguf',
+    sha256: '<unset - filled after push>',
+    note:
+      'arch gemma4, dense (not in llm_arch_is_hybrid). 2.89 GiB on disk — "E2B" is EFFECTIVE 2B ' +
+      'via selective activation, but the GGUF carries the full parameter set. At Bonsai\'s 1.30x ' +
+      'ratio that is ~3.8 GiB resident; at the Qwen rungs\' ratios, 5-7 GiB. May OOM at gate 0b ' +
+      'on an 8 GB phone, which is itself a finding.',
+  },
 ];
 
 const modelPath = (m: SpikeModel) => `file:///sdcard/Android/data/com.todoai/files/${m.filename}`;

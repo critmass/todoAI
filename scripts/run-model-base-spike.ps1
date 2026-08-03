@@ -20,7 +20,7 @@
 
 param(
   [string]$Serial = 'R5CWC240D5H',
-  [string[]]$Models = @('bonsai4b', 'qwen2b', 'qwen08b'),
+  [string[]]$Models = @('bonsai4b', 'qwen2b', 'qwen08b', 'smollm2', 'gemma4e2b'),
   [switch]$SkipPush,
   [int]$CoolToApC = 40,
   [int]$CoolMaxMinutes = 20
@@ -43,11 +43,15 @@ $modelFiles = @{
   'bonsai4b' = 'Ternary-Bonsai-4B-TQ1_0.gguf'
   'qwen2b'   = 'Qwen3.5-2B-Q4_K_M.gguf'
   'qwen08b'  = 'Qwen3.5-0.8B-Q4_K_M.gguf'
+  'smollm2'  = 'SmolLM2-1.7B-Instruct-Q4_K_M.gguf'
+  'gemma4e2b' = 'gemma-4-E2B-it-Q4_K_M.gguf'
 }
 $modelLabels = @{
   'bonsai4b' = 'BONSAI-4B'
   'qwen2b'   = 'QWEN3.5-2B'
   'qwen08b'  = 'QWEN3.5-0.8B'
+  'smollm2'  = 'SMOLLM2-1.7B'
+  'gemma4e2b' = 'GEMMA 4 E2B'
 }
 $deviceDir = '/sdcard/Android/data/com.todoai/files'
 

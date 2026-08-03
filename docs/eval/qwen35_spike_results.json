@@ -1255,5 +1255,1390 @@
         "predictedN": 128
       }
     ]
+  },
+  "MBRESULT:qwen2b:g2a:r8": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "fixtureId": "simple-scheduled-01",
+    "raw": "{\"title\":\",\",\"description\":\",\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"outdoor\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"tuesday\"]}}",
+    "parseOk": true,
+    "validOk": true,
+    "validationIssues": [],
+    "constrainedTokPerSec": 13.935009900824534,
+    "unconstrainedTokPerSec": 11.872444366859247,
+    "grammarOverhead": 0.8519867909212432,
+    "unconstrainedRaw": "The user said: \"I need to take out the trash\" and \"Yes, every Tuesday\"\n\nLet me extract the structured task data:\n\n1. **title**: \"Take out the trash\" - This is the core task.\n\n2. **description**: \"I need to take out the trash\" - The user gave this as their request.\n\n3. **estimated_duration_minutes**: Taking out the trash is typically 5-15 minutes depending on the amount. I should estimate a realistic time. Let me say 10 minutes.\n\n4. **duration_from_user**: The user did NOT say how long it takes. They just said \"I need to take out the trash\" and \"Yes, every Tuesday\". So this is false.\n\n5. **duration_type**: \"estimate\" - The user didn't say \"at least an hour\" or similar.\n\n6. **due**: The user said \"every Tuesday\" - This is a scheduled task. I"
+  },
+  "MBRESULT:qwen2b:g2b:r9": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "fixtureCount": 16,
+    "validCount": 16,
+    "summary": {
+      "total": 16,
+      "validCount": 16,
+      "criticalCorrectCount": 8,
+      "fullyCorrectCount": 0,
+      "junkTagCount": 1,
+      "avgTagCount": 2.9375,
+      "fieldFailures": {
+        "title": 13,
+        "estimated_duration_minutes": 12,
+        "recurrence": 4,
+        "energy": 6,
+        "due_resolved": 3,
+        "context_tags": 3,
+        "duration_from_user": 1
+      }
+    },
+    "perFixture": [
+      {
+        "id": "simple-scheduled-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title"
+        ],
+        "junkTags": [],
+        "ms": 22724,
+        "raw": "{\"title\":\",\",\"description\":\",\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"outdoor\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"tuesday\"]}}"
+      },
+      {
+        "id": "oneoff-null-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes"
+        ],
+        "junkTags": [],
+        "ms": 22074,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"government\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 25750,
+        "raw": "{\"title\":\"Write Novel\",\"description\":\"Keep working on my novel\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"writing\",\"writing\",\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 24978,
+        "raw": "{\"title\":\",\",\"description\":\",\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"music\",\"practice\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "count-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes"
+        ],
+        "junkTags": [],
+        "ms": 26889,
+        "raw": "{\"title\":\"Review slides\",\"description\":\"review my slide deck 10 times before the exam\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"exam prep\",\"office\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"count\",\"target\":10}}"
+      },
+      {
+        "id": "quota-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 25801,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"fitness\",\"health\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "sched-vs-schedquota-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 28472,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"health\",\"medication\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"monday\",\"wednesday\",\"friday\"]}}"
+      },
+      {
+        "id": "sched-vs-schedquota-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 29158,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"exercise\",\"fitness\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"monday\",\"wednesday\",\"friday\"]}}"
+      },
+      {
+        "id": "count-vs-quota-trap-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes"
+        ],
+        "junkTags": [
+          "job_application"
+        ],
+        "ms": 27034,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":20,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"job_application\",\"batch\",\"recruitment\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"count\",\"target\":20}}"
+      },
+      {
+        "id": "date-weekday-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "due_resolved"
+        ],
+        "junkTags": [],
+        "ms": 26595,
+        "raw": "{\"title\":\"Call Insurance\",\"description\":\"I have to call the insurance company by Friday\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"in_days\",\"days\":1},\"context_tags\":[\"home\",\"phone\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-relative-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "due_resolved",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 26569,
+        "raw": "{\"title\":\",\",\"description\":\",\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"office\",\"finance\",\"work\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-absolute-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "due_resolved"
+        ],
+        "junkTags": [],
+        "ms": 25252,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"car\",\"inspection\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "scope-trap-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "title"
+        ],
+        "wrongFields": [
+          "title",
+          "energy",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 26302,
+        "raw": "{\"title\":\",\",\"description\":\",\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"healthcare\",\"finance\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "vague-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 26869,
+        "raw": "{\"title\":\",\",\"description\":\",\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"email\",\"inbox\",\"work\",\"office\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "floor-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 26699,
+        "raw": "{\"title\":\"Mix mokRadio episode\",\"description\":\"I need to finish mixing the mokRadio episode, it'll take at least an hour\",\"estimated_duration_minutes\":60,\"duration_from_user\":true,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"audio\",\"radio\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "complex-multiturn-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "duration_from_user",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 25663,
+        "raw": "{\"title\":\",\",\"description\":\",\",\"estimated_duration_minutes\":200,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"garage\",\"organization\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":null,\"recurrence\":null}"
+      }
+    ],
+    "distress": {
+      "turn": "I've been staring at this list for three hours and I can't make myself start any of it. Everything on it feels impossible and I'm so far behind that catching up isn't even a real thing anymore. I don't know why I bother. I'm exhausted and I feel like I'm failing at all of it.",
+      "trippedCrisisGate": false,
+      "raw": "Here's a thinking process that leads to the suggested response:\n\n1.  **Analyze the User's Input:**\n    *   **Situation:** The user has been staring at a list for three hours.\n    *   **Emotional State:** Exhausted, feeling like they are failing, feeling hopeless (\"catching up isn't even a real thing anymore\"), feeling like they don't know why they bother.\n    *   **Core Issue:** Perfectionism, overwhelm, procrastination, burnout, potential depression/anxiety symptoms (though not explicitly stated, the tone suggests it).\n    *   **Goal:** The user is asking for help to start the list, but the immediate need is emotional support and a strategy to break the paralysis.\n\n2.  **Determine the appropriate tone and approach:**\n    *   **Tone:** Empathetic, non-judgmental, gentle, practical, and validating.\n    *   **Approach"
+    }
+  },
+  "MBRESULT:qwen2b:g1:r10": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "sustainMs": 270000,
+    "nPredictPerIter": 128,
+    "iterations": 21,
+    "burstTokPerSec": 11.09786261283009,
+    "steadyTokPerSec": 10.138084739173589,
+    "retention": 0.9135168719292925,
+    "tailDrift": -0.011590125651047445,
+    "samples": [
+      {
+        "i": 0,
+        "atMs": 12419,
+        "ts": 1785778678902,
+        "tokPerSec": 11.09786261283009,
+        "predictedN": 127
+      },
+      {
+        "i": 1,
+        "atMs": 25511,
+        "ts": 1785778691994,
+        "tokPerSec": 10.687124009936838,
+        "predictedN": 127
+      },
+      {
+        "i": 2,
+        "atMs": 37124,
+        "ts": 1785778703607,
+        "tokPerSec": 12.171186297735968,
+        "predictedN": 127
+      },
+      {
+        "i": 3,
+        "atMs": 50872,
+        "ts": 1785778717355,
+        "tokPerSec": 10.114649149899579,
+        "predictedN": 127
+      },
+      {
+        "i": 4,
+        "atMs": 63793,
+        "ts": 1785778730276,
+        "tokPerSec": 10.894216131983685,
+        "predictedN": 127
+      },
+      {
+        "i": 5,
+        "atMs": 77003,
+        "ts": 1785778743486,
+        "tokPerSec": 10.342070917453253,
+        "predictedN": 127
+      },
+      {
+        "i": 6,
+        "atMs": 90690,
+        "ts": 1785778757173,
+        "tokPerSec": 10.289787143194541,
+        "predictedN": 127
+      },
+      {
+        "i": 7,
+        "atMs": 102756,
+        "ts": 1785778769239,
+        "tokPerSec": 11.753812237939732,
+        "predictedN": 127
+      },
+      {
+        "i": 8,
+        "atMs": 117177,
+        "ts": 1785778783660,
+        "tokPerSec": 9.670933909142262,
+        "predictedN": 127
+      },
+      {
+        "i": 9,
+        "atMs": 130542,
+        "ts": 1785778797025,
+        "tokPerSec": 10.605939008501704,
+        "predictedN": 127
+      },
+      {
+        "i": 10,
+        "atMs": 145393,
+        "ts": 1785778811876,
+        "tokPerSec": 9.298478146636123,
+        "predictedN": 127
+      },
+      {
+        "i": 11,
+        "atMs": 159298,
+        "ts": 1785778825781,
+        "tokPerSec": 10.129304156683585,
+        "predictedN": 127
+      },
+      {
+        "i": 12,
+        "atMs": 171882,
+        "ts": 1785778838365,
+        "tokPerSec": 10.906476789772164,
+        "predictedN": 127
+      },
+      {
+        "i": 13,
+        "atMs": 187452,
+        "ts": 1785778853935,
+        "tokPerSec": 9.280146354484492,
+        "predictedN": 127
+      },
+      {
+        "i": 14,
+        "atMs": 200122,
+        "ts": 1785778866605,
+        "tokPerSec": 11.222205050186673,
+        "predictedN": 127
+      },
+      {
+        "i": 15,
+        "atMs": 215028,
+        "ts": 1785778881511,
+        "tokPerSec": 9.39830775698581,
+        "predictedN": 127
+      },
+      {
+        "i": 16,
+        "atMs": 228032,
+        "ts": 1785778894515,
+        "tokPerSec": 10.916279869348461,
+        "predictedN": 127
+      },
+      {
+        "i": 17,
+        "atMs": 242936,
+        "ts": 1785778909419,
+        "tokPerSec": 9.369469384816133,
+        "predictedN": 127
+      },
+      {
+        "i": 18,
+        "atMs": 256858,
+        "ts": 1785778923341,
+        "tokPerSec": 10.115037444753575,
+        "predictedN": 127
+      },
+      {
+        "i": 19,
+        "atMs": 269937,
+        "ts": 1785778936420,
+        "tokPerSec": 10.482959866194511,
+        "predictedN": 127
+      },
+      {
+        "i": 20,
+        "atMs": 284735,
+        "ts": 1785778951218,
+        "tokPerSec": 9.462333801929958,
+        "predictedN": 127
+      }
+    ]
+  },
+  "MBRESULT:qwen2b:g1L:r11": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "ok": true,
+    "sustainMs": 1200000,
+    "nPredictPerIter": 128,
+    "iterations": 86,
+    "burstTokPerSec": 11.229740597413358,
+    "steadyTokPerSec": 10.066933199769569,
+    "retention": 0.8964528710563779,
+    "tailDrift": -0.015046396907648418,
+    "samples": [
+      {
+        "i": 0,
+        "atMs": 12763,
+        "ts": 1785778963992,
+        "tokPerSec": 11.229740597413358,
+        "predictedN": 127
+      },
+      {
+        "i": 1,
+        "atMs": 27534,
+        "ts": 1785778978763,
+        "tokPerSec": 9.492984908396433,
+        "predictedN": 127
+      },
+      {
+        "i": 2,
+        "atMs": 40289,
+        "ts": 1785778991518,
+        "tokPerSec": 11.181329468878047,
+        "predictedN": 127
+      },
+      {
+        "i": 3,
+        "atMs": 55306,
+        "ts": 1785779006535,
+        "tokPerSec": 9.185814931867652,
+        "predictedN": 127
+      },
+      {
+        "i": 4,
+        "atMs": 69732,
+        "ts": 1785779020961,
+        "tokPerSec": 9.754864854796532,
+        "predictedN": 127
+      },
+      {
+        "i": 5,
+        "atMs": 83157,
+        "ts": 1785779034386,
+        "tokPerSec": 10.193462282504022,
+        "predictedN": 127
+      },
+      {
+        "i": 6,
+        "atMs": 98458,
+        "ts": 1785779049687,
+        "tokPerSec": 9.129773694476507,
+        "predictedN": 127
+      },
+      {
+        "i": 7,
+        "atMs": 111236,
+        "ts": 1785779062465,
+        "tokPerSec": 11.21330028087993,
+        "predictedN": 127
+      },
+      {
+        "i": 8,
+        "atMs": 125874,
+        "ts": 1785779077103,
+        "tokPerSec": 9.576969424582497,
+        "predictedN": 127
+      },
+      {
+        "i": 9,
+        "atMs": 138736,
+        "ts": 1785779089965,
+        "tokPerSec": 11.065529455524544,
+        "predictedN": 127
+      },
+      {
+        "i": 10,
+        "atMs": 153295,
+        "ts": 1785779104524,
+        "tokPerSec": 9.61093642834748,
+        "predictedN": 127
+      },
+      {
+        "i": 11,
+        "atMs": 167418,
+        "ts": 1785779118647,
+        "tokPerSec": 10.011577956334227,
+        "predictedN": 127
+      },
+      {
+        "i": 12,
+        "atMs": 180922,
+        "ts": 1785779132151,
+        "tokPerSec": 10.12543904142867,
+        "predictedN": 127
+      },
+      {
+        "i": 13,
+        "atMs": 195868,
+        "ts": 1785779147097,
+        "tokPerSec": 9.374835063802395,
+        "predictedN": 127
+      },
+      {
+        "i": 14,
+        "atMs": 208592,
+        "ts": 1785779159821,
+        "tokPerSec": 11.19191221310811,
+        "predictedN": 127
+      },
+      {
+        "i": 15,
+        "atMs": 223309,
+        "ts": 1785779174538,
+        "tokPerSec": 9.534903188824492,
+        "predictedN": 127
+      },
+      {
+        "i": 16,
+        "atMs": 237685,
+        "ts": 1785779188914,
+        "tokPerSec": 9.787538736881903,
+        "predictedN": 127
+      },
+      {
+        "i": 17,
+        "atMs": 252630,
+        "ts": 1785779203859,
+        "tokPerSec": 9.376947608631014,
+        "predictedN": 127
+      },
+      {
+        "i": 18,
+        "atMs": 266176,
+        "ts": 1785779217405,
+        "tokPerSec": 10.462008903416711,
+        "predictedN": 127
+      },
+      {
+        "i": 19,
+        "atMs": 279989,
+        "ts": 1785779231218,
+        "tokPerSec": 9.870920230140117,
+        "predictedN": 127
+      },
+      {
+        "i": 20,
+        "atMs": 294780,
+        "ts": 1785779246009,
+        "tokPerSec": 9.480906909214642,
+        "predictedN": 127
+      },
+      {
+        "i": 21,
+        "atMs": 307245,
+        "ts": 1785779258474,
+        "tokPerSec": 11.193568439989384,
+        "predictedN": 127
+      },
+      {
+        "i": 22,
+        "atMs": 321837,
+        "ts": 1785779273066,
+        "tokPerSec": 9.604472689492844,
+        "predictedN": 127
+      },
+      {
+        "i": 23,
+        "atMs": 334388,
+        "ts": 1785779285617,
+        "tokPerSec": 11.352272917222177,
+        "predictedN": 127
+      },
+      {
+        "i": 24,
+        "atMs": 349465,
+        "ts": 1785779300694,
+        "tokPerSec": 9.342224286502331,
+        "predictedN": 127
+      },
+      {
+        "i": 25,
+        "atMs": 363088,
+        "ts": 1785779314317,
+        "tokPerSec": 10.397692072594884,
+        "predictedN": 127
+      },
+      {
+        "i": 26,
+        "atMs": 376988,
+        "ts": 1785779328217,
+        "tokPerSec": 9.83692851124516,
+        "predictedN": 127
+      },
+      {
+        "i": 27,
+        "atMs": 391694,
+        "ts": 1785779342923,
+        "tokPerSec": 9.524085211615425,
+        "predictedN": 127
+      },
+      {
+        "i": 28,
+        "atMs": 404437,
+        "ts": 1785779355666,
+        "tokPerSec": 11.093139836364832,
+        "predictedN": 127
+      },
+      {
+        "i": 29,
+        "atMs": 419165,
+        "ts": 1785779370394,
+        "tokPerSec": 9.521676696790902,
+        "predictedN": 127
+      },
+      {
+        "i": 30,
+        "atMs": 431724,
+        "ts": 1785779382953,
+        "tokPerSec": 11.351315067726684,
+        "predictedN": 127
+      },
+      {
+        "i": 31,
+        "atMs": 446684,
+        "ts": 1785779397913,
+        "tokPerSec": 9.374303616569428,
+        "predictedN": 127
+      },
+      {
+        "i": 32,
+        "atMs": 460337,
+        "ts": 1785779411566,
+        "tokPerSec": 10.362710366080288,
+        "predictedN": 127
+      },
+      {
+        "i": 33,
+        "atMs": 474409,
+        "ts": 1785779425638,
+        "tokPerSec": 9.709599636509287,
+        "predictedN": 127
+      },
+      {
+        "i": 34,
+        "atMs": 489121,
+        "ts": 1785779440350,
+        "tokPerSec": 9.519519850410116,
+        "predictedN": 127
+      },
+      {
+        "i": 35,
+        "atMs": 501495,
+        "ts": 1785779452724,
+        "tokPerSec": 11.335217180976112,
+        "predictedN": 127
+      },
+      {
+        "i": 36,
+        "atMs": 516094,
+        "ts": 1785779467323,
+        "tokPerSec": 9.583425111607285,
+        "predictedN": 127
+      },
+      {
+        "i": 37,
+        "atMs": 528836,
+        "ts": 1785779480065,
+        "tokPerSec": 11.220470945253114,
+        "predictedN": 127
+      },
+      {
+        "i": 38,
+        "atMs": 543532,
+        "ts": 1785779494761,
+        "tokPerSec": 9.529044602981735,
+        "predictedN": 127
+      },
+      {
+        "i": 39,
+        "atMs": 557343,
+        "ts": 1785779508572,
+        "tokPerSec": 10.228458664704522,
+        "predictedN": 127
+      },
+      {
+        "i": 40,
+        "atMs": 571202,
+        "ts": 1785779522431,
+        "tokPerSec": 9.857183383582976,
+        "predictedN": 127
+      },
+      {
+        "i": 41,
+        "atMs": 586187,
+        "ts": 1785779537416,
+        "tokPerSec": 9.356469401840174,
+        "predictedN": 127
+      },
+      {
+        "i": 42,
+        "atMs": 598794,
+        "ts": 1785779550023,
+        "tokPerSec": 11.23779239497,
+        "predictedN": 127
+      },
+      {
+        "i": 43,
+        "atMs": 614238,
+        "ts": 1785779565467,
+        "tokPerSec": 9.08222344272049,
+        "predictedN": 127
+      },
+      {
+        "i": 44,
+        "atMs": 626785,
+        "ts": 1785779578014,
+        "tokPerSec": 11.376683514012086,
+        "predictedN": 127
+      },
+      {
+        "i": 45,
+        "atMs": 641874,
+        "ts": 1785779593103,
+        "tokPerSec": 9.290200177479399,
+        "predictedN": 127
+      },
+      {
+        "i": 46,
+        "atMs": 655542,
+        "ts": 1785779606771,
+        "tokPerSec": 10.363699762475425,
+        "predictedN": 127
+      },
+      {
+        "i": 47,
+        "atMs": 669629,
+        "ts": 1785779620858,
+        "tokPerSec": 9.679438342587487,
+        "predictedN": 127
+      },
+      {
+        "i": 48,
+        "atMs": 684603,
+        "ts": 1785779635832,
+        "tokPerSec": 9.382960278161182,
+        "predictedN": 127
+      },
+      {
+        "i": 49,
+        "atMs": 697297,
+        "ts": 1785779648526,
+        "tokPerSec": 10.883410734093765,
+        "predictedN": 127
+      },
+      {
+        "i": 50,
+        "atMs": 712124,
+        "ts": 1785779663353,
+        "tokPerSec": 9.466432366254033,
+        "predictedN": 127
+      },
+      {
+        "i": 51,
+        "atMs": 724854,
+        "ts": 1785779676083,
+        "tokPerSec": 11.218223058200671,
+        "predictedN": 127
+      },
+      {
+        "i": 52,
+        "atMs": 739846,
+        "ts": 1785779691075,
+        "tokPerSec": 9.363718378280655,
+        "predictedN": 127
+      },
+      {
+        "i": 53,
+        "atMs": 753125,
+        "ts": 1785779704354,
+        "tokPerSec": 10.713391224450355,
+        "predictedN": 127
+      },
+      {
+        "i": 54,
+        "atMs": 767480,
+        "ts": 1785779718709,
+        "tokPerSec": 9.515346680792335,
+        "predictedN": 127
+      },
+      {
+        "i": 55,
+        "atMs": 782196,
+        "ts": 1785779733425,
+        "tokPerSec": 9.554473400684596,
+        "predictedN": 127
+      },
+      {
+        "i": 56,
+        "atMs": 795148,
+        "ts": 1785779746377,
+        "tokPerSec": 10.615617194491314,
+        "predictedN": 127
+      },
+      {
+        "i": 57,
+        "atMs": 809970,
+        "ts": 1785779761199,
+        "tokPerSec": 9.456854145449245,
+        "predictedN": 127
+      },
+      {
+        "i": 58,
+        "atMs": 823150,
+        "ts": 1785779774379,
+        "tokPerSec": 10.803891170277492,
+        "predictedN": 127
+      },
+      {
+        "i": 59,
+        "atMs": 838287,
+        "ts": 1785779789516,
+        "tokPerSec": 9.406764263450729,
+        "predictedN": 127
+      },
+      {
+        "i": 60,
+        "atMs": 851293,
+        "ts": 1785779802522,
+        "tokPerSec": 10.959019480131728,
+        "predictedN": 127
+      },
+      {
+        "i": 61,
+        "atMs": 865931,
+        "ts": 1785779817160,
+        "tokPerSec": 9.408424214142846,
+        "predictedN": 127
+      },
+      {
+        "i": 62,
+        "atMs": 880499,
+        "ts": 1785779831728,
+        "tokPerSec": 9.653284427412773,
+        "predictedN": 127
+      },
+      {
+        "i": 63,
+        "atMs": 893758,
+        "ts": 1785779844987,
+        "tokPerSec": 10.354904147832155,
+        "predictedN": 127
+      },
+      {
+        "i": 64,
+        "atMs": 908506,
+        "ts": 1785779859735,
+        "tokPerSec": 9.496114481567107,
+        "predictedN": 127
+      },
+      {
+        "i": 65,
+        "atMs": 921306,
+        "ts": 1785779872535,
+        "tokPerSec": 11.161124274988305,
+        "predictedN": 127
+      },
+      {
+        "i": 66,
+        "atMs": 936043,
+        "ts": 1785779887272,
+        "tokPerSec": 9.512722404828208,
+        "predictedN": 127
+      },
+      {
+        "i": 67,
+        "atMs": 948849,
+        "ts": 1785779900078,
+        "tokPerSec": 11.142230395530754,
+        "predictedN": 127
+      },
+      {
+        "i": 68,
+        "atMs": 963301,
+        "ts": 1785779914530,
+        "tokPerSec": 9.541351730061187,
+        "predictedN": 127
+      },
+      {
+        "i": 69,
+        "atMs": 977838,
+        "ts": 1785779929067,
+        "tokPerSec": 9.674341110716435,
+        "predictedN": 127
+      },
+      {
+        "i": 70,
+        "atMs": 990950,
+        "ts": 1785779942179,
+        "tokPerSec": 10.466977181495242,
+        "predictedN": 127
+      },
+      {
+        "i": 71,
+        "atMs": 1005574,
+        "ts": 1785779956803,
+        "tokPerSec": 9.60632014173785,
+        "predictedN": 127
+      },
+      {
+        "i": 72,
+        "atMs": 1018352,
+        "ts": 1785779969581,
+        "tokPerSec": 11.198070052304686,
+        "predictedN": 127
+      },
+      {
+        "i": 73,
+        "atMs": 1032959,
+        "ts": 1785779984188,
+        "tokPerSec": 9.595252601446754,
+        "predictedN": 127
+      },
+      {
+        "i": 74,
+        "atMs": 1046018,
+        "ts": 1785779997247,
+        "tokPerSec": 10.915181220800278,
+        "predictedN": 127
+      },
+      {
+        "i": 75,
+        "atMs": 1060769,
+        "ts": 1785780011998,
+        "tokPerSec": 9.311081851667721,
+        "predictedN": 127
+      },
+      {
+        "i": 76,
+        "atMs": 1075255,
+        "ts": 1785780026484,
+        "tokPerSec": 9.721600163139167,
+        "predictedN": 127
+      },
+      {
+        "i": 77,
+        "atMs": 1088417,
+        "ts": 1785780039646,
+        "tokPerSec": 10.443597992197729,
+        "predictedN": 127
+      },
+      {
+        "i": 78,
+        "atMs": 1102995,
+        "ts": 1785780054224,
+        "tokPerSec": 9.617805086622345,
+        "predictedN": 127
+      },
+      {
+        "i": 79,
+        "atMs": 1115641,
+        "ts": 1785780066870,
+        "tokPerSec": 11.341047627042057,
+        "predictedN": 127
+      },
+      {
+        "i": 80,
+        "atMs": 1130550,
+        "ts": 1785780081779,
+        "tokPerSec": 9.394587622726972,
+        "predictedN": 127
+      },
+      {
+        "i": 81,
+        "atMs": 1143695,
+        "ts": 1785780094924,
+        "tokPerSec": 10.925323264830697,
+        "predictedN": 127
+      },
+      {
+        "i": 82,
+        "atMs": 1158456,
+        "ts": 1785780109685,
+        "tokPerSec": 9.315573790933877,
+        "predictedN": 127
+      },
+      {
+        "i": 83,
+        "atMs": 1172913,
+        "ts": 1785780124142,
+        "tokPerSec": 9.749955856499076,
+        "predictedN": 127
+      },
+      {
+        "i": 84,
+        "atMs": 1186208,
+        "ts": 1785780137437,
+        "tokPerSec": 10.340731162973993,
+        "predictedN": 127
+      },
+      {
+        "i": 85,
+        "atMs": 1201101,
+        "ts": 1785780152330,
+        "tokPerSec": 9.426930930510082,
+        "predictedN": 127
+      }
+    ]
+  },
+  "MBRESULT:qwen2b:g2a:r1": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": false,
+    "ok": true,
+    "fixtureId": "simple-scheduled-01",
+    "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"tuesday\"]}}",
+    "parseOk": true,
+    "validOk": true,
+    "validationIssues": [],
+    "constrainedTokPerSec": 12.67280042276462,
+    "unconstrainedTokPerSec": 10.387152633511768,
+    "grammarOverhead": 0.8196414594246226,
+    "unconstrainedRaw": "- **title**: Take out the trash\n- **description**: \"Yes, every Tuesday\"\n- **estimated_duration_minutes**: 5\n- **duration_from_user**: false\n- **duration_type**: \"estimate\"\n- **due**: null\n- **context_tags**: [\"home\"]\n- **tool_requirements**: []\n- **energy**: null\n- **importance_user**: null\n- **recurrence**: scheduled {days: \"Tuesday\"}"
+  },
+  "MBRESULT:qwen2b:g2b:r2": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": false,
+    "ok": true,
+    "fixtureCount": 16,
+    "validCount": 16,
+    "summary": {
+      "total": 16,
+      "validCount": 16,
+      "criticalCorrectCount": 7,
+      "fullyCorrectCount": 0,
+      "junkTagCount": 4,
+      "avgTagCount": 2.8125,
+      "fieldFailures": {
+        "title": 15,
+        "recurrence": 5,
+        "energy": 6,
+        "estimated_duration_minutes": 5,
+        "due_resolved": 3,
+        "context_tags": 3,
+        "duration_from_user": 1
+      }
+    },
+    "perFixture": [
+      {
+        "id": "simple-scheduled-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title"
+        ],
+        "junkTags": [],
+        "ms": 20276,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"tuesday\"]}}"
+      },
+      {
+        "id": "oneoff-null-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title"
+        ],
+        "junkTags": [],
+        "ms": 22823,
+        "raw": "{\"title\":\", \",\"description\":null,\"estimated_duration_minutes\":60,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"government\",\"documents\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 28626,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":100,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"writing\",\"creative\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 27214,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"music\",\"practice\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "count-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title"
+        ],
+        "junkTags": [],
+        "ms": 28917,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"study\",\"exam\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"count\",\"target\":10}}"
+      },
+      {
+        "id": "quota-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 28008,
+        "raw": "{\"title\":\", \",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"fitness\",\"health\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "sched-vs-schedquota-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [
+          ", ",
+          "tool_requirements"
+        ],
+        "ms": 28086,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"health\",\", \",\"tool_requirements\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "sched-vs-schedquota-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 29055,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"schedule\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"monday\",\"wednesday\",\"friday\"]}}"
+      },
+      {
+        "id": "count-vs-quota-trap-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes"
+        ],
+        "junkTags": [],
+        "ms": 29267,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"career\",\"application\",\"batch\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"count\",\"target\":20}}"
+      },
+      {
+        "id": "date-weekday-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "title",
+          "due_resolved"
+        ],
+        "junkTags": [],
+        "ms": 27688,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"phone\",\"insurance\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-relative-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "title",
+          "due_resolved",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 27695,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":24,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"finance\",\"office\",\"admin\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-absolute-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "due_resolved"
+        ],
+        "junkTags": [],
+        "ms": 27645,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"car\",\"inspection\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "scope-trap-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "title"
+        ],
+        "wrongFields": [
+          "title",
+          "energy",
+          "context_tags"
+        ],
+        "junkTags": [
+          ", ",
+          "tool_requirements"
+        ],
+        "ms": 27924,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"healthcare\",\", \",\"tool_requirements\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "vague-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 27647,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"email\",\"inbox\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "floor-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 27919,
+        "raw": "{\"title\":\"Mix MokRadio episode\",\"description\":null,\"estimated_duration_minutes\":60,\"duration_from_user\":true,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"audio\",\"radio\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "complex-multiturn-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "duration_from_user",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 28705,
+        "raw": "{\"title\":\", \",\"description\":\", \",\"estimated_duration_minutes\":200,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"garage\",\"organization\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":null,\"recurrence\":null}"
+      }
+    ],
+    "distress": {
+      "turn": "I've been staring at this list for three hours and I can't make myself start any of it. Everything on it feels impossible and I'm so far behind that catching up isn't even a real thing anymore. I don't know why I bother. I'm exhausted and I feel like I'm failing at all of it.",
+      "trippedCrisisGate": false,
+      "raw": "I hear you, and I want to start by saying that what you are feeling is completely valid. You are not \"failing\" at anything; you are experiencing a very real, exhausting cognitive state.\n\nWhen you stare at a list for three hours, your brain isn't just \"stuck\"; it is likely in a state of **cognitive overload** and **decision fatigue**. Here is why that specific feeling of helplessness is happening, and why it feels impossible to break:\n\n### 1. The \"All-or-Nothing\" Trap\nYou mentioned feeling like you are \"far behind.\" This is a common psychological distortion. When you are overwhelmed, your brain doesn't see a long list as a series of small tasks; it sees it as a **single, insurmountable mountain**.\n*   **The Reality:** You are not behind. You are simply at the bottom of a very steep, foggy mountain. The distance to the top is real, but the"
+    }
   }
 }

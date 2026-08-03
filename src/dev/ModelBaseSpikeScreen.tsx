@@ -664,6 +664,96 @@ export default function ModelBaseSpikeScreen() {
     }
   }, [appendLog]);
 
+  // ---- Gate 2c — why does `title` collapse to a comma ----
+  // Hypothesis: `title ::= "\"" jchar{1,80} "\""` accepts a comma as a complete title, and `","`
+  // is a single high-frequency BPE token (it is the separator between JSON fields, so it is
+  // everywhere in training data). Emitting that one token satisfies the whole rule: `"` opens the
+  // string, `,` is a legal jchar, `"` closes it. The grammar cannot object because a comma really
+  // is a valid JSON string character. Bonsai simply does not rank that token first; Qwen3.5 does.
+  //
+  // Two checks, because a plausible story is not evidence:
+  //   1. tokenize the suspect strings — is `","` actually one token on this model?
+  //   2. re-run the same fixture with the title rule tightened so a bare comma cannot satisfy it;
+  //      if a real title appears, the grammar was the cause rather than the model.
+  const runGate2c = useCallback(async () => {
+    const ctx = contextRef.current;
+    if (!ctx) {
+      appendLog('Gate 2c needs a loaded context — run Gate 0b first.');
+      return;
+    }
+    setRunning(true);
+    appendLog('GATE 2c — title degeneration probe ...');
+    const probes: Record<string, unknown> = {};
+    try {
+      // --- 1. tokenizer evidence ---
+      const suspects = ['","', '", "', '"', '"take', '"take out the trash"', '{"title":'];
+      const tokenInfo: Record<string, { count: number; tokens: number[] }> = {};
+      for (const s of suspects) {
+        const t = (await ctx.tokenize(s)) as { tokens?: number[] };
+        const tokens = t?.tokens ?? [];
+        tokenInfo[s] = { count: tokens.length, tokens };
+        appendLog(`  tokenize ${JSON.stringify(s)} -> ${tokens.length} token(s) [${tokens.join(',')}]`);
+      }
+      probes.tokenInfo = tokenInfo;
+
+      // --- 2. grammar variants on the same fixture ---
+      const fixture = EXTRACTION_FIXTURES[0];
+      const messages = extractionMessages(fixture);
+      const base = TASK_EXTRACTION_V1_GBNF;
+      // A positive class, deliberately: the negated form needs \x00-\x1F escapes, and those
+      // resolve to literal control characters in a JS string rather than the GBNF escape text —
+      // which would silently test something other than what it appears to. `[a-zA-Z0-9]` says
+      // exactly what it means: a title must begin with a real content character, so the `","`
+      // separator token can no longer satisfy the whole rule on its own.
+      const headRule = 'title ::= "\\"" [a-zA-Z0-9] jchar{0,79} "\\""';
+      const variants: { label: string; grammarText: string }[] = [
+        { label: 'A as-authored', grammarText: base },
+        { label: 'B title head must be non-punctuation', grammarText: base.replace(/^title ::= .*$/m, headRule) },
+        { label: 'C title min 3 chars', grammarText: base.replace(/^title ::= .*$/m, 'title ::= "\\"" jchar{3,80} "\\""') },
+      ];
+
+      const results: Record<string, unknown> = {};
+      for (const v of variants) {
+        if (v.grammarText === base && v.label !== 'A as-authored') {
+          appendLog(`  ${v.label}: REPLACEMENT DID NOT APPLY — regex missed the title rule`);
+          results[v.label] = { error: 'title rule replacement did not apply' };
+          continue;
+        }
+        try {
+          const grammar = buildGrammar(v.grammarText, { context_tags_known: CONTEXT_TAGS_KNOWN });
+          const res = await ctx.completion({
+            messages,
+            grammar,
+            n_predict: EXTRACTION_MAX_TOKENS,
+            temperature: 0,
+            top_k: 1,
+            enable_thinking: ENABLE_THINKING,
+          });
+          const raw = (res as { text?: string }).text ?? '';
+          let title: unknown = '(unparsed)';
+          try {
+            title = (JSON.parse(raw) as { title?: unknown }).title;
+          } catch {
+            /* keep the raw for inspection */
+          }
+          appendLog(`  ${v.label}: title=${JSON.stringify(title)}`);
+          results[v.label] = { title, raw };
+        } catch (e: any) {
+          appendLog(`  ${v.label}: FAILED — ${e?.message}`);
+          results[v.label] = { error: String(e?.message ?? e) };
+        }
+      }
+      probes.variants = results;
+
+      logResultJson('2c', { ...buildManifest(), ok: true, fixtureId: fixture.id, ...probes });
+    } catch (err: any) {
+      appendLog(`GATE 2c FAILED: ${String(err)}`);
+      logResultJson('2c', { ...buildManifest(), ok: false, error: String(err?.message ?? err), ...probes });
+    } finally {
+      setRunning(false);
+    }
+  }, [appendLog]);
+
   // ---- Full suite for the selected model ----
   // Order is deliberate: quality gates run BEFORE the thermal ones. Gate 1L leaves the phone in
   // sustained severe throttling, and extraction timings taken in that state would measure the
@@ -720,6 +810,8 @@ export default function ModelBaseSpikeScreen() {
       <Button title="Gate 2a: GBNF constrained decoding" onPress={runGate2a} disabled={running} />
       <View style={styles.spacer} />
       <Button title="Gate 2b: extraction quality + distress" onPress={runGate2b} disabled={running} />
+      <View style={styles.spacer} />
+      <Button title="Gate 2c: title degeneration probe" onPress={runGate2c} disabled={running} />
       <View style={styles.spacer} />
       <Button title="Release context" onPress={releaseModel} disabled={running} />
 

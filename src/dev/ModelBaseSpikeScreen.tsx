@@ -109,12 +109,18 @@ const LLAMA_RN_VERSION = '0.12.5'; // pinned in package.json
 const DEVICE_LABEL = 'Samsung Galaxy S23 FE';
 // Edit before each run. Thermal state is the whole point of Gate 1 — a burst number taken on a
 // cold phone and a steady number taken on a hot one are different measurements.
+// NOTE ON EARLIER TAGS: results r0-r8 all carry the FIRST version of this string ("phone idle
+// and cool at the start of the run"), because Metro's HMR socket to the device died during the
+// first sustained loop — the JS thread stops answering its heartbeat under a 4.5-minute decode,
+// Metro drops the connection, and every later edit to this file silently failed to reach the
+// running app. Those embedded notes are therefore stale and understate the conditions; the real
+// per-run conditions are recorded in docs/eval/qwen35_spike_run_conditions.md. Reload the app
+// (not just save the file) after any sustained run before trusting a manifest edit.
 const RUN_NOTE =
   '2026-08-03, debug build over the personal release install, USB-powered throughout, phone ' +
-  'OUT of its case. Each model starts from ~31C battery temp after a cooldown. IMPORTANT: the ' +
-  'first Qwen3.5-2B run (tags r0-r2) was taken with the phone IN a case, which changes heat ' +
-  'dissipation, so it is NOT comparable to these caseless runs and is being re-taken. Gate 0 ' +
-  'is cold; Gate 1 starts warm because Gate 0b precedes it.';
+  'OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry ' +
+  'a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts ' +
+  'warm because Gate 0b precedes it.';
 
 // ---- GATE 1 PARAMETERS ----
 

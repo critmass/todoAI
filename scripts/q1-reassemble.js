@@ -32,7 +32,10 @@ const LINE_PATTERN = /\[([\w.:-]+) (\d+)\/(\d+)\] (.*)$/;
 function reassemble(logcatText) {
   const chunksByTag = new Map();
 
-  for (const line of logcatText.split('\n')) {
+  // Split on either terminator: `adb logcat -d > dump.txt` from PowerShell writes CRLF, and a
+  // trailing \r defeats LINE_PATTERN's `$` (JS `.` never matches \r), so every tag is silently
+  // dropped and the run reports "Wrote 0 tag(s)" against a dump that is actually intact.
+  for (const line of logcatText.split(/\r?\n/)) {
     const match = LINE_PATTERN.exec(line);
     if (!match) continue;
     const [, tag, indexStr, totalStr, chunk] = match;

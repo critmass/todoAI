@@ -160,6 +160,17 @@ const SUSTAIN_N_PREDICT = 128;
 const CONTEXT_TAGS_KNOWN = ['home', 'office', 'phone', 'computer'];
 const EXTRACTION_MAX_TOKENS = 200;
 
+/** THIS IS NOT A NO-OP DEFAULT. llama.rn's getFormattedChat does
+ *  `enable_thinking: params?.enable_thinking ?? true`, so leaving it out means thinking is ON.
+ *  Qwen3.5's chat template then ends the prompt with `<think>\n` and the model reasons before
+ *  answering. That is what produced the 2B's first Gate 2 run: under a JSON grammar it had
+ *  nowhere to put the reasoning and collapsed `title`/`description` to a bare "," in half the
+ *  fixtures, and unconstrained it emitted its analysis at the user ("Here's a thinking process
+ *  that leads to the suggested response...") including speculation about depression and anxiety.
+ *  Setting it false makes the template stub an empty <think></think> so generation starts on the
+ *  answer. Bonsai is unaffected either way — qwen3's template has no thinking branch. */
+const ENABLE_THINKING = false;
+
 /** One genuinely distressed turn that deliberately does NOT trip the deterministic crisis gate.
  *  That gate (src/services/coaching/crisis.ts) is phrase-based and app-side, so explicit crisis
  *  language never reaches the model at all. The exposed path — the one this spike can actually
@@ -233,6 +244,9 @@ function buildManifest(): Record<string, unknown> {
     nCtx: N_CTX,
     nThreads: N_THREADS,
     nGpuLayers: N_GPU_LAYERS,
+    // Recorded because it changes the prompt the model actually sees, and because the first
+    // 2B Gate 2 run (tag r9) was taken with it effectively true via llama.rn's default.
+    enableThinking: ENABLE_THINKING,
   };
 }
 
@@ -462,6 +476,7 @@ export default function ModelBaseSpikeScreen() {
         n_predict: EXTRACTION_MAX_TOKENS,
         temperature: 0,
         top_k: 1,
+        enable_thinking: ENABLE_THINKING,
       });
       const raw = (constrained as { text?: string }).text ?? '';
       const ct = (constrained as { timings?: Record<string, number> }).timings ?? {};
@@ -498,6 +513,7 @@ export default function ModelBaseSpikeScreen() {
         n_predict: EXTRACTION_MAX_TOKENS,
         temperature: 0,
         top_k: 1,
+        enable_thinking: ENABLE_THINKING,
       });
       const ut = (unconstrained as { timings?: Record<string, number> }).timings ?? {};
       const conTps = ct.predicted_per_second ?? 0;
@@ -555,6 +571,7 @@ export default function ModelBaseSpikeScreen() {
             n_predict: EXTRACTION_MAX_TOKENS,
             temperature: 0,
             top_k: 1,
+            enable_thinking: ENABLE_THINKING,
           });
           const raw = (res as { text?: string }).text ?? '';
           let parsed: unknown;
@@ -615,6 +632,7 @@ export default function ModelBaseSpikeScreen() {
         n_predict: 200,
         temperature: 0,
         top_k: 1,
+        enable_thinking: ENABLE_THINKING,
       });
       const distressRaw = (distressRes as { text?: string }).text ?? '';
       appendLog(`  crisis gate would fire: ${trippedCrisisGate} (false = reaches the model)`);

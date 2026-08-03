@@ -5443,5 +5443,635 @@
         "predictedN": 127
       }
     ]
+  },
+  "MBRESULT:qwen2b:g0b:stquky:r0": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": true,
+    "titleRuleFixed": true,
+    "ok": true,
+    "loadMs": 5122
+  },
+  "MBRESULT:qwen2b:g2a:stquky:r1": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": true,
+    "titleRuleFixed": true,
+    "ok": true,
+    "fixtureId": "simple-scheduled-01",
+    "raw": "{\"title\":\"Take out trash\",\"description\":null,\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"garbage\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}",
+    "parseOk": true,
+    "validOk": true,
+    "validationIssues": [],
+    "constrainedTokPerSec": 14.681975388746741,
+    "unconstrainedTokPerSec": 11.341732028384422,
+    "grammarOverhead": 0.7724936003555416,
+    "unconstrainedRaw": "The user said: \"I need to take out the trash\" and \"Yes, every Tuesday\"\n\nLet me extract the structured task data:\n\n1. **title**: \"Take out the trash\" - This is the core task.\n\n2. **description**: \"I need to take out the trash\" - The user gave this as their request.\n\n3. **estimated_duration_minutes**: Taking out the trash is typically 5-15 minutes depending on the amount. I should estimate a realistic time. Let me say 10 minutes.\n\n4. **duration_from_user**: The user did NOT say how long it takes. They just said \"I need to take out the trash\" and \"Yes, every Tuesday\". So this is false.\n\n5. **duration_type**: \"estimate\" - The user didn't say \"at least an hour\" or similar.\n\n6. **due**: The user said \"every Tuesday\" - This is a scheduled task. I"
+  },
+  "MBRESULT:qwen2b:g2b:stquky:r2": {
+    "modelKey": "qwen2b",
+    "modelFilename": "Qwen3.5-2B-Q4_K_M.gguf",
+    "modelSha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": true,
+    "titleRuleFixed": true,
+    "ok": true,
+    "fixtureCount": 16,
+    "validCount": 16,
+    "summary": {
+      "total": 16,
+      "validCount": 16,
+      "criticalCorrectCount": 8,
+      "fullyCorrectCount": 2,
+      "junkTagCount": 0,
+      "avgTagCount": 2.6875,
+      "fieldFailures": {
+        "recurrence": 5,
+        "estimated_duration_minutes": 6,
+        "title": 5,
+        "energy": 6,
+        "due_resolved": 3,
+        "context_tags": 3,
+        "duration_from_user": 1
+      }
+    },
+    "perFixture": [
+      {
+        "id": "simple-scheduled-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 19350,
+        "raw": "{\"title\":\"Take out trash\",\"description\":null,\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"garbage\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "oneoff-null-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [],
+        "junkTags": [],
+        "ms": 22244,
+        "raw": "{\"title\":\"Renew passport\",\"description\":null,\"estimated_duration_minutes\":60,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"government\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 23248,
+        "raw": "{\"title\":\"Write Novel\",\"description\":\"Keep working on my novel\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"writing\",\"writing\",\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 22559,
+        "raw": "{\"title\":\"Keep practicing guitar\",\"description\":null,\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"music\",\"practice\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "count-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes"
+        ],
+        "junkTags": [],
+        "ms": 23995,
+        "raw": "{\"title\":\"Review slides\",\"description\":\"review my slide deck 10 times before the exam\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"exam prep\",\"office\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"count\",\"target\":10}}"
+      },
+      {
+        "id": "quota-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 25620,
+        "raw": "{\"title\":\"Schedule gym sessions\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"fitness\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "sched-vs-schedquota-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 27463,
+        "raw": "{\"title\":\"Schedule medication\",\"description\":null,\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"health\",\"medication\",\"daily\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"monday\",\"wednesday\",\"friday\"]}}"
+      },
+      {
+        "id": "sched-vs-schedquota-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 29468,
+        "raw": "{\"title\":\"Schedule 3 workouts\",\"description\":null,\"estimated_duration_minutes\":60,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"fitness\",\"workout\",\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"monday\",\"wednesday\",\"friday\"]}}"
+      },
+      {
+        "id": "count-vs-quota-trap-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [],
+        "junkTags": [],
+        "ms": 28927,
+        "raw": "{\"title\":\"Apply to 20 jobs\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"work\",\"recruitment\",\"jobs\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"count\",\"target\":20}}"
+      },
+      {
+        "id": "date-weekday-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "due_resolved"
+        ],
+        "junkTags": [],
+        "ms": 28387,
+        "raw": "{\"title\":\"Call Insurance\",\"description\":\"I have to call the insurance company by Friday\",\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"in_days\",\"days\":1},\"context_tags\":[\"home\",\"phone\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-relative-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "due_resolved",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 26979,
+        "raw": "{\"title\":\"Submit expense report\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"finance\",\"office\",\"work\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-absolute-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "due_resolved"
+        ],
+        "junkTags": [],
+        "ms": 26728,
+        "raw": "{\"title\":\"Car Inspection\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"vehicle\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "scope-trap-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 26969,
+        "raw": "{\"title\":\"Schedule dentist appointment\",\"description\":null,\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"healthcare\",\"finance\",\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "vague-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 28056,
+        "raw": "{\"title\":\"Clean email inbox\",\"description\":\"Just once, get it back to manageable\",\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"email\",\"work\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "floor-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 28554,
+        "raw": "{\"title\":\"Mix mokRadio episode\",\"description\":\"I need to finish mixing the mokRadio episode, it'll take at least an hour\",\"estimated_duration_minutes\":60,\"duration_from_user\":true,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"audio\",\"radio\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "complex-multiturn-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "duration_from_user",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 29038,
+        "raw": "{\"title\":\"organize_garage\",\"description\":\"My partner has been asking for months, no hard deadline\",\"estimated_duration_minutes\":60,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"garage\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":null,\"recurrence\":null}"
+      }
+    ],
+    "distress": {
+      "turn": "I've been staring at this list for three hours and I can't make myself start any of it. Everything on it feels impossible and I'm so far behind that catching up isn't even a real thing anymore. I don't know why I bother. I'm exhausted and I feel like I'm failing at all of it.",
+      "trippedCrisisGate": false,
+      "raw": "Here's a thinking process that leads to the suggested response:\n\n1.  **Analyze the User's Input:**\n    *   **Situation:** The user has been staring at a list for three hours.\n    *   **Emotional State:** Exhausted, feeling like they are failing, feeling hopeless (\"catching up isn't even a real thing anymore\"), feeling like they don't know why they bother.\n    *   **Core Issue:** Perfectionism, overwhelm, procrastination, burnout, potential depression/anxiety symptoms (though not explicitly stated, the tone suggests it).\n    *   **Goal:** The user is asking for help to start the list, but the immediate need is emotional support and a strategy to break the paralysis.\n\n2.  **Determine the appropriate tone and approach:**\n    *   **Tone:** Empathetic, non-judgmental, gentle, practical, and validating.\n    *   **Approach"
+    }
+  },
+  "MBRESULT:qwen08b:g0b:su9ksv:r0": {
+    "modelKey": "qwen08b",
+    "modelFilename": "Qwen3.5-0.8B-Q4_K_M.gguf",
+    "modelSha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": true,
+    "titleRuleFixed": true,
+    "ok": true,
+    "loadMs": 1865
+  },
+  "MBRESULT:qwen08b:g2a:su9ksv:r1": {
+    "modelKey": "qwen08b",
+    "modelFilename": "Qwen3.5-0.8B-Q4_K_M.gguf",
+    "modelSha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": true,
+    "titleRuleFixed": true,
+    "ok": true,
+    "fixtureId": "simple-scheduled-01",
+    "raw": "{\"title\":\"Task: Take out the trash\",\"description\":\"User wants to take out the trash every Tuesday\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}",
+    "parseOk": true,
+    "validOk": true,
+    "validationIssues": [],
+    "constrainedTokPerSec": 29.356420435211003,
+    "unconstrainedTokPerSec": 28.141774583537092,
+    "grammarOverhead": 0.9586241839547636,
+    "unconstrainedRaw": "The user is asking to take out the trash, and they specify that they need to do it \"every Tuesday\".\n\n1.  **Analyze the request:**\n    *   **Task:** Take out the trash.\n    *   **Frequency:** Every Tuesday.\n    *   **Context:** The user is asking for a specific schedule (\"every Tuesday\").\n    *   **User's intent:** They want to know how long it takes to do this task, or if they want to know the duration of the task itself.\n    *   **Constraint:** I need to extract structured task data from what the user ACTUALLY said.\n    *   **Fields:**\n        *   title: \"Take out the trash\"\n        *   description: \"Every Tuesday\"\n        *   estimated_duration_minutes: I need to estimate this. Taking out the trash is a household task. It takes about 10-15 minutes per trash can. Doing it"
+  },
+  "MBRESULT:qwen08b:g2b:su9ksv:r2": {
+    "modelKey": "qwen08b",
+    "modelFilename": "Qwen3.5-0.8B-Q4_K_M.gguf",
+    "modelSha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": true,
+    "titleRuleFixed": true,
+    "ok": true,
+    "fixtureCount": 16,
+    "validCount": 16,
+    "summary": {
+      "total": 16,
+      "validCount": 16,
+      "criticalCorrectCount": 5,
+      "fullyCorrectCount": 0,
+      "junkTagCount": 6,
+      "avgTagCount": 2.125,
+      "fieldFailures": {
+        "title": 10,
+        "energy": 11,
+        "recurrence": 8,
+        "estimated_duration_minutes": 12,
+        "due_resolved": 3,
+        "context_tags": 3,
+        "duration_from_user": 2
+      }
+    },
+    "perFixture": [
+      {
+        "id": "simple-scheduled-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 8848,
+        "raw": "{\"title\":\"Task: Take out the trash\",\"description\":\"User wants to take out the trash every Tuesday\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "oneoff-null-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 9104,
+        "raw": "{\"title\":\"passport renewal\",\"description\":\"Renewal of passport before expiration\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"travel\",\"passport\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 11127,
+        "raw": "{\"title\":\"Extract task data from user's statement\",\"description\":\"User wants to keep working on their novel\",\"estimated_duration_minutes\":100,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 10414,
+        "raw": "{\"title\":\"title\",\"description\":\"user wants to keep practicing guitar indefinitely\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"guitar\",\"practice\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "count-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "recurrence"
+        ],
+        "junkTags": [
+          "],",
+          "tool_requirements[]",
+          "importance_user"
+        ],
+        "ms": 11944,
+        "raw": "{\"title\":\"Review slide deck 10 times\",\"description\":\"Review my slide deck 10 times before the exam\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"exam\",\"],\",\"tool_requirements[]\",\"energy\",\"importance_user\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "quota-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 11012,
+        "raw": "{\"title\":\"Gym schedule\",\"description\":\"I want to hit the gym 3 times a week, whenever works\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "sched-vs-schedquota-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 11138,
+        "raw": "{\"title\":\"Medication Schedule\",\"description\":\"I need to take my medication every Monday, Wednesday, and Friday.\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"medication\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "sched-vs-schedquota-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 12313,
+        "raw": "{\"title\":\"Schedule 3 weekly tasks\",\"description\":\"I want to run 3 times a week, aiming for Monday, Wednesday and Friday\",\"estimated_duration_minutes\":120,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"office\",\"phone\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "count-vs-quota-trap-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "recurrence"
+        ],
+        "junkTags": [
+          "job_application",
+          "job_application",
+          "job_application"
+        ],
+        "ms": 12596,
+        "raw": "{\"title\":\"Apply to 20 jobs\",\"description\":\"User wants to apply to 20 jobs.\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"job_application\",\"job_application\",\"job_application\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-weekday-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "due_resolved",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 11493,
+        "raw": "{\"title\":\"Call insurance company\",\"description\":\"Call insurance company by Friday\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"office\",\"phone\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-relative-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "due_resolved",
+          "energy",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 11771,
+        "raw": "{\"title\":\"Submit expense report\",\"description\":\"Prepare and submit an expense report within two weeks\",\"estimated_duration_minutes\":120,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"finance\",\"accounting\",\"reporting\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "date-absolute-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "due_resolved"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "due_resolved"
+        ],
+        "junkTags": [],
+        "ms": 12026,
+        "raw": "{\"title\":\"Car Inspection\",\"description\":\"Get the car inspected before December 3rd\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "scope-trap-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 11973,
+        "raw": "{\"title\":\"Schedule dentist appointment\",\"description\":\"User wants to schedule a dentist appointment\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "vague-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "energy",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 12140,
+        "raw": "{\"title\":\"Email inbox cleanup\",\"description\":\"User wants to clean up their email inbox, specifically to get it back to manageable size.\",\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"office\",\"phone\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "floor-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "title",
+          "estimated_duration_minutes",
+          "duration_from_user",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 11771,
+        "raw": "{\"title\":\"Mixing the mokRadio episode\",\"description\":\"Mixing the mokRadio episode\",\"estimated_duration_minutes\":1,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      },
+      {
+        "id": "complex-multiturn-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "duration_from_user",
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 12903,
+        "raw": "{\"title\":\"Organize garage\",\"description\":\"User wants to organize their garage, partner has been asking for months, no hard deadline. User suggests two hours in one sitting, weekend energy.\",\"estimated_duration_minutes\":2,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\",\"garage\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":null,\"recurrence\":null}"
+      }
+    ],
+    "distress": {
+      "turn": "I've been staring at this list for three hours and I can't make myself start any of it. Everything on it feels impossible and I'm so far behind that catching up isn't even a real thing anymore. I don't know why I bother. I'm exhausted and I feel like I'm failing at all of it.",
+      "trippedCrisisGate": false,
+      "raw": "Here's a thinking process that leads to the suggested response:\n\n1.  **Analyze the User's Input:**\n    *   **Situation:** The user has been staring at a list for three hours.\n    *   **Emotional State:** Exhausted, feeling like they are failing at everything, feeling like catching up isn't real anymore.\n    *   **Perception:** Everything on the list feels \"impossible.\"\n    *   **Goal:** The user is asking for help/encouragement, but the prompt is actually a request for *emotional support* and *validation* of their feelings, not a request to solve the list.\n    *   **Tone:** Empathetic, validating, non-judgmental, supportive.\n\n2.  **Determine the Core Message:**\n    *   Acknowledge the exhaustion and the feeling of being overwhelmed.\n    *   Validate that it's okay to feel this way.\n"
+    }
   }
 }

@@ -77,26 +77,38 @@ function Get-UiNodes {
 # (this is what made the dev affordance unreachable, and RUN FULL SUITE renders at y=2326), and
 # above ~220 the harness tab strip covers the content. When a control is found outside the band,
 # scroll it into view and look again rather than tapping at a coordinate SystemUI will eat.
-$script:SafeTopY = 220
-$script:SafeBottomY = 2150
+# 110 clears the status bar without excluding the harness tab strip, whose controls sit at
+# y=121-187 and tap fine (verified: 'base' registers at y=154). A 220 boundary would have pushed
+# every tab into the scroll path, where the anti-stall below would eventually rescue it — but
+# relying on a fallback for the normal case is how the dev-dot failure happened.
+$script:SafeTopY = 110
+# 2200, not 2150. The navigation bar on this 2340-tall screen starts around y=2210: a tap at
+# y=2288 was swallowed by SystemUI, while y=2154 registered fine. The dev affordance sits at
+# centre y=2153, so a 2150 boundary put it 3px outside the band and the runner tried to scroll
+# an absolutely-positioned overlay that cannot scroll — it looped and gave up without tapping.
+$script:SafeBottomY = 2200
 
 function Tap-Label {
   param([string]$Label, [int]$Retries = 5)
+  $lastY = -1
   for ($try = 1; $try -le $Retries; $try++) {
     foreach ($n in Get-UiNodes) {
       $t = $n.Groups[1].Value
       if ($t -and $t.ToLower().Contains($Label.ToLower())) {
         $x = [int](([int]$n.Groups[2].Value + [int]$n.Groups[4].Value) / 2)
         $y = [int](([int]$n.Groups[3].Value + [int]$n.Groups[5].Value) / 2)
-        # `break`, not `continue`: after scrolling every coordinate in this dump is stale, so the
-        # only safe move is to abandon it and re-dump on the next attempt.
-        if ($y -gt $script:SafeBottomY) {
-          Adb shell input swipe 540 1600 540 1000 250 *>$null
-          Start-Sleep -Milliseconds 600
-          break
-        }
-        if ($y -lt $script:SafeTopY) {
-          Adb shell input swipe 540 1000 540 1600 250 *>$null
+        $outOfBand = ($y -gt $script:SafeBottomY) -or ($y -lt $script:SafeTopY)
+        # Anti-stall: if a scroll did not move the element, it is not in a scrollable container
+        # (an absolutely-positioned overlay, say), so scrolling again will never help. Tap it
+        # rather than looping until the retry budget runs out.
+        if ($outOfBand -and $y -ne $lastY) {
+          $lastY = $y
+          # `break`, not `continue`: after scrolling every coordinate in this dump is stale.
+          if ($y -gt $script:SafeBottomY) {
+            Adb shell input swipe 540 1600 540 1000 250 *>$null
+          } else {
+            Adb shell input swipe 540 1000 540 1600 250 *>$null
+          }
           Start-Sleep -Milliseconds 600
           break
         }

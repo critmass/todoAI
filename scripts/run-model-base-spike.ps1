@@ -242,7 +242,11 @@ try {
     # multi-model run are gone by the time the last one finishes. This already cost one full
     # Bonsai capture — the numbers survived only because they had been read live.
     $perModelLog = Join-Path $env:TEMP "spike_${key}_$stamp.txt"
-    Adb logcat -d > $perModelLog
+    # Out-File -Encoding utf8, NOT `>`. Piping the Adb *function* through `>` wrote UTF-16LE,
+    # which q1-reassemble.js reads as UTF-8 and matches nothing — "Wrote 0 tag(s)" against a dump
+    # that contained all 19 result lines. A direct native-command redirect happens to produce
+    # UTF-8, which is why this only showed up once the runner started doing its own captures.
+    Adb logcat -d | Out-File -FilePath $perModelLog -Encoding utf8
     $perModelJson = Join-Path $env:TEMP "spike_${key}_$stamp.json"
     node (Join-Path $PSScriptRoot 'q1-reassemble.js') $perModelLog $perModelJson
     node (Join-Path $PSScriptRoot 'merge-results.js') $resultsPath $perModelJson
@@ -257,7 +261,7 @@ finally {
 
 # ---- collect ----
 Write-Host "== collecting =="
-Adb logcat -d > $logcatPath
+Adb logcat -d | Out-File -FilePath $logcatPath -Encoding utf8
 $fresh = Join-Path $env:TEMP "spike_fresh_$stamp.json"
 node (Join-Path $PSScriptRoot 'q1-reassemble.js') $logcatPath $fresh
 

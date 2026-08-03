@@ -62,6 +62,23 @@ function reassemble(logcatText) {
   return { result, incomplete };
 }
 
+/** Reads a logcat dump regardless of how the shell that produced it chose to encode. PowerShell
+ *  writes UTF-16LE when a *function's* output is redirected (a direct native-command redirect
+ *  gives UTF-8), and reading that as UTF-8 yields text that matches nothing — the run reports
+ *  "Wrote 0 tag(s)" against a dump that is completely intact. Detect the BOM instead of trusting
+ *  the caller. */
+function readDump(p) {
+  const buf = fs.readFileSync(p);
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) return buf.toString('utf16le');
+  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+    // Node has no utf16be decoder; byte-swap in place on a copy and reuse the LE path.
+    const swapped = buf.slice();
+    swapped.swap16();
+    return swapped.toString('utf16le');
+  }
+  return buf.toString('utf8');
+}
+
 function main() {
   const [, , logcatPath, outputPathArg] = process.argv;
   if (!logcatPath) {
@@ -71,7 +88,7 @@ function main() {
   }
   const outputPath = outputPathArg || path.join(__dirname, '..', 'docs', 'eval', 'q1_results.json');
 
-  const raw = fs.readFileSync(logcatPath, 'utf-8');
+  const raw = readDump(logcatPath);
   const { result, incomplete } = reassemble(raw);
 
   if (incomplete.length > 0) {

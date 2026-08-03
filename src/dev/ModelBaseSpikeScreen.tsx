@@ -231,10 +231,18 @@ function appendAndLog(setLog: React.Dispatch<React.SetStateAction<string[]>>, li
  *  any of them, so model+gate alone isn't unique enough; the sequence number makes it so. */
 let runSeq = 0;
 
+/** runSeq alone is NOT unique. It resets on every app launch, and this spike restarts the app
+ *  constantly (Fast Refresh dies under sustained decode, so a reload is the only way to land a
+ *  harness change). Two sessions running the same gate sequence therefore emit the same tag —
+ *  which already cost one measurement: the 2B's fixed-grammar gate 2b collided with its
+ *  broken-grammar run and merge-results discarded the newer one as a duplicate. A per-launch id
+ *  makes the tag unique across restarts as well as within them. */
+const SESSION_ID = Date.now().toString(36).slice(-5);
+
 /** Tagged, chunked JSON — logcat truncates long lines and splits multi-line console.log calls
  *  into separate untagged lines, so this must stay compact (no pretty-print newlines). */
 function logResultJson(gate: string, value: unknown): void {
-  const tag = `MBRESULT:${activeModel.key}:g${gate}:r${runSeq++}`;
+  const tag = `MBRESULT:${activeModel.key}:g${gate}:s${SESSION_ID}:r${runSeq++}`;
   const json = JSON.stringify(value);
   const CHUNK_SIZE = 3000;
   const totalChunks = Math.max(1, Math.ceil(json.length / CHUNK_SIZE));

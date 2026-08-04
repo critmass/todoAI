@@ -143,7 +143,7 @@ const MODELS: SpikeModel[] = [
     key: 'gemma4e2b',
     label: 'Gemma 4 E2B Q4_K_M',
     filename: 'gemma-4-E2B-it-Q4_K_M.gguf',
-    sha256: '<unset - filled after push>',
+    sha256: '740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8',
     note:
       'arch gemma4, dense (not in llm_arch_is_hybrid). 2.89 GiB on disk — "E2B" is EFFECTIVE 2B ' +
       'via selective activation, but the GGUF carries the full parameter set. At Bonsai\'s 1.30x ' +

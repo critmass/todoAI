@@ -110,7 +110,7 @@ const MODELS: SpikeModel[] = [
     key: 'smollm2',
     label: 'SmolLM2-1.7B Q4_K_M',
     filename: 'SmolLM2-1.7B-Instruct-Q4_K_M.gguf',
-    sha256: '<unset - filled after push>',
+    sha256: '77665ea4815999596525c636fbeb56ba8b080b46ae85efef4f0d986a139834d7',
     note:
       'arch llama, dense — the most well-trodden path in llama.cpp, and NOT a reasoning model, ' +
       'so the enable_thinking problem does not apply. Within 3% of Bonsai on disk, which makes ' +
@@ -190,7 +190,7 @@ const EXTRACTION_MAX_TOKENS = 200;
  *  that leads to the suggested response...") including speculation about depression and anxiety.
  *  Setting it false makes the template stub an empty <think></think> so generation starts on the
  *  answer. Bonsai is unaffected either way — qwen3's template has no thinking branch. */
-const ENABLE_THINKING = true;
+const ENABLE_THINKING = false;
 
 /** Gate 2c established that `title ::= "\"" jchar{1,80} "\""` can be satisfied by the single
  *  token `","` (id 2129 on this model) — `"` opens the string, the comma is a legal jchar, `"`

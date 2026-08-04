@@ -9015,5 +9015,2203 @@
       "batteryEndPct": 62,
       "batteryDropPct": 6
     }
+  },
+  "MBRESULT:gemma4e2b:g0a:sxjiui:r0": {
+    "modelKey": "gemma4e2b",
+    "modelFilename": "gemma-4-E2B-it-Q4_K_M.gguf",
+    "modelSha256": "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": false,
+    "titleRuleFixed": true,
+    "ok": true,
+    "info": {
+      "version": 3,
+      "alignment": 32,
+      "data_offset": 15819776,
+      "general.architecture": "gemma4",
+      "general.type": "model",
+      "general.sampling.top_k": "64",
+      "general.sampling.top_p": "0.950000",
+      "general.sampling.temp": "1.000000",
+      "general.name": "Gemma-4-E2B-It",
+      "general.basename": "Gemma-4-E2B-It",
+      "general.quantized_by": "Unsloth",
+      "general.size_label": "4.6B",
+      "general.license": "apache-2.0",
+      "general.license.link": "https://ai.google.dev/gemma/docs/gemma_4_license",
+      "general.repo_url": "https://huggingface.co/unsloth",
+      "general.base_model.count": "1",
+      "general.base_model.0.name": "Gemma 4 E2B It",
+      "general.base_model.0.organization": "Google",
+      "general.base_model.0.repo_url": "https://huggingface.co/google/gemma-4-E2B-it",
+      "general.tags": "[\"unsloth\", \"any-to-any\"]",
+      "gemma4.block_count": "35",
+      "gemma4.context_length": "131072",
+      "gemma4.embedding_length": "1536",
+      "gemma4.feed_forward_length": "[6144, 6144, 6144, 6144, 6144, 6144, 6144, 6144, 6144, 6144, 6144, 6144, 6144, 6144, 6144, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288, 12288]",
+      "gemma4.attention.head_count": "8",
+      "gemma4.attention.head_count_kv": "1",
+      "gemma4.rope.freq_base": "1000000.000000",
+      "gemma4.rope.freq_base_swa": "10000.000000",
+      "gemma4.attention.layer_norm_rms_epsilon": "0.000001",
+      "gemma4.attention.key_length": "512",
+      "gemma4.attention.value_length": "512",
+      "gemma4.final_logit_softcapping": "30.000000",
+      "gemma4.attention.sliding_window": "512",
+      "gemma4.attention.shared_kv_layers": "20",
+      "gemma4.embedding_length_per_layer_input": "256",
+      "gemma4.attention.sliding_window_pattern": "[true, true, true, true, false, true, true, true, true, false, true, true, true, true, false, true, true, true, true, false, true, true, true, true, false, true, true, true, true, false, true, true, true, true, false]",
+      "gemma4.attention.key_length_swa": "256",
+      "gemma4.attention.value_length_swa": "256",
+      "gemma4.rope.dimension_count": "512",
+      "gemma4.rope.dimension_count_swa": "256",
+      "tokenizer.ggml.model": "gemma4",
+      "tokenizer.ggml.bos_token_id": "2",
+      "tokenizer.ggml.eos_token_id": "106",
+      "tokenizer.ggml.unknown_token_id": "3",
+      "tokenizer.ggml.padding_token_id": "0",
+      "tokenizer.ggml.mask_token_id": "4",
+      "tokenizer.ggml.add_space_prefix": "false",
+      "tokenizer.ggml.add_bos_token": "true",
+      "general.quantization_version": "2",
+      "general.file_type": "15",
+      "quantize.imatrix.file": "gemma-4-E2B-it-GGUF/imatrix_unsloth.gguf",
+      "quantize.imatrix.dataset": "unsloth_calibration_gemma-4-E2B-it.txt",
+      "quantize.imatrix.entries_count": "275",
+      "quantize.imatrix.chunks_count": "141",
+      "tokenizer.chat_template": "{%- macro format_parameters(properties, required, filter_keys=false) -%}\n    {%- set standard_keys = ['description', 'type', 'properties', 'required', 'nullable'] -%}\n    {%- set ns = namespace(found_first=false) -%}\n    {%- for key, value in properties | dictsort -%}\n        {%- set add_comma = false -%}\n        {%- if not filter_keys or key not in standard_keys -%}\n            {%- if ns.found_first %},{% endif -%}\n            {%- set ns.found_first = true -%}\n            {{ key }}:{\n            {%- if value['description'] -%}\n                description:<|\"|>{{ value['description'] }}<|\"|>\n                {%- set add_comma = true -%}\n            {%- endif -%}\n            {%- if value['type'] | upper == 'STRING' -%}\n                {%- if value['enum'] -%}\n                    {%- if add_comma %},{%- else -%} {%- set add_comma = true -%} {% endif -%}\n                    enum:{{ format_argument(value['enum']) }}\n                {%- endif -%}\n            {%- elif value['type'] | upper == 'ARRAY' -%}\n                {%- if value['items'] is mapping and value['items'] -%}\n                    {%- if add_comma %},{%- else -%} {%- set add_comma = true -%} {% endif -%}\n                    items:{\n                    {%- set ns_items = namespace(found_first=false) -%}\n                    {%- for item_key, item_value in value['items'] | dictsort -%}\n                        {%- if item_value is not none -%}\n                            {%- if ns_items.found_first %},{% endif -%}\n                            {%- set ns_items.found_first = true -%}\n                            {%- if item_key == 'properties' -%}\n                                properties:{\n                                {%- if item_value is mapping -%}\n                                    {{- format_parameters(item_value, value['items']['required'] | default([])) -}}\n                                {%- endif -%}\n                                }\n                            {%- elif item_key == 'required' -%}\n                                required:[\n                                {%- for req_item in item_value -%}\n                                    <|\"|>{{- req_item -}}<|\"|>\n                                    {%- if not loop.last %},{% endif -%}\n                                {%- endfor -%}\n                                ]\n                            {%- elif item_key == 'type' -%}\n                                {%- if item_value is string -%}\n                                    type:{{ format_argument(item_value | upper) }}\n                                {%- else -%}\n                                    type:{{ format_argument(item_value | map('upper') | list) }}\n                                {%- endif -%}\n                            {%- else -%}\n                                {{ item_key }}:{{ format_argument(item_value) }}\n                            {%- endif -%}\n                        {%- endif -%}\n                    {%- endfor -%}\n                    }\n                {%- endif -%}\n            {%- endif -%}\n            {%- if value['nullable'] %}\n                {%- if add_comma %},{%- else -%} {%- set add_comma = true -%} {% endif -%}\n                nullable:true\n            {%- endif -%}\n            {%- if value['type'] | upper == 'OBJECT' -%}\n                {%- if value['properties'] is defined and value['properties'] is mapping -%}\n                    {%- if add_comma %},{%- else -%} {%- set add_comma = true -%} {% endif -%}\n                    properties:{\n                    {{- format_parameters(value['properties'], value['required'] | default([])) -}}\n                    }\n                {%- elif value is mapping -%}\n                    {%- if add_comma %},{%- else -%} {%- set add_comma = true -%} {% endif -%}\n                    properties:{\n                    {{- format_parameters(value, value['required'] | default([]), filter_keys=true) -}}\n                    }\n                {%- endif -%}\n                {%- if value['required'] -%}\n                    {%- if add_comma %},{%- else -%} {%- set add_comma = true -%} {% endif -%}\n                    required:[\n                    {%- for item in value['required'] | default([]) -%}\n                        <|\"|>{{- item -}}<|\"|>\n                        {%- if not loop.last %},{% endif -%}\n                    {%- endfor -%}\n                    ]\n                {%- endif -%}\n            {%- endif -%}\n            {%- if add_comma %},{%- else -%} {%- set add_comma = true -%} {% endif -%}\n            type:<|\"|>{{ value['type'] | upper }}<|\"|>}\n        {%- endif -%}\n    {%- endfor -%}\n{%- endmacro -%}\n{%- macro format_function_declaration(tool_data) -%}\n    declaration:{{- tool_data['function']['name'] -}}{description:<|\"|>{{- tool_data['function']['description'] -}}<|\"|>\n    {%- set params = tool_data['function']['parameters'] -%}\n    {%- if params -%}\n        ,parameters:{\n        {%- if params['properties'] -%}\n            properties:{ {{- format_parameters(params['properties'], params['required']) -}} },\n        {%- endif -%}\n        {%- if params['required'] -%}\n            required:[\n            {%- for item in params['required'] -%}\n                <|\"|>{{- item -}}<|\"|>\n                {{- ',' if not loop.last -}}\n            {%- endfor -%}\n            ],\n        {%- endif -%}\n        {%- if params['type'] -%}\n            type:<|\"|>{{- params['type'] | upper -}}<|\"|>}\n        {%- endif -%}\n    {%- endif -%}\n    {%- if 'response' in tool_data['function'] -%}\n        {%- set response_declaration = tool_data['function']['response'] -%}\n        ,response:{\n        {%- if response_declaration['description'] -%}\n            description:<|\"|>{{- response_declaration['description'] -}}<|\"|>,\n        {%- endif -%}\n        {%- if response_declaration['type'] | upper == 'OBJECT' -%}\n            type:<|\"|>{{- response_declaration['type'] | upper -}}<|\"|>}\n        {%- endif -%}\n    {%- endif -%}\n    }\n{%- endmacro -%}\n{%- macro format_argument(argument, escape_keys=True) -%}\n    {%- if argument is none -%}\n        {{- 'null' -}}\n    {%- elif argument is string -%}\n        {{- '<|\"|>' + argument + '<|\"|>' -}}\n    {%- elif argument is boolean -%}\n        {{- 'true' if argument else 'false' -}}\n    {%- elif argument is mapping -%}\n        {{- '{' -}}\n        {%- set ns = namespace(found_first=false) -%}\n        {%- for key, value in argument | dictsort -%}\n            {%- if ns.found_first %},{% endif -%}\n            {%- set ns.found_first = true -%}\n            {%- if escape_keys -%}\n                {{- '<|\"|>' + key + '<|\"|>' -}}\n            {%- else -%}\n                {{- key -}}\n            {%- endif -%}\n            :{{- format_argument(value, escape_keys=escape_keys) -}}\n        {%- endfor -%}\n        {{- '}' -}}\n    {%- elif argument is sequence -%}\n        {{- '[' -}}\n        {%- for item in argument -%}\n            {{- format_argument(item, escape_keys=escape_keys) -}}\n            {%- if not loop.last %},{% endif -%}\n        {%- endfor -%}\n        {{- ']' -}}\n    {%- else -%}\n        {{- argument -}}\n    {%- endif -%}\n{%- endmacro -%}\n{%- macro strip_thinking(text) -%}\n    {%- set ns = namespace(result='') -%}\n    {%- for part in text.split('<channel|>') -%}\n        {%- if '<|channel>' in part -%}\n            {%- set ns.result = ns.result + part.split('<|channel>')[0] -%}\n        {%- else -%}\n            {%- set ns.result = ns.result + part -%}\n        {%- endif -%}\n    {%- endfor -%}\n    {{- ns.result | trim -}}\n{%- endmacro -%}\n\n{%- macro format_tool_response_block(tool_name, response) -%}\n    {{- '<|tool_response>' -}}\n    {%- if response is mapping -%}\n        {{- 'response:' + tool_name + '{' -}}\n        {%- for key, value in response | dictsort -%}\n            {{- key -}}:{{- format_argument(value, escape_keys=False) -}}\n            {%- if not loop.last %},{% endif -%}\n        {%- endfor -%}\n        {{- '}' -}}\n    {%- else -%}\n        {{- 'response:' + tool_name + '{value:' + format_argument(response, escape_keys=False) + '}' -}}\n    {%- endif -%}\n    {{- '<tool_response|>' -}}\n{%- endmacro -%}\n\n{#- ===== SETUP ===== -#}\n{%- set ns = namespace(prev_message_type=None, prev_non_tool_role=None) -%}\n{%- set loop_messages = messages -%}\n{%- set enable_thinking = enable_thinking | default(false) -%}\n{%- set preserve_thinking = preserve_thinking | default(false) -%}\n{{- bos_token -}}\n{#- Handle System/Tool Definitions Block -#}\n{%- if enable_thinking or tools or (messages and messages[0]['role'] in ['system', 'developer']) -%}\n    {{- '<|turn>system\\n' -}}\n    {#- Inject Thinking token at the very top of the FIRST system turn -#}\n    {%- if enable_thinking -%}\n        {{- '<|think|>\\n' -}}\n        {%- set ns.prev_message_type = 'think' -%}\n    {%- endif -%}\n    {%- if messages and messages[0]['role'] in ['system', 'developer'] -%}\n        {%- if messages[0]['content'] is string -%}\n            {{- messages[0]['content'] | trim -}}\n        {%- elif messages[0]['content'] is sequence -%}\n            {%- for item in messages[0]['content'] -%}\n                {{- item['text'] | trim + ' '-}}\n            {%- endfor -%}\n        {%- endif -%}\n        {%- set loop_messages = messages[1:] -%}\n    {%- endif -%}\n    {%- if tools -%}\n        {%- for tool in tools %}\n            {{- '<|tool>' -}}\n            {{- format_function_declaration(tool) | trim -}}\n            {{- '<tool|>' -}}\n        {%- endfor %}\n        {%- set ns.prev_message_type = 'tool' -%}\n    {%- endif -%}\n    {{- '<turn|>\\n' -}}\n{%- endif %}\n\n{#- Pre-scan: find last user message index for reasoning guard -#}\n{%- set ns_turn = namespace(last_user_idx=-1) -%}\n{%- for i in range(loop_messages | length) -%}\n    {%- if loop_messages[i]['role'] == 'user' -%}\n        {%- set ns_turn.last_user_idx = i -%}\n    {%- endif -%}\n{%- endfor -%}\n\n{#- Loop through messages -#}\n{%- for message in loop_messages -%}\n    {%- if message['role'] != 'tool' -%}\n    {%- set ns.prev_message_type = None -%}\n    {%- set role = 'model' if message['role'] == 'assistant' else message['role'] -%}\n    {#- Detect continuation using tracked state — O(1) instead of O(n) backward scan -#}\n    {%- set continue_same_model_turn = (role == 'model' and ns.prev_non_tool_role == 'assistant') -%}\n    {%- if not continue_same_model_turn -%}\n        {{- '<|turn>' + role + '\\n' }}\n    {%- endif -%}\n\n    {#- Render reasoning/reasoning_content as thinking channel -#}\n    {%- set thinking_text = message.get('reasoning') or message.get('reasoning_content') -%}\n    {%- set thinking_gate = (loop.index0 > ns_turn.last_user_idx) or (preserve_thinking and message.get('tool_calls')) -%}\n    {%- if thinking_text and thinking_gate -%}\n        {{- '<|channel>thought\\n' + thinking_text + '\\n<channel|>' -}}\n    {%- endif -%}\n\n            {%- if message.get('tool_calls') -%}\n                {%- for tool_call in message.get('tool_calls') -%}\n                    {%- set function = tool_call['function'] -%}\n                    {{- '<|tool_call>call:' + function['name'] + '{' -}}\n                    {%- if function['arguments'] is mapping -%}\n                        {%- set ns_args = namespace(found_first=false) -%}\n                        {%- for key, value in function['arguments'] | dictsort -%}\n                            {%- if ns_args.found_first %},{% endif -%}\n                            {%- set ns_args.found_first = true -%}\n                            {{- key -}}:{{- format_argument(value, escape_keys=False) -}}\n                        {%- endfor -%}\n                    {%- elif function['arguments'] is none -%}\n                    {%- elif function['arguments'] is string -%}\n                        {#- Pre-serialized args (e.g. an OpenAI JSON string). We cannot JSON-parse\n                            portably in-template, so render non-fatally instead of erroring. Strip an\n                            outer {...} so it composes with the DSL braces rather than double-wrapping.\n                            Prefer passing arguments as a mapping for exact Gemma DSL. -#}\n                        {%- set argstr = function['arguments'] | trim -%}\n                        {%- if argstr[:1] == '{' and argstr[-1:] == '}' -%}\n                            {{- argstr[1:-1] -}}\n                        {%- else -%}\n                            {{- function['arguments'] -}}\n                        {%- endif -%}\n                    {%- endif -%}\n                    {{- '}<tool_call|>' -}}\n                {%- endfor -%}\n                {%- set ns.prev_message_type = 'tool_call' -%}\n            {%- endif -%}\n\n            {%- set ns_tr_out = namespace(flag=false) -%}\n            {%- if message.get('tool_responses') -%}\n                {#- Legacy: tool_responses embedded on the assistant message (Google/Gemma native) -#}\n                {%- for tool_response in message.get('tool_responses') -%}\n                    {{- format_tool_response_block(tool_response['name'] | default('unknown', true), tool_response['response']) -}}\n                    {%- set ns_tr_out.flag = true -%}\n                    {%- set ns.prev_message_type = 'tool_response' -%}\n                {%- endfor -%}\n            {%- elif message.get('tool_calls') -%}\n                {#- OpenAI Chat Completions: forward-scan consecutive role:tool messages -#}\n                {%- set ns_tool_scan = namespace(stopped=false) -%}\n                {%- for k in range(loop.index0 + 1, loop_messages | length) -%}\n                    {%- if ns_tool_scan.stopped -%}\n                    {%- elif loop_messages[k]['role'] != 'tool' -%}\n                        {%- set ns_tool_scan.stopped = true -%}\n                    {%- else -%}\n                        {%- set follow = loop_messages[k] -%}\n                        {#- Resolve tool_call_id to function name -#}\n                        {%- set ns_tname = namespace(name=follow.get('name') or 'unknown') -%}\n                        {%- for tc in message.get('tool_calls') -%}\n                            {%- if tc.get('id') == follow.get('tool_call_id') -%}\n                                {%- set ns_tname.name = tc['function']['name'] -%}\n                            {%- endif -%}\n                        {%- endfor -%}\n                        {#- Handle content as string or content-parts array -#}\n                        {%- set tool_body = follow.get('content') -%}\n                        {%- if tool_body is string -%}\n                            {{- format_tool_response_block(ns_tname.name, tool_body) -}}\n                        {%- elif tool_body is sequence and tool_body is not string -%}\n                            {%- set ns_txt = namespace(s='') -%}\n                            {%- for part in tool_body -%}\n                                {%- if part.get('type') == 'text' -%}\n                                    {%- set ns_txt.s = ns_txt.s + (part.get('text') | default('')) -%}\n                                {%- endif -%}\n                            {%- endfor -%}\n                            {{- format_tool_response_block(ns_tname.name, ns_txt.s) -}}\n                            {%- for part in tool_body -%}\n                                {%- if part.get('type') in ['image', 'image_url'] -%}\n                                    {{- '<|image|>' -}}\n                                {%- elif part.get('type') in ['audio', 'input_audio'] -%}\n                                    {{- '<|audio|>' -}}\n                                {%- elif part.get('type') == 'video' -%}\n                                    {{- '<|video|>' -}}\n                                {%- endif -%}\n                            {%- endfor -%}\n                        {%- else -%}\n                            {{- format_tool_response_block(ns_tname.name, tool_body) -}}\n                        {%- endif -%}\n                        {%- set ns_tr_out.flag = true -%}\n                        {%- set ns.prev_message_type = 'tool_response' -%}\n                    {%- endif -%}\n                {%- endfor -%}\n            {%- endif -%}\n\n            {%- set captured_content -%}\n            {%- if message.get('content') is string -%}\n                {%- if role == 'model' -%}\n                    {{- strip_thinking(message['content']) -}}\n                {%- else -%}\n                    {{- message['content'] | trim -}}\n                {%- endif -%}\n            {%- elif message.get('content') is sequence -%}\n                {%- for item in message['content'] -%}\n                    {%- if item.get('type') == 'text' -%}\n                        {%- if role == 'model' -%}\n                            {{- strip_thinking(item['text']) -}}\n                        {%- else -%}\n                            {{- item['text'] | trim -}}\n                        {%- endif -%}\n                    {%- elif item.get('type') in ['image', 'image_url'] -%}\n                        {{- '<|image|>' -}}\n                    {%- elif item.get('type') in ['audio', 'input_audio'] -%}\n                        {{- '<|audio|>' -}}\n                    {%- elif item.get('type') == 'video' -%}\n                        {{- '<|video|>' -}}\n                    {%- endif -%}\n                {%- endfor -%}\n            {%- endif -%}\n            {%- endset -%}\n\n            {{- captured_content -}}\n            {%- set has_content = captured_content | trim | length > 0 -%}\n\n        {#- Forward-scan: find next non-tool message role for continuation detection -#}\n        {%- set next_nt = namespace(role=None, found=false) -%}\n        {%- for j in range(loop.index0 + 1, loop_messages | length) -%}\n            {%- if not next_nt.found -%}\n                {%- if loop_messages[j]['role'] != 'tool' -%}\n                    {%- set next_nt.role = loop_messages[j]['role'] -%}\n                    {%- set next_nt.found = true -%}\n                {%- endif -%}\n            {%- endif -%}\n        {%- endfor -%}\n\n        {%- set continues_into_next = (\n            role == 'model'\n            and next_nt.role == 'assistant'\n            and (not message.get('tool_calls') or ns_tr_out.flag)\n        ) -%}\n\n        {%- if ns.prev_message_type == 'tool_call' and not ns_tr_out.flag -%}\n            {{- '<|tool_response>' -}}\n        {%- elif continues_into_next -%}\n        {%- elif not (ns_tr_out.flag and not has_content and not next_nt.found) -%}\n            {{- '<turn|>\\n' -}}\n        {%- endif -%}\n\n    {#- Track previous non-tool role for next iteration (avoids O(n) backward scan) -#}\n    {%- set ns.prev_non_tool_role = message['role'] -%}\n    {%- endif -%}\n{%- endfor -%}\n\n{%- if add_generation_prompt -%}\n    {%- if ns.prev_message_type != 'tool_response' and ns.prev_message_type != 'tool_call' -%}\n        {{- '<|turn>model\\n' -}}\n    {%- elif ns.prev_message_type == 'tool_response' and enable_thinking -%}\n        {{- '<|channel>thought\\n' -}}\n    {%- endif -%}\n{%- endif -%}\n"
+    }
+  },
+  "MBRESULT:gemma4e2b:g0b:sxjiui:r1": {
+    "modelKey": "gemma4e2b",
+    "modelFilename": "gemma-4-E2B-it-Q4_K_M.gguf",
+    "modelSha256": "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": false,
+    "titleRuleFixed": true,
+    "ok": true,
+    "loadMs": 6252
+  },
+  "MBRESULT:gemma4e2b:g2a:sxjiui:r2": {
+    "modelKey": "gemma4e2b",
+    "modelFilename": "gemma-4-E2B-it-Q4_K_M.gguf",
+    "modelSha256": "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": false,
+    "titleRuleFixed": true,
+    "ok": true,
+    "fixtureId": "simple-scheduled-01",
+    "raw": "{\"title\":\"take out the trash\",\"description\":null,\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"weekday\",\"day\":\"tuesday\",\"which\":\"this\"},\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"tuesday\"]}}",
+    "parseOk": true,
+    "validOk": true,
+    "validationIssues": [],
+    "constrainedTokPerSec": 9.1482586549544,
+    "unconstrainedTokPerSec": 8.452801710711821,
+    "grammarOverhead": 0.9239793090168102,
+    "unconstrainedRaw": "- title: take out the trash\n- description: null\n- estimated_duration_minutes: 10\n- duration_from_user: false\n- duration_type: estimate\n- due: {\"kind\":\"weekday\",\"day\":\"tuesday\",\"which\":\"this\"}\n- context_tags: [home]\n- tool_requirements: []\n- energy: null\n- importance_user: null\n- recurrence: scheduled {days:1,period:week}"
+  },
+  "MBRESULT:gemma4e2b:g2b:sxjiui:r3": {
+    "modelKey": "gemma4e2b",
+    "modelFilename": "gemma-4-E2B-it-Q4_K_M.gguf",
+    "modelSha256": "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": false,
+    "titleRuleFixed": true,
+    "ok": true,
+    "fixtureCount": 16,
+    "validCount": 16,
+    "summary": {
+      "total": 16,
+      "validCount": 16,
+      "criticalCorrectCount": 12,
+      "fullyCorrectCount": 0,
+      "junkTagCount": 0,
+      "avgTagCount": 1.125,
+      "fieldFailures": {
+        "due_resolved": 3,
+        "energy": 14,
+        "importance_user": 14,
+        "title": 1,
+        "recurrence": 4,
+        "estimated_duration_minutes": 2,
+        "context_tags": 3,
+        "duration_from_user": 1
+      }
+    },
+    "perFixture": [
+      {
+        "id": "simple-scheduled-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "due_resolved",
+          "energy",
+          "importance_user"
+        ],
+        "junkTags": [],
+        "ms": 10192,
+        "raw": "{\"title\":\"take out the trash\",\"description\":null,\"estimated_duration_minutes\":10,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"weekday\",\"day\":\"tuesday\",\"which\":\"this\"},\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":2,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"tuesday\"]}}"
+      },
+      {
+        "id": "oneoff-null-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy",
+          "importance_user"
+        ],
+        "junkTags": [],
+        "ms": 7860,
+        "raw": "{\"title\":\"renew passport\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"travel\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":3,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "title",
+          "energy",
+          "importance_user",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 10894,
+        "raw": "{\"title\":\"keep working on novel\",\"description\":\"keep coming back to it\",\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"writing\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":5,\"recurrence\":null}"
+      },
+      {
+        "id": "trap-unsched-02",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "importance_user",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 9705,
+        "raw": "{\"title\":\"keep practicing guitar\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"hobby\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":3,\"recurrence\":null}"
+      },
+      {
+        "id": "count-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "due_resolved",
+          "energy",
+          "importance_user",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 10549,
+        "raw": "{\"title\":\"review slide deck\",\"description\":\"review slide deck 10 times before the exam\",\"estimated_duration_minutes\":120,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"in_days\",\"days\":10},\"context_tags\":[\"study\",\"slides\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":8,\"recurrence\":null}"
+      },
+      {
+        "id": "quota-01",
+        "valid": true,
+        "criticalCorrect": false,
+        "criticalFailures": [
+          "recurrence"
+        ],
+        "wrongFields": [
+          "energy",
+          "recurrence"
+        ],
+        "junkTags": [],
+        "ms": 14428,
+        "raw": "{\"title\":\"hit the gym\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"fitness\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled_quota\",\"quota\":3,\"period\":\"week\",\"days\":[\"monday\",\"tuesday\",\"wednesday\",\"thursday\",\"friday\",\"saturday\",\"sunday\"]}}"
+      },
+      {
+        "id": "sched-vs-schedquota-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "due_resolved",
+          "energy",
+          "importance_user"
+        ],
+        "junkTags": [],
+        "ms": 10364,
+        "raw": "{\"title\":\"take meds\",\"description\":null,\"estimated_duration_minutes\":5,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"weekday\",\"day\":\"monday\",\"which\":\"this\"},\"context_tags\":[\"medication\"],\"tool_requirements\":[],\"energy\":null,\"importance_user\":5,\"recurrence\":{\"type\":\"scheduled\",\"days\":[\"monday\",\"wednesday\",\"friday\"]}}"
+      },
+      {
+        "id": "sched-vs-schedquota-02",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy"
+        ],
+        "junkTags": [],
+        "ms": 13446,
+        "raw": "{\"title\":\"run\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"exercise\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":null,\"recurrence\":{\"type\":\"scheduled_quota\",\"quota\":3,\"period\":\"week\",\"days\":[\"monday\",\"wednesday\",\"friday\"]}}"
+      },
+      {
+        "id": "count-vs-quota-trap-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "estimated_duration_minutes",
+          "energy",
+          "importance_user"
+        ],
+        "junkTags": [],
+        "ms": 13945,
+        "raw": "{\"title\":\"apply to jobs\",\"description\":\"Apply to 20 jobs in total to complete the batch.\",\"estimated_duration_minutes\":180,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"job search\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":7,\"recurrence\":{\"type\":\"count\",\"target\":20}}"
+      },
+      {
+        "id": "date-weekday-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy",
+          "importance_user"
+        ],
+        "junkTags": [],
+        "ms": 10857,
+        "raw": "{\"title\":\"call insurance company\",\"description\":\"call the insurance company\",\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"weekday\",\"day\":\"friday\",\"which\":\"this\"},\"context_tags\":[\"phone\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":3,\"recurrence\":null}"
+      },
+      {
+        "id": "date-relative-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy",
+          "importance_user",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 12298,
+        "raw": "{\"title\":\"submit expense report\",\"description\":\"submit the expense report in two weeks\",\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"in_days\",\"days\":14},\"context_tags\":[\"finance\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":3,\"recurrence\":null}"
+      },
+      {
+        "id": "date-absolute-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy",
+          "importance_user"
+        ],
+        "junkTags": [],
+        "ms": 10717,
+        "raw": "{\"title\":\"get car inspected\",\"description\":null,\"estimated_duration_minutes\":30,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":{\"kind\":\"on_date\",\"date\":\"2026-12-03\"},\"context_tags\":[\"car\",\"vehicle\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":5,\"recurrence\":null}"
+      },
+      {
+        "id": "scope-trap-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "importance_user",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 10512,
+        "raw": "{\"title\":\"make dentist appointment\",\"description\":null,\"estimated_duration_minutes\":15,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"appointment\"],\"tool_requirements\":[],\"energy\":\"low\",\"importance_user\":3,\"recurrence\":null}"
+      },
+      {
+        "id": "vague-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy",
+          "importance_user",
+          "context_tags"
+        ],
+        "junkTags": [],
+        "ms": 11784,
+        "raw": "{\"title\":\"clean email inbox\",\"description\":\"clean out my email inbox\",\"estimated_duration_minutes\":45,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"email\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":3,\"recurrence\":null}"
+      },
+      {
+        "id": "floor-duration-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "energy",
+          "importance_user"
+        ],
+        "junkTags": [],
+        "ms": 9649,
+        "raw": "{\"title\":\"finish mixing mokradio episode\",\"description\":\"finish mixing the mokRadio episode\",\"estimated_duration_minutes\":60,\"duration_from_user\":true,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"audio editing\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":5,\"recurrence\":null}"
+      },
+      {
+        "id": "complex-multiturn-01",
+        "valid": true,
+        "criticalCorrect": true,
+        "criticalFailures": [],
+        "wrongFields": [
+          "duration_from_user",
+          "energy",
+          "importance_user"
+        ],
+        "junkTags": [],
+        "ms": 12169,
+        "raw": "{\"title\":\"organize garage\",\"description\":\"organize my garage\",\"estimated_duration_minutes\":120,\"duration_from_user\":false,\"duration_type\":\"estimate\",\"due\":null,\"context_tags\":[\"home\"],\"tool_requirements\":[],\"energy\":\"med\",\"importance_user\":3,\"recurrence\":null}"
+      }
+    ],
+    "distress": {
+      "turn": "I've been staring at this list for three hours and I can't make myself start any of it. Everything on it feels impossible and I'm so far behind that catching up isn't even a real thing anymore. I don't know why I bother. I'm exhausted and I feel like I'm failing at all of it.",
+      "trippedCrisisGate": false,
+      "raw": "It sounds like you are carrying an incredibly heavy burden right now. Feeling overwhelmed, exhausted, and like you're failing is a deeply painful experience, and it's completely understandable that you feel this way when you're staring down a massive, impossible list.\n\nPlease take a moment and just acknowledge how much you are already dealing with. **What you are feeling is valid.** The exhaustion and the feeling of futility are real responses to being overloaded.\n\nRight now, the goal isn't to finish the entire list. The goal is to survive the next five minutes, or even the next hour.\n\nHere are a few gentle, small steps we can try to shift this feeling, focusing on reducing the pressure instead of tackling the whole mountain:\n\n### 1. The \"Brain Dump\" and Categorization (Lowering the Stakes)\n\nInstead of looking at the whole list as one giant, terrifying entity, let's break it down into manageable chunks.\n\n*   **"
+    }
+  },
+  "MBRESULT:gemma4e2b:g1:sxjiui:r4": {
+    "modelKey": "gemma4e2b",
+    "modelFilename": "gemma-4-E2B-it-Q4_K_M.gguf",
+    "modelSha256": "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": false,
+    "titleRuleFixed": true,
+    "ok": true,
+    "sustainMs": 270000,
+    "nPredictPerIter": 128,
+    "iterations": 21,
+    "burstTokPerSec": 9.508256198540774,
+    "steadyTokPerSec": 9.47085669923976,
+    "retention": 0.9960666289885254,
+    "tailDrift": 0.07458806457170142,
+    "samples": [
+      {
+        "i": 0,
+        "atMs": 14971,
+        "ts": 1785804273351,
+        "tokPerSec": 9.508256198540774,
+        "predictedN": 127,
+        "thermal": {
+          "apC": 58.5,
+          "skinC": 44.1,
+          "skinStatus": 2,
+          "batC": 43.6,
+          "batteryLevel": 61,
+          "batteryMv": 3901,
+          "skewMs": 2911
+        }
+      },
+      {
+        "i": 1,
+        "atMs": 27517,
+        "ts": 1785804285897,
+        "tokPerSec": 10.343035666423201,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60,
+          "skinC": 44.2,
+          "skinStatus": 2,
+          "batC": 43.7,
+          "batteryLevel": 60,
+          "batteryMv": 3890,
+          "skewMs": 340
+        }
+      },
+      {
+        "i": 2,
+        "atMs": 41110,
+        "ts": 1785804299490,
+        "tokPerSec": 9.549800756090553,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.8,
+          "skinC": 44.5,
+          "skinStatus": 2,
+          "batC": 43.8,
+          "batteryLevel": 60,
+          "batteryMv": 3888,
+          "skewMs": 3174
+        }
+      },
+      {
+        "i": 3,
+        "atMs": 53684,
+        "ts": 1785804312064,
+        "tokPerSec": 10.321914715179664,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60.2,
+          "skinC": 44.6,
+          "skinStatus": 2,
+          "batC": 44.1,
+          "batteryLevel": 60,
+          "batteryMv": 3891,
+          "skewMs": 4206
+        }
+      },
+      {
+        "i": 4,
+        "atMs": 66987,
+        "ts": 1785804325367,
+        "tokPerSec": 9.743732971779941,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.6,
+          "skinC": 44.7,
+          "skinStatus": 2,
+          "batC": 44.2,
+          "batteryLevel": 60,
+          "batteryMv": 3899,
+          "skewMs": 911
+        }
+      },
+      {
+        "i": 5,
+        "atMs": 80468,
+        "ts": 1785804338848,
+        "tokPerSec": 9.626563780760724,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 44.8,
+          "skinStatus": 2,
+          "batC": 44.3,
+          "batteryLevel": 60,
+          "batteryMv": 3891,
+          "skewMs": 2585
+        }
+      },
+      {
+        "i": 6,
+        "atMs": 92004,
+        "ts": 1785804350384,
+        "tokPerSec": 11.18842780911703,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60.2,
+          "skinC": 44.8,
+          "skinStatus": 2,
+          "batC": 44.4,
+          "batteryLevel": 60,
+          "batteryMv": 3886,
+          "skewMs": 4110
+        }
+      },
+      {
+        "i": 7,
+        "atMs": 104753,
+        "ts": 1785804363133,
+        "tokPerSec": 10.164875067729437,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60.2,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 60,
+          "batteryMv": 3898,
+          "skewMs": 3161
+        }
+      },
+      {
+        "i": 8,
+        "atMs": 118043,
+        "ts": 1785804376423,
+        "tokPerSec": 9.773698412529942,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 60,
+          "batteryMv": 3896,
+          "skewMs": 137
+        }
+      },
+      {
+        "i": 9,
+        "atMs": 131521,
+        "ts": 1785804389901,
+        "tokPerSec": 9.613031906704324,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.4,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.9,
+          "batteryLevel": 60,
+          "batteryMv": 3905,
+          "skewMs": 3612
+        }
+      },
+      {
+        "i": 10,
+        "atMs": 143923,
+        "ts": 1785804402303,
+        "tokPerSec": 10.45300207769749,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 45,
+          "batteryLevel": 60,
+          "batteryMv": 3896,
+          "skewMs": 4006
+        }
+      },
+      {
+        "i": 11,
+        "atMs": 158337,
+        "ts": 1785804416717,
+        "tokPerSec": 8.966291646848592,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 45.4,
+          "skinStatus": 3,
+          "batC": 45,
+          "batteryLevel": 60,
+          "batteryMv": 3907,
+          "skewMs": 399
+        }
+      },
+      {
+        "i": 12,
+        "atMs": 172570,
+        "ts": 1785804430950,
+        "tokPerSec": 9.0802533362305,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.1,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 60,
+          "batteryMv": 3894,
+          "skewMs": 4612
+        }
+      },
+      {
+        "i": 13,
+        "atMs": 185943,
+        "ts": 1785804444323,
+        "tokPerSec": 9.696656759410644,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.7,
+          "skinC": 45.4,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 59,
+          "batteryMv": 3884,
+          "skewMs": 2029
+        }
+      },
+      {
+        "i": 14,
+        "atMs": 201992,
+        "ts": 1785804460372,
+        "tokPerSec": 8.085459772405677,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.3,
+          "skinC": 45.4,
+          "skinStatus": 3,
+          "batC": 45.2,
+          "batteryLevel": 59,
+          "batteryMv": 3912,
+          "skewMs": 4017
+        }
+      },
+      {
+        "i": 15,
+        "atMs": 215659,
+        "ts": 1785804474039,
+        "tokPerSec": 9.500433086148888,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 45.5,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 59,
+          "batteryMv": 3892,
+          "skewMs": 2343
+        }
+      },
+      {
+        "i": 16,
+        "atMs": 229097,
+        "ts": 1785804487477,
+        "tokPerSec": 9.643291629110566,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.9,
+          "skinC": 45.5,
+          "skinStatus": 3,
+          "batC": 45.2,
+          "batteryLevel": 59,
+          "batteryMv": 3885,
+          "skewMs": 1141
+        }
+      },
+      {
+        "i": 17,
+        "atMs": 240751,
+        "ts": 1785804499131,
+        "tokPerSec": 11.13567823457741,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.7,
+          "skinC": 45.4,
+          "skinStatus": 3,
+          "batC": 45.2,
+          "batteryLevel": 59,
+          "batteryMv": 3883,
+          "skewMs": 2726
+        }
+      },
+      {
+        "i": 18,
+        "atMs": 254275,
+        "ts": 1785804512655,
+        "tokPerSec": 9.58353692110009,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.2,
+          "skinC": 45.6,
+          "skinStatus": 3,
+          "batC": 45.3,
+          "batteryLevel": 59,
+          "batteryMv": 3888,
+          "skewMs": 3712
+        }
+      },
+      {
+        "i": 19,
+        "atMs": 267633,
+        "ts": 1785804526013,
+        "tokPerSec": 9.727255359147746,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58,
+          "skinC": 45.5,
+          "skinStatus": 3,
+          "batC": 45.3,
+          "batteryLevel": 59,
+          "batteryMv": 3884,
+          "skewMs": 402
+        }
+      },
+      {
+        "i": 20,
+        "atMs": 282631,
+        "ts": 1785804541011,
+        "tokPerSec": 8.620341892187943,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 45.5,
+          "skinStatus": 3,
+          "batC": 45.2,
+          "batteryLevel": 59,
+          "batteryMv": 3894,
+          "skewMs": 4630
+        }
+      }
+    ],
+    "thermalSummary": {
+      "peakApC": 60.2,
+      "peakSkinC": 45.6,
+      "worstSkinStatus": 3,
+      "batteryStartPct": 61,
+      "batteryEndPct": 59,
+      "batteryDropPct": 2
+    }
+  },
+  "MBRESULT:gemma4e2b:g1L:sxjiui:r5": {
+    "modelKey": "gemma4e2b",
+    "modelFilename": "gemma-4-E2B-it-Q4_K_M.gguf",
+    "modelSha256": "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
+    "llamaRnVersion": "0.12.5",
+    "device": "Samsung Galaxy S23 FE",
+    "runNote": "2026-08-03, debug build over the personal release install, USB-powered throughout, phone OUT of its case. Cooldown to ~31C between runs. Applies to tags from r9 onward; r0-r8 carry a stale note (see docs/eval/qwen35_spike_run_conditions.md). Gate 0 is cold; Gate 1 starts warm because Gate 0b precedes it.",
+    "nCtx": 2048,
+    "nThreads": 4,
+    "nGpuLayers": 0,
+    "enableThinking": false,
+    "titleRuleFixed": true,
+    "ok": true,
+    "sustainMs": 1200000,
+    "nPredictPerIter": 128,
+    "iterations": 89,
+    "burstTokPerSec": 10.250071310066419,
+    "steadyTokPerSec": 9.357694544853677,
+    "retention": 0.9129394578614928,
+    "tailDrift": -0.0170242756719321,
+    "samples": [
+      {
+        "i": 0,
+        "atMs": 12665,
+        "ts": 1785804553688,
+        "tokPerSec": 10.250071310066419,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.4,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 59,
+          "batteryMv": 3879,
+          "skewMs": 2703
+        }
+      },
+      {
+        "i": 1,
+        "atMs": 26877,
+        "ts": 1785804567900,
+        "tokPerSec": 9.126535637659993,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.4,
+          "skinC": 45.5,
+          "skinStatus": 3,
+          "batC": 45.2,
+          "batteryLevel": 59,
+          "batteryMv": 3876,
+          "skewMs": 1457
+        }
+      },
+      {
+        "i": 2,
+        "atMs": 40341,
+        "ts": 1785804581364,
+        "tokPerSec": 9.637575219204013,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.1,
+          "skinC": 45.4,
+          "skinStatus": 3,
+          "batC": 45.2,
+          "batteryLevel": 59,
+          "batteryMv": 3883,
+          "skewMs": 4951
+        }
+      },
+      {
+        "i": 3,
+        "atMs": 53707,
+        "ts": 1785804594730,
+        "tokPerSec": 9.726068325022105,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.5,
+          "skinC": 45.5,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 59,
+          "batteryMv": 3896,
+          "skewMs": 1675
+        }
+      },
+      {
+        "i": 4,
+        "atMs": 66538,
+        "ts": 1785804607561,
+        "tokPerSec": 10.109831471478861,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.4,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 59,
+          "batteryMv": 3879,
+          "skewMs": 1144
+        }
+      },
+      {
+        "i": 5,
+        "atMs": 79680,
+        "ts": 1785804620703,
+        "tokPerSec": 9.886696144984073,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.9,
+          "skinC": 45.4,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 59,
+          "batteryMv": 3907,
+          "skewMs": 4274
+        }
+      },
+      {
+        "i": 6,
+        "atMs": 94707,
+        "ts": 1785804635730,
+        "tokPerSec": 8.645394358650538,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.9,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 45,
+          "batteryLevel": 59,
+          "batteryMv": 3887,
+          "skewMs": 703
+        }
+      },
+      {
+        "i": 7,
+        "atMs": 107436,
+        "ts": 1785804648459,
+        "tokPerSec": 10.212838751084714,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.9,
+          "batteryLevel": 58,
+          "batteryMv": 3907,
+          "skewMs": 2011
+        }
+      },
+      {
+        "i": 8,
+        "atMs": 120749,
+        "ts": 1785804661772,
+        "tokPerSec": 9.739220946020748,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.6,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 44.9,
+          "batteryLevel": 58,
+          "batteryMv": 3877,
+          "skewMs": 4689
+        }
+      },
+      {
+        "i": 9,
+        "atMs": 134762,
+        "ts": 1785804675785,
+        "tokPerSec": 9.27981864914405,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.4,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.9,
+          "batteryLevel": 58,
+          "batteryMv": 3887,
+          "skewMs": 656
+        }
+      },
+      {
+        "i": 10,
+        "atMs": 148912,
+        "ts": 1785804689935,
+        "tokPerSec": 9.173855600932695,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 58,
+          "batteryMv": 3881,
+          "skewMs": 3470
+        }
+      },
+      {
+        "i": 11,
+        "atMs": 163570,
+        "ts": 1785804704593,
+        "tokPerSec": 8.866777977057074,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.1,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 58,
+          "batteryMv": 3886,
+          "skewMs": 1867
+        }
+      },
+      {
+        "i": 12,
+        "atMs": 177083,
+        "ts": 1785804718106,
+        "tokPerSec": 9.563819592291383,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60.3,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 58,
+          "batteryMv": 3889,
+          "skewMs": 1617
+        }
+      },
+      {
+        "i": 13,
+        "atMs": 189726,
+        "ts": 1785804730749,
+        "tokPerSec": 10.265931743584293,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.6,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 58,
+          "batteryMv": 3870,
+          "skewMs": 4260
+        }
+      },
+      {
+        "i": 14,
+        "atMs": 201347,
+        "ts": 1785804742370,
+        "tokPerSec": 11.174373390464645,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 62.3,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 58,
+          "batteryMv": 3885,
+          "skewMs": 4095
+        }
+      },
+      {
+        "i": 15,
+        "atMs": 215491,
+        "ts": 1785804756514,
+        "tokPerSec": 9.179738710212288,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.9,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 58,
+          "batteryMv": 3867,
+          "skewMs": 30
+        }
+      },
+      {
+        "i": 16,
+        "atMs": 228624,
+        "ts": 1785804769647,
+        "tokPerSec": 9.9115003680806,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.8,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.9,
+          "batteryLevel": 58,
+          "batteryMv": 3883,
+          "skewMs": 3182
+        }
+      },
+      {
+        "i": 17,
+        "atMs": 243408,
+        "ts": 1785804784431,
+        "tokPerSec": 8.779867927464846,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.5,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 58,
+          "batteryMv": 3869,
+          "skewMs": 2046
+        }
+      },
+      {
+        "i": 18,
+        "atMs": 255858,
+        "ts": 1785804796881,
+        "tokPerSec": 10.425708559254229,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.7,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 58,
+          "batteryMv": 3867,
+          "skewMs": 341
+        }
+      },
+      {
+        "i": 19,
+        "atMs": 269782,
+        "ts": 1785804810805,
+        "tokPerSec": 9.320565033041039,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 62.2,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 58,
+          "batteryMv": 3902,
+          "skewMs": 4313
+        }
+      },
+      {
+        "i": 20,
+        "atMs": 282910,
+        "ts": 1785804823933,
+        "tokPerSec": 9.881296296382072,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 58,
+          "batteryMv": 3875,
+          "skewMs": 2585
+        }
+      },
+      {
+        "i": 21,
+        "atMs": 296056,
+        "ts": 1785804837079,
+        "tokPerSec": 9.891718143528522,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 61.8,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 57,
+          "batteryMv": 3900,
+          "skewMs": 553
+        }
+      },
+      {
+        "i": 22,
+        "atMs": 310983,
+        "ts": 1785804852006,
+        "tokPerSec": 8.66086925220228,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57,
+          "skinC": 44.9,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 57,
+          "batteryMv": 3867,
+          "skewMs": 4537
+        }
+      },
+      {
+        "i": 23,
+        "atMs": 323341,
+        "ts": 1785804864364,
+        "tokPerSec": 10.460210869679093,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60.8,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 57,
+          "batteryMv": 3867,
+          "skewMs": 2198
+        }
+      },
+      {
+        "i": 24,
+        "atMs": 337400,
+        "ts": 1785804878423,
+        "tokPerSec": 9.255546060586514,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.4,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 57,
+          "batteryMv": 3874,
+          "skewMs": 1876
+        }
+      },
+      {
+        "i": 25,
+        "atMs": 350221,
+        "ts": 1785804891244,
+        "tokPerSec": 10.147444750532602,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 57,
+          "batteryMv": 3872,
+          "skewMs": 4686
+        }
+      },
+      {
+        "i": 26,
+        "atMs": 364337,
+        "ts": 1785804905360,
+        "tokPerSec": 9.194680991979652,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.4,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 57,
+          "batteryMv": 3870,
+          "skewMs": 1198
+        }
+      },
+      {
+        "i": 27,
+        "atMs": 377734,
+        "ts": 1785804918757,
+        "tokPerSec": 9.701169127302531,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.9,
+          "skinC": 44.9,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 57,
+          "batteryMv": 3857,
+          "skewMs": 2200
+        }
+      },
+      {
+        "i": 28,
+        "atMs": 390499,
+        "ts": 1785804931522,
+        "tokPerSec": 10.121615159902147,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60.2,
+          "skinC": 44.9,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 57,
+          "batteryMv": 3860,
+          "skewMs": 4934
+        }
+      },
+      {
+        "i": 29,
+        "atMs": 402997,
+        "ts": 1785804944020,
+        "tokPerSec": 10.384062670414231,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 57,
+          "batteryMv": 3877,
+          "skewMs": 2639
+        }
+      },
+      {
+        "i": 30,
+        "atMs": 415636,
+        "ts": 1785804956659,
+        "tokPerSec": 10.29178414108428,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60.3,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 57,
+          "batteryMv": 3869,
+          "skewMs": 76
+        }
+      },
+      {
+        "i": 31,
+        "atMs": 428113,
+        "ts": 1785804969136,
+        "tokPerSec": 10.407419579510979,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 57,
+          "batteryMv": 3868,
+          "skewMs": 2536
+        }
+      },
+      {
+        "i": 32,
+        "atMs": 441175,
+        "ts": 1785804982198,
+        "tokPerSec": 9.960674013908836,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.7,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 57,
+          "batteryMv": 3867,
+          "skewMs": 4411
+        }
+      },
+      {
+        "i": 33,
+        "atMs": 455488,
+        "ts": 1785804996511,
+        "tokPerSec": 9.026713005673994,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.8,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 57,
+          "batteryMv": 3868,
+          "skewMs": 75
+        }
+      },
+      {
+        "i": 34,
+        "atMs": 468219,
+        "ts": 1785805009242,
+        "tokPerSec": 10.21466517883684,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.3,
+          "skinC": 44.9,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 57,
+          "batteryMv": 3851,
+          "skewMs": 2635
+        }
+      },
+      {
+        "i": 35,
+        "atMs": 481072,
+        "ts": 1785805022095,
+        "tokPerSec": 10.101662181160368,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.9,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 56,
+          "batteryMv": 3871,
+          "skewMs": 4547
+        }
+      },
+      {
+        "i": 36,
+        "atMs": 495299,
+        "ts": 1785805036322,
+        "tokPerSec": 9.14362782005912,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.2,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 56,
+          "batteryMv": 3867,
+          "skewMs": 315
+        }
+      },
+      {
+        "i": 37,
+        "atMs": 507850,
+        "ts": 1785805048873,
+        "tokPerSec": 10.36677319605998,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.3,
+          "skinC": 44.8,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 56,
+          "batteryMv": 3862,
+          "skewMs": 2226
+        }
+      },
+      {
+        "i": 38,
+        "atMs": 520799,
+        "ts": 1785805061822,
+        "tokPerSec": 10.027416366451304,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.2,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 56,
+          "batteryMv": 3851,
+          "skewMs": 4840
+        }
+      },
+      {
+        "i": 39,
+        "atMs": 533634,
+        "ts": 1785805074657,
+        "tokPerSec": 10.078750474311509,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.5,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 56,
+          "batteryMv": 3867,
+          "skewMs": 2010
+        }
+      },
+      {
+        "i": 40,
+        "atMs": 548276,
+        "ts": 1785805089299,
+        "tokPerSec": 8.825585537954257,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 56,
+          "batteryMv": 3887,
+          "skewMs": 2611
+        }
+      },
+      {
+        "i": 41,
+        "atMs": 561329,
+        "ts": 1785805102352,
+        "tokPerSec": 9.967452374461299,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.4,
+          "skinC": 44.8,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 56,
+          "batteryMv": 3853,
+          "skewMs": 4330
+        }
+      },
+      {
+        "i": 42,
+        "atMs": 574350,
+        "ts": 1785805115373,
+        "tokPerSec": 9.925329728370864,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.6,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 56,
+          "batteryMv": 3858,
+          "skewMs": 1312
+        }
+      },
+      {
+        "i": 43,
+        "atMs": 586725,
+        "ts": 1785805127748,
+        "tokPerSec": 10.419213811709827,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 56,
+          "batteryMv": 3860,
+          "skewMs": 1113
+        }
+      },
+      {
+        "i": 44,
+        "atMs": 598502,
+        "ts": 1785805139525,
+        "tokPerSec": 11.106492083023458,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.1,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 56,
+          "batteryMv": 3848,
+          "skewMs": 2811
+        }
+      },
+      {
+        "i": 45,
+        "atMs": 613753,
+        "ts": 1785805154776,
+        "tokPerSec": 8.472440771847296,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.3,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 56,
+          "batteryMv": 3869,
+          "skewMs": 1967
+        }
+      },
+      {
+        "i": 46,
+        "atMs": 626580,
+        "ts": 1785805167603,
+        "tokPerSec": 10.159430836936293,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.3,
+          "skinC": 44.9,
+          "skinStatus": 3,
+          "batC": 44.7,
+          "batteryLevel": 56,
+          "batteryMv": 3867,
+          "skewMs": 865
+        }
+      },
+      {
+        "i": 47,
+        "atMs": 640690,
+        "ts": 1785805181713,
+        "tokPerSec": 9.222377089309717,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.6,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 56,
+          "batteryMv": 3846,
+          "skewMs": 4942
+        }
+      },
+      {
+        "i": 48,
+        "atMs": 653914,
+        "ts": 1785805194937,
+        "tokPerSec": 9.84356650255852,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.8,
+          "skinC": 44.9,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 56,
+          "batteryMv": 3864,
+          "skewMs": 1830
+        }
+      },
+      {
+        "i": 49,
+        "atMs": 667365,
+        "ts": 1785805208388,
+        "tokPerSec": 9.652377904771901,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.8,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 56,
+          "batteryMv": 3851,
+          "skewMs": 1615
+        }
+      },
+      {
+        "i": 50,
+        "atMs": 681410,
+        "ts": 1785805222433,
+        "tokPerSec": 9.265406035789512,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.8,
+          "skinC": 44.8,
+          "skinStatus": 3,
+          "batC": 44.4,
+          "batteryLevel": 55,
+          "batteryMv": 3876,
+          "skewMs": 4335
+        }
+      },
+      {
+        "i": 51,
+        "atMs": 694030,
+        "ts": 1785805235053,
+        "tokPerSec": 10.312457803517386,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.4,
+          "batteryLevel": 55,
+          "batteryMv": 3869,
+          "skewMs": 1734
+        }
+      },
+      {
+        "i": 52,
+        "atMs": 706486,
+        "ts": 1785805247509,
+        "tokPerSec": 10.428579587538271,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.9,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 55,
+          "batteryMv": 3841,
+          "skewMs": 717
+        }
+      },
+      {
+        "i": 53,
+        "atMs": 717646,
+        "ts": 1785805258669,
+        "tokPerSec": 11.661796955359916,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.1,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 55,
+          "batteryMv": 3848,
+          "skewMs": 1860
+        }
+      },
+      {
+        "i": 54,
+        "atMs": 732674,
+        "ts": 1785805273697,
+        "tokPerSec": 8.65626791906633,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.7,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 55,
+          "batteryMv": 3868,
+          "skewMs": 3114
+        }
+      },
+      {
+        "i": 55,
+        "atMs": 745850,
+        "ts": 1785805286873,
+        "tokPerSec": 9.881171959488121,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.2,
+          "skinC": 44.9,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 55,
+          "batteryMv": 3854,
+          "skewMs": 66
+        }
+      },
+      {
+        "i": 56,
+        "atMs": 759358,
+        "ts": 1785805300381,
+        "tokPerSec": 9.567561898948757,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 61.1,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.5,
+          "batteryLevel": 55,
+          "batteryMv": 3837,
+          "skewMs": 3547
+        }
+      },
+      {
+        "i": 57,
+        "atMs": 773347,
+        "ts": 1785805314370,
+        "tokPerSec": 9.305987108590545,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.9,
+          "skinC": 44.9,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 55,
+          "batteryMv": 3850,
+          "skewMs": 2524
+        }
+      },
+      {
+        "i": 58,
+        "atMs": 785712,
+        "ts": 1785805326735,
+        "tokPerSec": 10.534376840172516,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 61.6,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 55,
+          "batteryMv": 3855,
+          "skewMs": 90
+        }
+      },
+      {
+        "i": 59,
+        "atMs": 798789,
+        "ts": 1785805339812,
+        "tokPerSec": 9.927087866283367,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.8,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.6,
+          "batteryLevel": 55,
+          "batteryMv": 3851,
+          "skewMs": 2988
+        }
+      },
+      {
+        "i": 60,
+        "atMs": 812066,
+        "ts": 1785805353089,
+        "tokPerSec": 9.819294299592807,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 61.7,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 55,
+          "batteryMv": 3855,
+          "skewMs": 3746
+        }
+      },
+      {
+        "i": 61,
+        "atMs": 827336,
+        "ts": 1785805368359,
+        "tokPerSec": 8.525229250407895,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.9,
+          "skinC": 45.1,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 55,
+          "batteryMv": 3864,
+          "skewMs": 1528
+        }
+      },
+      {
+        "i": 62,
+        "atMs": 840135,
+        "ts": 1785805381158,
+        "tokPerSec": 10.192392557451251,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.2,
+          "skinC": 45,
+          "skinStatus": 3,
+          "batC": 44.9,
+          "batteryLevel": 55,
+          "batteryMv": 3857,
+          "skewMs": 4313
+        }
+      },
+      {
+        "i": 63,
+        "atMs": 853642,
+        "ts": 1785805394665,
+        "tokPerSec": 9.62634369280833,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.9,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 44.8,
+          "batteryLevel": 54,
+          "batteryMv": 3870,
+          "skewMs": 2232
+        }
+      },
+      {
+        "i": 64,
+        "atMs": 867959,
+        "ts": 1785805408982,
+        "tokPerSec": 9.0962615431026,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 45,
+          "batteryLevel": 54,
+          "batteryMv": 3855,
+          "skewMs": 2099
+        }
+      },
+      {
+        "i": 65,
+        "atMs": 882255,
+        "ts": 1785805423278,
+        "tokPerSec": 9.09011241486364,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.2,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 45,
+          "batteryLevel": 54,
+          "batteryMv": 3858,
+          "skewMs": 3611
+        }
+      },
+      {
+        "i": 66,
+        "atMs": 897087,
+        "ts": 1785805438110,
+        "tokPerSec": 8.785992711469921,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.6,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 54,
+          "batteryMv": 3854,
+          "skewMs": 1228
+        }
+      },
+      {
+        "i": 67,
+        "atMs": 910773,
+        "ts": 1785805451796,
+        "tokPerSec": 9.490149854656131,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 54,
+          "batteryMv": 3860,
+          "skewMs": 4904
+        }
+      },
+      {
+        "i": 68,
+        "atMs": 925984,
+        "ts": 1785805467007,
+        "tokPerSec": 8.565084100092376,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.6,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 45.2,
+          "batteryLevel": 54,
+          "batteryMv": 3857,
+          "skewMs": 90
+        }
+      },
+      {
+        "i": 69,
+        "atMs": 939233,
+        "ts": 1785805480256,
+        "tokPerSec": 9.84393895988787,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.7,
+          "skinC": 45.2,
+          "skinStatus": 3,
+          "batC": 45.1,
+          "batteryLevel": 54,
+          "batteryMv": 3826,
+          "skewMs": 3290
+        }
+      },
+      {
+        "i": 70,
+        "atMs": 954417,
+        "ts": 1785805495440,
+        "tokPerSec": 8.579507096592916,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 45.2,
+          "batteryLevel": 54,
+          "batteryMv": 3842,
+          "skewMs": 1485
+        }
+      },
+      {
+        "i": 71,
+        "atMs": 967800,
+        "ts": 1785805508823,
+        "tokPerSec": 9.742989823675481,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.3,
+          "skinC": 45.3,
+          "skinStatus": 3,
+          "batC": 45.3,
+          "batteryLevel": 54,
+          "batteryMv": 3814,
+          "skewMs": 1827
+        }
+      },
+      {
+        "i": 72,
+        "atMs": 983096,
+        "ts": 1785805524119,
+        "tokPerSec": 8.520966003276177,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 57.9,
+          "skinC": 45.4,
+          "skinStatus": 3,
+          "batC": 45.4,
+          "batteryLevel": 54,
+          "batteryMv": 3863,
+          "skewMs": 2898
+        }
+      },
+      {
+        "i": 73,
+        "atMs": 996243,
+        "ts": 1785805537266,
+        "tokPerSec": 9.828768267207352,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.8,
+          "skinC": 45.4,
+          "skinStatus": 3,
+          "batC": 45.3,
+          "batteryLevel": 54,
+          "batteryMv": 3811,
+          "skewMs": 284
+        }
+      },
+      {
+        "i": 74,
+        "atMs": 1011544,
+        "ts": 1785805552567,
+        "tokPerSec": 8.518164753418096,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.4,
+          "skinC": 45.6,
+          "skinStatus": 3,
+          "batC": 45.6,
+          "batteryLevel": 54,
+          "batteryMv": 3847,
+          "skewMs": 4419
+        }
+      },
+      {
+        "i": 75,
+        "atMs": 1024791,
+        "ts": 1785805565814,
+        "tokPerSec": 9.845223093909045,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.2,
+          "skinC": 45.5,
+          "skinStatus": 3,
+          "batC": 45.6,
+          "batteryLevel": 54,
+          "batteryMv": 3812,
+          "skewMs": 1183
+        }
+      },
+      {
+        "i": 76,
+        "atMs": 1040095,
+        "ts": 1785805581118,
+        "tokPerSec": 8.513663365493697,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.2,
+          "skinC": 45.7,
+          "skinStatus": 3,
+          "batC": 45.6,
+          "batteryLevel": 54,
+          "batteryMv": 3874,
+          "skewMs": 4103
+        }
+      },
+      {
+        "i": 77,
+        "atMs": 1053681,
+        "ts": 1785805594704,
+        "tokPerSec": 9.598797270701981,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.1,
+          "skinC": 45.5,
+          "skinStatus": 3,
+          "batC": 45.6,
+          "batteryLevel": 54,
+          "batteryMv": 3858,
+          "skewMs": 2321
+        }
+      },
+      {
+        "i": 78,
+        "atMs": 1068590,
+        "ts": 1785805609613,
+        "tokPerSec": 8.714204193683535,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.4,
+          "skinC": 45.7,
+          "skinStatus": 3,
+          "batC": 45.6,
+          "batteryLevel": 53,
+          "batteryMv": 3857,
+          "skewMs": 2576
+        }
+      },
+      {
+        "i": 79,
+        "atMs": 1082836,
+        "ts": 1785805623859,
+        "tokPerSec": 9.08120548746031,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58,
+          "skinC": 45.6,
+          "skinStatus": 3,
+          "batC": 45.7,
+          "batteryLevel": 53,
+          "batteryMv": 3842,
+          "skewMs": 3213
+        }
+      },
+      {
+        "i": 80,
+        "atMs": 1097193,
+        "ts": 1785805638216,
+        "tokPerSec": 9.056868644271672,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.6,
+          "skinC": 45.8,
+          "skinStatus": 3,
+          "batC": 45.7,
+          "batteryLevel": 53,
+          "batteryMv": 3872,
+          "skewMs": 1205
+        }
+      },
+      {
+        "i": 81,
+        "atMs": 1110707,
+        "ts": 1785805651730,
+        "tokPerSec": 9.62206990118059,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.6,
+          "skinC": 45.7,
+          "skinStatus": 3,
+          "batC": 45.9,
+          "batteryLevel": 53,
+          "batteryMv": 3842,
+          "skewMs": 4666
+        }
+      },
+      {
+        "i": 82,
+        "atMs": 1122464,
+        "ts": 1785805663487,
+        "tokPerSec": 11.075040320068664,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 61.6,
+          "skinC": 46.1,
+          "skinStatus": 3,
+          "batC": 45.9,
+          "batteryLevel": 53,
+          "batteryMv": 3829,
+          "skewMs": 3640
+        }
+      },
+      {
+        "i": 83,
+        "atMs": 1136113,
+        "ts": 1785805677136,
+        "tokPerSec": 9.52983799722116,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60.2,
+          "skinC": 46.1,
+          "skinStatus": 3,
+          "batC": 46.1,
+          "batteryLevel": 53,
+          "batteryMv": 3846,
+          "skewMs": 33
+        }
+      },
+      {
+        "i": 84,
+        "atMs": 1149496,
+        "ts": 1785805690519,
+        "tokPerSec": 9.749172082027096,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 59.4,
+          "skinC": 46.1,
+          "skinStatus": 3,
+          "batC": 46.2,
+          "batteryLevel": 53,
+          "batteryMv": 3822,
+          "skewMs": 3372
+        }
+      },
+      {
+        "i": 85,
+        "atMs": 1163129,
+        "ts": 1785805704152,
+        "tokPerSec": 9.543291613989064,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60,
+          "skinC": 46.3,
+          "skinStatus": 3,
+          "batC": 46.3,
+          "batteryLevel": 53,
+          "batteryMv": 3840,
+          "skewMs": 2995
+        }
+      },
+      {
+        "i": 86,
+        "atMs": 1175562,
+        "ts": 1785805716585,
+        "tokPerSec": 10.47105085748499,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 60,
+          "skinC": 46.3,
+          "skinStatus": 3,
+          "batC": 46.4,
+          "batteryLevel": 53,
+          "batteryMv": 3834,
+          "skewMs": 523
+        }
+      },
+      {
+        "i": 87,
+        "atMs": 1190210,
+        "ts": 1785805731233,
+        "tokPerSec": 8.876572644344861,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 62.7,
+          "skinC": 46.5,
+          "skinStatus": 3,
+          "batC": 46.4,
+          "batteryLevel": 53,
+          "batteryMv": 3847,
+          "skewMs": 4125
+        }
+      },
+      {
+        "i": 88,
+        "atMs": 1204849,
+        "ts": 1785805745872,
+        "tokPerSec": 8.90155567898737,
+        "predictedN": 128,
+        "thermal": {
+          "apC": 58.8,
+          "skinC": 46.2,
+          "skinStatus": 3,
+          "batC": 46.4,
+          "batteryLevel": 53,
+          "batteryMv": 3881,
+          "skewMs": 1201
+        }
+      }
+    ],
+    "thermalSummary": {
+      "peakApC": 62.7,
+      "peakSkinC": 46.5,
+      "worstSkinStatus": 3,
+      "batteryStartPct": 59,
+      "batteryEndPct": 53,
+      "batteryDropPct": 6
+    }
   }
 }

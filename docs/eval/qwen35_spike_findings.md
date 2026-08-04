@@ -1,4 +1,16 @@
-# Model-base spike — findings
+# Model-base spike — findings (SUPERSEDED)
+
+> **⚠ The spike was continued after this report was written. Its recommendation is out of date.**
+>
+> This covers only the three models the brief named (Bonsai-4B, Qwen3.5-2B, Qwen3.5-0.8B) and
+> concludes "stay on Bonsai". The field was then extended to **SmolLM2-1.7B and Gemma 4 E2B**, and
+> Gemma changed the answer: it is two critical fields behind Bonsai but twice as fast per capture,
+> better on the coaching surface, and — decisively — **LoRA-trainable, which Bonsai is not**.
+>
+> **Current recommendation: `docs/eval/model_base_spike_final_findings.md` (six models).**
+>
+> Everything below remains accurate as measured; it is simply incomplete. Left unedited as a
+> point-in-time record.
 
 **2026-08-03, Samsung Galaxy S23 FE.** Deliverable for `docs/briefs/model_base_spike_qwen35.md`.
 Raw data: `docs/eval/qwen35_spike_results.json` (36 tags), thermal traces in

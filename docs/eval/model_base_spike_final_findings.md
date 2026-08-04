@@ -64,9 +64,18 @@ validates and then reframes to something achievable. Bonsai reassures but stops 
 fabricated the user's circumstances outright.
 
 **Its failures are the kind a LoRA fixes.** `recurrence` (4) is our taxonomy convention — nothing in
-the prompt teaches that "keep practicing guitar" is unscheduled-recurring. `energy` (14) and
-`importance_user` (14) look like systematic convention mismatch rather than weak inference, given
-how well it does elsewhere; **check the raw output before treating those as capability limits.**
+the prompt teaches that "keep practicing guitar" is unscheduled-recurring.
+
+**`energy` and `importance_user` (14 each) are CONFIRMED convention mismatch, not capability.**
+Checked against the raw output (`docs/eval/gemma4_e2b_gate2_raw.md`): Gemma populates both on 14 of
+16 fixtures — `energy="med"`, `importance_user=3` — where the golds expect `null` because the user
+never stated them. Bonsai returns `null` for both on nearly every fixture. The schema's unwritten
+rule is "record only what was said"; Gemma infers instead. That is fixable by prompt alone, and
+certainly by a LoRA.
+
+**So 12/16 understates it.** Two of its three worst fields reduce to one unstated convention. On the
+fields that test actual inference — `recurrence` and `due_resolved` — it trails Bonsai 4-to-2 and
+3-to-0, which is the real gap.
 
 **Cost:** 1.2 GiB more resident than Bonsai, and it runs ~5 °C hotter. The phone showed 2.31 GiB
 still available with Gemma loaded, so it fits with headroom.

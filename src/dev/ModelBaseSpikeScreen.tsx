@@ -117,6 +117,29 @@ const MODELS: SpikeModel[] = [
       'it the closest like-for-like swap tested.',
   },
   {
+    key: 'bonsai8bq1',
+    label: 'Bonsai-8B Q1_0',
+    filename: 'Bonsai-8B-Q1_0.gguf',
+    sha256: '<unset - filled after push>',
+    note:
+      'arch qwen3, 1-bit. 1.08 GiB for an 8B — only 6% larger than the 4B TQ1_0 we run, with ' +
+      'double the parameters. Q1_0 has type traits and ARM kernels in this build (ggml-cpu.c:224). ' +
+      'NOTE: INSTALL_personal.md warns "not Q1_0 (older 1-bit family)" for the 4B — the project ' +
+      'chose TQ1_0 over Q1_0 deliberately and the reason is not recorded. Treat quality with ' +
+      'suspicion until measured.',
+  },
+  {
+    key: 'bonsai8btq2',
+    label: 'Bonsai-8B TQ2_0',
+    filename: 'Bonsai-8B-TQ2_0.gguf',
+    sha256: '<unset - filled after push>',
+    note:
+      'arch qwen3, ternary 2-bit, 2.25 GiB. Community repack (vinpix) — TQ2_0 has traits, ARM ' +
+      'kernels and a vec_dot in this build, so it should run CPU-only despite the repo shipping a ' +
+      'Vulkan patch we do not need. Substitute for prism-ml Ternary-Bonsai-8B, whose Q2_0/PQ2_0 ' +
+      'format is absent from this build entirely and cannot load.',
+  },
+  {
     key: 'gemma4e2b',
     label: 'Gemma 4 E2B Q4_K_M',
     filename: 'gemma-4-E2B-it-Q4_K_M.gguf',

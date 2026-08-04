@@ -45,6 +45,8 @@ $modelFiles = @{
   'qwen08b'  = 'Qwen3.5-0.8B-Q4_K_M.gguf'
   'smollm2'  = 'SmolLM2-1.7B-Instruct-Q4_K_M.gguf'
   'gemma4e2b' = 'gemma-4-E2B-it-Q4_K_M.gguf'
+  'bonsai8bq1' = 'Bonsai-8B-Q1_0.gguf'
+  'bonsai8btq2' = 'Bonsai-8B-TQ2_0.gguf'
 }
 $modelLabels = @{
   'bonsai4b' = 'BONSAI-4B'
@@ -52,6 +54,8 @@ $modelLabels = @{
   'qwen08b'  = 'QWEN3.5-0.8B'
   'smollm2'  = 'SMOLLM2-1.7B'
   'gemma4e2b' = 'GEMMA 4 E2B'
+  'bonsai8bq1' = 'BONSAI-8B Q1_0'
+  'bonsai8btq2' = 'BONSAI-8B TQ2_0'
 }
 $deviceDir = '/sdcard/Android/data/com.todoai/files'
 

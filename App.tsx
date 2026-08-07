@@ -13,6 +13,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 
 import ProductApp from './src/app/App';
 import DateStrProbeScreen from './src/dev/DateStrProbeScreen';
+import ModelBaseSpikeScreen from './src/dev/ModelBaseSpikeScreen';
 import Q1GrammarSpikeScreen from './src/dev/Q1GrammarSpikeScreen';
 import RuleNameProbeScreen from './src/dev/RuleNameProbeScreen';
 import Task6DeviceScreen from './src/dev/Task6DeviceScreen';
@@ -20,7 +21,15 @@ import Task7PromptScreen from './src/dev/Task7PromptScreen';
 import Task12DeviceScreen from './src/dev/Task12DeviceScreen';
 import Task13DeviceScreen from './src/dev/Task13DeviceScreen';
 
-type DevScreen = 'task13' | 'task12' | 'task7' | 'task6' | 'q1' | 'dateStr' | 'ruleName';
+type DevScreen =
+  | 'task13'
+  | 'task12'
+  | 'task7'
+  | 'task6'
+  | 'q1'
+  | 'dateStr'
+  | 'ruleName'
+  | 'modelBase';
 
 function App() {
   const [dev, setDev] = useState<DevScreen | null>(null);
@@ -34,18 +43,27 @@ function App() {
   }
 
   return (
-    <>
+    // The provider is here, not just inside ProductApp, so DevAffordance can read the bottom
+    // inset — it renders as ProductApp's sibling and would otherwise have no safe-area context.
+    <SafeAreaProvider>
       <ProductApp />
       {__DEV__ ? <DevAffordance onOpen={() => setDev('task13')} /> : null}
-    </>
+    </SafeAreaProvider>
   );
 }
 
 /** A deliberately tiny, corner-parked way into the harnesses. Debug builds only, and small enough
  *  that it cannot be mistaken for part of the product or fat-fingered mid-session. */
 function DevAffordance({ onOpen }: { onOpen: () => void }) {
+  // `bottom: 6` alone parks the dot underneath a 3-button navigation bar, where SystemUI eats
+  // the touch and the harnesses become unreachable on this device. Offset by the bottom inset.
+  const insets = useSafeAreaInsets();
   return (
-    <Pressable onPress={onOpen} style={styles.devDot} accessibilityLabel="Developer harnesses">
+    <Pressable
+      onPress={onOpen}
+      style={[styles.devDot, { bottom: insets.bottom + 6 }]}
+      accessibilityLabel="Developer harnesses"
+    >
       <Text style={styles.devDotLabel}>dev</Text>
     </Pressable>
   );
@@ -62,6 +80,7 @@ function DevHarness({ screen, onExit }: { screen: DevScreen; onExit: () => void 
     ['q1', 'Q1'],
     ['dateStr', 'date'],
     ['ruleName', 'rule'],
+    ['modelBase', 'base'],
   ];
   return (
     <View style={styles.harness}>
@@ -82,6 +101,7 @@ function DevHarness({ screen, onExit }: { screen: DevScreen; onExit: () => void 
       {current === 'q1' && <Q1GrammarSpikeScreen />}
       {current === 'dateStr' && <DateStrProbeScreen />}
       {current === 'ruleName' && <RuleNameProbeScreen />}
+      {current === 'modelBase' && <ModelBaseSpikeScreen />}
     </View>
   );
 }

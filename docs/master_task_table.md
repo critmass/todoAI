@@ -1,0 +1,150 @@
+# todoAI — Master Task Table
+
+*Every task in numeric order, as of **2026-08-07** (branch-integration pass: all four branches merged into `main` `9d8b691`; task 31 re-sized and briefed; `score.ts` NUL-byte fix landed). Status reflects the evidence base in `docs/eval/`, not summaries of it.*
+
+**This file is the single source for per-task status.** It moved into the repo on 2026-08-07; `orientation_for_opus.md` no longer carries a second copy of it. On conflict: **this table wins on status**; orientation wins on contracts, constraints, settled decisions, and ship gates; a per-task brief wins for its own task.
+
+**`master_task_table.html` is generated — do not hand-edit it.** After changing this file run `node scripts/gen-task-table.js`.
+
+**Status key:** ✅ **Done** · 🟡 **Partial** · ⬜ **Undone** · 🔴 **Undone + gate/live bug**
+**Model key:** **You** (device/human judgment) · **Fable** *(access ended)* · **Opus** · **Sonnet** · **Jason/Human**
+**`P`** in the Dep column = **requires on-device (Phase B) verification.** Desktop reasoning does not close these; a `P` task is not done until it has run on the S23 FE. Sequence headless work and device batches separately.
+
+*(There is no task 16 — retired and split into 23 + 24. Q1 sits between 5 and 6, where it ran. **39 is reserved and unused** — held for an optional corpus→eval-harness step between 38 and 40.)*
+
+> ### ⚠ Read this before trusting any ✅
+>
+> **"Done" and "merged" were different claims, and until 2026-08-07 this table only tracked the first.** Tasks 35 and 36 were marked ✅ with reports and test counts — all true — while their work sat on an unmerged branch. The *checked-out* branch had no migration 006, no `src/services/recurrence/`, and no v2.4 spec. Since 36's whole content was a fix for a **live scoring bug affecting every recurring task**, an alpha built during those four days would have shipped the bug with the record insisting it was fixed.
+>
+> **New rule: a ✅ row names its branch until that branch is on `main`.** All rows below are on `main` as of `9d8b691`.
+>
+> **And `main` has never been test-verified.** Not "re-confirm a green" — there has never been a green run on this tree. Run `npx jest` + `npx tsc --noEmit` + `npx eslint .` before building on it.
+
+---
+
+| # | Status | Task | Description | Depends on | Model |
+|---|---|---|---|---|---|
+| 0 | ✅ Done | Core dependency spike | Prove Ternary Bonsai loads and runs in `llama.rn` on real hardware. Established the truths everything rests on: format is **TQ1_0** (mainline) / Q2_0 (fork-only), **not** Q1_0; CPU-only on Android; chat-template `messages` API mandatory; app-private model storage. *4B only — 8B/1.7B have no working quant (→ 29).* | **P** | **You** |
+| 1 | ✅ Done | Dev env + toolchain | Bare RN 0.86, New Architecture, Windows host, device deploy. `README_build.md`. | 0, **P** | **You** |
+| 2 | ✅ Done | Data layer | SQLite migrations + repositories returning domain types. Ran on hardware; `POWER()` confirmed absent, so neglect math stays in TypeScript. | 1, **P** | **Sonnet** |
+| 3 | ✅ Done | TypeScript types | Row/domain/scales. The `Recurrence` discriminated union is authoritative; `scales.ts` is the only legal projection path. | 2 | **Sonnet** |
+| 4 | ✅ Done | Structured-output strategy + eval design | The D-series strategy (D1 recap, D8 union, D9 greedy, D10 ladder). Later confirmed on-device by Q1. | 0, 1 | **Fable** |
+| 5 | ✅ Done | Schemas, grammars, validators, mappers | GBNF artifacts + zod validators + pure mappers. Rule-name lint enforced. **Carries the live hole in task 37.** | 3, 4 | **Sonnet** |
+| Q1 | ✅ Done | Grammar smoke-test arc | Three-session arc proving GBNF works on this build. Root cause was one lexer quirk: **no `_` in rule names**. GREEN at ~0% overhead — the largest de-risk after the load spike. | 1, 5, **P** | **You + Sonnet** |
+| 6 | ✅ Done | Provider + D10 ladder + startup guard | `TernaryBonsaiProvider`, retry ladder, and the startup guard that compiles every grammar before any user session. Device-confirmed. | 1, 3, 5, Q1, **P** | **Opus** |
+| 7 | ✅ Done | System prompts | Task-input + coaching prompt engineering. Tuned 10/16 → 15/16 on-device. Surfaced the crisis-detection finding that became task 21. | 4, 6, **P** | **Opus** |
+| 8 | ⬜ Undone | Tiering ladder (§3.1) | Runtime health check + downward degradation across 8B/4B/1.7B. **Deferred** — one rung exists, and it stays that way until 29 resolves. Thermal and memory behavior are only observable on hardware. *General-ship.* | 6, **29**, **P** | **Opus** |
+| 9 | ✅ Done | Scoring (§5.1–5.2) | Factor scoring + neglect multiplier. Revised per R1–R3: linear `neglectCurve` seam, context/tools moved out to a hard pre-filter, 31/23/23/23 weights, transitive-fan-out subtask ordering, multi-hop DAG guard. ⚠ **`score.ts` was binary to git until 2026-08-01** — see the standing note; every prior review of this file read a `Bin` placeholder, not lines. | 2, 3 | **Opus** |
+| 10 | ✅ Done | Scoring composition review | Fable's pass over the recombination. Forks 1/2/3/6 ruled leave-as-built; found **U1** (novelty shuffle randomizes ordered chains), **U2** (parent competes with its own subtasks), **U6** (far-future neglect accrual). ⚠ **Conducted against a `score.ts` git could not diff** — its conclusions are not invalidated, but they were never diff-reviewable. | 9 | **Fable** |
+| 11 | ✅ Done | Session planning (§5.3) | `src/planning/` — sizing, agenda vocabulary, pure planner core, service edge. **`runSelectionBoundary` is the pool's only entry**: capability filter → dependency filter → *then* a ranker, both reject sets retained; R7's hold wired via `pendingBreakdownCompleteTaskIds`. `AgendaTaskItem.blockKind` (countdown/openBlock) closes 33's flagged breaking change to 24. **Decision (a) RULED: no LLM call — deterministic v1 plus a typed `PlanAdjustment` hook, so no `P`.** Novelty entropy is now a permanent regression test (slot-1 ≈ 1.92 bits). Report: `docs/eval/task11_findings_report.md`. | 9, 10, 25, 33 | **Opus** |
+| 12 | ✅ Done | Coaching flows + resolution dispatch | Three triggers, grammar-constrained resolution union, app-side dispatch, deterministic crisis gate. Device-confirmed. **Residue:** `add_dependency`/`add_missing_task` dispatch unexercised on-device → task 32. | 6, 7, **P** | **Opus** |
+| 13 | ✅ Done | Timer + episode lifecycle + crash recovery (§8.2) | `src/execution/` — timer engine, five-option end-of-block prompt, both extension paths, park primitive, crash recovery. **Migration 005 → schema 2.6.0.** **Force-kill confirmed on the S23 FE** by pulling the DB: credit bounded to the block end (2 min not 7), no skip written, no coaching queued, task stays `active`. 531 → 636 tests. Report: `docs/eval/task13_findings_report.md`. **Residue:** overnight-doze Phase B unrun; migration-number contention with 36 **resolved** (13 took 005, 36 took 006). | 6, 11, **P** | **Opus** |
+| 14 | ⬜ Undone | Backup/restore + corruption recovery (§8.4) | Pre-session copy, integrity check, salvage ladder, block-on-no-space. Real storage limits and real corruption need real hardware. Brief: `docs/briefs/backup_recovery_task_14.md`. *Beta hardening.* | 2, **P** | **Opus** |
+| 15 | ⬜ Undone | Edge cases / Safe Mode (§8.3) | Finish a session without AI; queue what would have coached; health check before new sessions. The failure modes it handles only occur on-device. Brief: `docs/briefs/safe_mode_task_15.md`. *Beta hardening.* | 6, 12, **P** | **Opus** → **Sonnet** for repetitive handlers |
+| 17 | ⬜ Undone | Numeric learning loops (§5.4) | Six loops with hierarchical shrinkage, regression protection, rollback. Replaces R6's fixed 0.5 prior with a learned one — same formula. **First real consumer of `algorithm_weights`.** **Handoff from 13:** `completion_count`/`success_rate` have **no writer anywhere** — `historicalSuccessFactor` scores every task off a permanent n=0; 17 is the natural owner. *Headless. Opus-5-worthy for the regression-protection + rollback interaction.* | 9, 11, 13 | **Opus** |
+| 18 | ✅ Done | Skill-injection layer **design** (§5.5) | Flat-AND closed-vocabulary matching, `conf = Ceff/(Ceff+2·Xeff+3)` at 45-day half-life, oscillation trap closed via a fired-outcome channel, code-first distillation with one 4B judgment per call, latency-tiered injection. `docs/design/skill_layer_task18_design.md`. | 4, 7, 12 | **Fable** |
+| 19 | ⬜ Undone | Skill-layer implementation | Build 18's design. **Owns the thermal sampler** (currently a stub). Two new grammars plus distillation prompts need a real model. **Planning-scope skills have exactly one legal consumer: 11's `PlanAdjustment` hook.** If it wires an LLM there, it must add a validation wrapper (the hook must never resurrect filtered tasks; nothing enforces that today). **Handoff from 13:** decide whether a recovered crash (`completion_status='abandoned'`) counts as a friction incident — §1.3 says a crash isn't user failure. | 12, 18, 26, **P** | **Opus** — ***Opus-5 for the outcome-attribution/confidence channel*** |
+| 20 | ⬜ Undone | Eval harness | Reusable scoring over fixtures; reuse task-5 validators + task-7 scorer. **Also owns the formal success criteria** — the valid@1 / field-correct bar. Harness is headless; *the numbers it produces are only real when run against the device model.* | 4, 5, 7, **31**, **P** | **Sonnet** — ***Opus-5 for negative-control design*** |
+| 21 | ⬜ Undone | Crisis detector review + referral localization | Two human judgments: coverage of the draft phrase-matching detector (indirect expressions are the common form), and `CRISIS_REFERRAL_TEXT` content/localization. **On-device evidence: the 4B cannot self-detect distress** — coverage claims must be re-checked on hardware. Brief: `docs/briefs/crisis_review_task_21.md`. 🔴 **Hard beta gate.** | 7, 12, **P** | **Human** |
+| 22 | ⬜ Undone | `which:"next"` weekday semantics | From a Thursday the 4B read "next Monday" as 11 days out. Decide in `resolveDue` or teach the guides; affects **every** resolved date. If solved by teaching the guides rather than in code, the fix is a model-behavior claim and needs device confirmation. **Task 31 should collect several real instances** — they cost nothing extra and become the evidence when this gets ruled. | 5, **P** | **Opus/Sonnet** |
+| 23 | ✅ Done | UI/UX design | **Design substantially done.** Interactive prototype at `docs/design/Main Screen.dc.html` + `Coaching Screen.dc.html`; review `docs/eval/task23_review.md`. Built in two passes; all six divergences verified in-code. The three follow-ups were **closed for free by task 24**. The polished/designed visual pass remains a **beta** gate. | spec §6 | **Claude Design (Opus)** |
+| 24 | ✅ Done | Product UI implementation | **Done — functional/personal pass, confirmed on the S23 FE (DB-verified).** `src/app/` (controllers / presentational screens / shell / alarm). The whole personal-ship loop runs on device: add-via-chat → session → timer → all five outcomes → coaching → summary. **Alarm fires 11 ms late** via an `AlarmManager.setAlarmClock` TurboModule — **constraint #13 discharged**. 636 → **711 tests**. **Phase B found 5 bugs + 1 build trap, 4 silent — all fixed.** Report: `docs/eval/task24_findings_report.md`. **Residue:** designed pass is beta; device edges → 32; five handoffs. | 23, 6, 9, 11, 12, 13, **P** | **Opus** + **Sonnet** |
+| 25 | ✅ Done | Post-review scoring follow-ups (R6–R8 + U1) | **U1** dependency-blocked pre-filter (mandatory — blocked 11); **R6** smoothed historical success `(rate·n + 0.5k)/(n+k)`; **R7** keep the parent, fire immediate `breakdown_complete` coaching, hold it out of the pool; **R8** neglect accrual gate `anchor + period/(1+quota)`. Report: `docs/eval/task25_findings_report.md`. | 9, 10, 26 | **Opus** |
+| 26 | ✅ Done | Skill-layer schema migration | `learning_state` table, `skills.is_active` default flip, `skill_evidence.source`, `learning_data` `"v":1`, `fireable_skills` comment. **Plus both new `coaching_queue` trigger types in one migration.** Hazard: CHECK changes need full table rebuilds. **Also fixed the migration runner**, which never applied more than one migration and could not toggle `PRAGMA foreign_keys` inside a transaction. Report: `docs/eval/task26_findings_report.md`. | 18 | **Sonnet** |
+| 27 | ✅ Done | Spec fold-in (v2.2 → v2.3) | Spec v2.3 + schema v2.3 snapshot — R1–R8, the two-pre-filter selection boundary, and §7.2's five triggers. **Note:** written in parallel with 25/33, so it describes the ruled target state; its §4.5 `algorithm_weights` claim was overtaken by migration 004 and corrected in v2.4. | 10, 25 *(rulings)* | **Sonnet/Haiku** |
+| 28 | ✅ Done | Multi-session work + hyperfocus extend (§8.7) | **Design delivered:** `work_state` axis orthogonal to `status`, `duration_type = estimate\|floor`, cumulative fold at one choke point, extend in +25-min quanta with tail regeneration, one resume slot in the deep-focus block. Zero scoring changes. **AMENDED 2026-07-20** — extend splits into two affordances (+5 flat/uncapped, and hyperfocus in 25-min quanta); guardrail **ruled B, hyperfocus only**. Implementation → 33 (landed) and 13 (runtime). | — | **Fable** |
+| 29 | ⬜ Undone | 8B/1.7B quant path decision + execution | Spec §11's open roadmap decision: ship 4B-first, or build **Stage B** against the PrismML fork for native Q2_0 + Android Vulkan. **Task 8 cannot proceed until this resolves.** *Partly overtaken by task 40 — Bonsai-8B-Q1_0 is in the bake-off, which may answer the 8B half for free.* *General-ship.* | 0, **P** | **Jason** decides; **You + Opus** execute |
+| 30 | ⬜ Undone | Device envelope | Minimum supported spec (RAM, chipset class, OS versions). One device tested (S23 FE, SD 8 Gen 1, 8 GB). Sets the tiering floor and decides whether 8B-first is realistic or aspirational. **Needs more than one device to be a real envelope.** 🔴 **Hard beta gate.** | 0, **P** | **Jason** |
+| **31** | 🔴 **Undone — CRITICAL PATH** | **Real task + friction corpus** | **The measuring instrument for the model decision.** Three item types, three consumers: **extraction items** (→ 38 training, 40 held-out eval, 20 fixtures), **coaching transcripts** (→ 38's no-regression check, 19), **friction episodes** (→ 19). ⚠ **RE-SIZED 2026-08-07:** the old "20–30 real messy tasks" target *cannot do this job.* 16 fixtures resolve to ±12 pts — the reason the model decision is still open. Split 20–30 items in half and the held-out set is ~10–15 → **±23 pts, twice the uncertainty the corpus exists to remove.** Task 40 would run the full device bake-off and still not separate the contenders. **New target: 80–120 extraction items, 45–60 held out (±11 pts).** Split must be **grouped by source situation and stratified on `recurrence`/`due_resolved`**, assigned in-file, never revisited. Brief: `docs/briefs/real_task_corpus_task_31.md` · Init prompt: `docs/briefs/task_31_session_init_prompt.md` | — | **Jason** produces · **Opus 5** designs the split + first ~15 + report · **Sonnet** bulk transcription *(deliberate move out of the "no Opus-5 benefit" tier — a bad split poisons every downstream number)* |
+| 32 | ⬜ Undone | Device verification sweep | The standing residue, batched into one session: **`add_missing_task` dispatch**, `add_dependency` dispatch, the **unmeasured D1 recap→constrain flow**, task 24 §10's device edges (resume_block recovery, overnight doze on battery, locked-screen full-screen intent, the two untapped recurrence kinds), and 19's two new grammars when they land. Brief: `docs/briefs/device_sweep_task_32.md`. *Entirely device work.* | 12, 19, **P** | **You + Opus** |
+| 33 | ✅ Done | Multi-session / hyperfocus **implementation** | Migration 003 (`work_state`, `duration_type`, `accumulated_minutes`, `last_worked_at`), the park primitive, the cumulative fold in `completeTask`, the three-way anchor in `listActiveByNeglect`, one grammar field. Report: `docs/eval/task33_findings_report.md`. | 28, 25 | **Opus** |
+| 34 | ✅ Done | Schema reconciliation pass | Migration **004** → schema **2.5.0**. `context_fit` dropped from the `factor_name` CHECK and deleted; the four survivors reseeded to **31/23/23/23** but only where `data_points_count = 0` (a guard written for task 17's sake). **`active_tasks_with_neglect` dropped** — it computed retired `weeks²` via a `POWER()` that doesn't exist on-device. Report: `docs/eval/task34_findings_report.md`. | 27, 33 | **Sonnet** |
+| 35 | ✅ Done *(merged to `main` 2026-08-07)* | Spec fold-in (v2.3 → **v2.4**) | `docs/reference/..._v2.4.md` delivered. Folds in migrations 004+005, task 11's planner contracts (`PlanAdjustment`, `blockKind`, the two-filter boundary, `replanRemaining`), and the extend amendment. Every name/formula pulled from source, not the brief. **Confirmed no cross-doc conflicts.** Report: `docs/eval/task35_findings_report.md`. **Was marked done for four days while sitting on an unmerged branch.** | 11, 34 | **Sonnet/Haiku** |
+| 36 | ✅ Done *(merged to `main` 2026-08-07)* | Recurrence period engine (§4.2) | `src/services/recurrence/` — idempotent `advanceRecurrence(today)` sweep at app-open + session-start; migration **006 / schema 2.7.0**. Missed-quota boost **derived at scoring time** (never written to `importance`); `last_period_shortfall` persists the fact behind it. **Fixed a live bug worse than briefed:** urgency (23% of score) was broken in *both* directions for every recurring task — chat-created pinned at 1.0 forever, editor-created at the floor forever. DST-correct; neglect anchor **provably** untouched. 711→**794 tests**. Report: `docs/eval/task36_findings_report.md`. ⚠ **Open:** the task-24 "every N weeks" interval handoff — check the report for its disposition. | 2, 3, 25 | **Opus** |
+| 37 | 🔴 Undone | Extraction-grammar separator-token hole | **Live bug in shipped extraction, found by the model spike.** `task_extraction.v1.gbnf`'s `title` rule accepts a bare `","` as a complete, **schema-valid, validator-passing** value — a task titled `,`. `description` shares it; `newTag`/`tool`/`date` need audit. Bonsai dodges it only by not ranking `","` first (luck). **Fix (spike-confirmed): first char `[a-zA-Z0-9]`** — min-length does NOT work. Add a validator defense-in-depth layer too. **Do before the bake-off and the next alpha capture.** Brief: `docs/briefs/grammar_separator_hole_task_37.md`. | 5 | **Opus/Sonnet** |
+| 38 | ⬜ Undone | Train the Gemma 4 E2B LoRA | **Model-migration chain, step 2.** The six-model spike (`model_base_spike_final_findings.md`) recommends Gemma 4 E2B — trainable (Bonsai's ternary is frozen), 2× faster/capture, best distress. Train a runtime-loadable LoRA (`applyLoraAdapters`) to close its `recurrence`/`due_resolved` gap. **Try the free prompt-only null-convention fix first.** Trains on 31's **train** split only; tunes against a `calibration` slice, never `heldout`. Brief: `docs/briefs/gemma_lora_training_task_38.md`. | **31** | **Opus** (pipeline) + **Jason** (trains) |
+| *39* | — *reserved* | *(optional corpus → eval-harness step)* | Held free in case 31→38 wants an explicit conversion/harness task between them. Currently unused. | — | — |
+| 40 | ⬜ Undone | Three-way model bake-off (migration gate) | **Chain step 3 — gates the decision, doesn't make it.** LoRA-Gemma-E2B vs **Bonsai-8B-Q1_0** (downloaded, never tested) vs T-Bonsai-4B, on task 31's **held-out** split, the spike's exact Gate-2 protocol (same corpus, same day, same build, cooled between runs), pulled-DB verified. **37's grammar fix goes in first.** Must state the resolution it's running at, from 31's findings report. Framing: trainable-but-behind vs frozen-but-ahead — **Jason's call**, recorded to orientation §1. Brief: `docs/briefs/model_bakeoff_task_40.md`. | 38, 31, **P** | **Jason + Opus** |
+
+---
+
+## Branch state (new section — this is what went wrong)
+
+| Branch | Carried | Status |
+|---|---|---|
+| **`main`** | everything below, merged | **`9d8b691` — conflict-free four-way merge, 2026-08-07. Not yet pushed to GitHub** (`origin/main` still `1280f25`). |
+| `claude/interesting-shirley-e10fa1` | the `score.ts` NUL-byte fix | merged (fast-forward) |
+| `task-36-recurrence-period-engine` | 35 + 36 + a docs WIP commit | merged |
+| `opus/batch-a-headless` | the 37-commit six-model spike | merged |
+
+**Still to do by hand** (the coordinator's sandbox can create files in `.git/` but not delete them): `git branch -D _probe _probe2`; delete `.git/index.lock`, `.git/packed-refs.lock`, `.git/refs/heads/_probe.lock`; `rm -rf .git/objects/incoming-*`.
+
+**Line endings:** the working tree shows ~220 modified files, but `git diff --ignore-cr-at-eol` reduces that to two real files. There's no `.gitattributes` and `core.autocrlf` is unset. **Order matters:** commit the real doc changes first, *then* `git checkout -- .`, *then* add `.gitattributes` (`* text=auto eol=lf`).
+
+---
+
+## Standing notes (not tasks)
+
+- 🔴 **`src/scoring/score.ts` was a *binary* file to git from its first commit (`8903e74`) until 2026-08-01.** `contextGroupKey`'s no-tags sentinel was a raw `0x00` byte, inside the first 8 KB git samples for binary detection. **Every diff of the scoring composition ever reviewed showed `Bin 8860 → 9177 bytes` instead of lines** — the most-reviewed file in the project never once appeared in a readable diff. Fixed in `db16645`; write-up in `docs/briefs/nul_byte_score_ts.md`. **Treat every pre-fix review of `score.ts` as unverified**, including task 10's composition review, which tasks 9/11/25 all rest on.
+- **Every migration must sweep the *prior* migrations' test suites.** `runMigrations` walks forward, so 00N−1's "latest version" and "full object list" assertions silently become assertions about 00N — surfacing as a failure in an unrelated file that reads like "I broke someone else's test." Confirmed live through migrations 002–006.
+- **Next migration is 007 / schema 2.8.0.** Task 36 took **006 / 2.7.0**. *(The old note here said "next is 006, and if 36 adds one it is 006" — 36 did, and it's landed.)*
+- **Spec version ≠ schema version.** Spec is **v2.4** (task 35); on-device `schema_metadata` is **2.7.0** (migration 006). These track different things — product rulings vs applied DDL — and are *supposed* to drift. Don't "fix" that mismatch. ⚠ **But the `v2.5.sql` reference snapshot is genuinely two migrations stale** (005 + 006) — that's a real gap, unowned, worth numbering when someone next touches `docs/reference/`. For actual DDL read the migration files, not the snapshot.
+- **`docs/build_allocation.md` is retired** (2026-07-20) — tombstone pointing at orientation §10. Routing logic lives in the handoff §1; per-task allocation lives in this table's Model column. Don't resurrect it. *(Its tombstone still names Fable as the top routing tier; Fable access has ended and Opus 5 inherits that slot.)*
+- **`PlanAdjustment` is a stated contract, not an enforced one.** Nothing validates a hostile adjuster; the hook must not resurrect filtered tasks. Task 19 owns the wrapper.
+- **The expiry alarm cannot be a JS timer** (device-confirmed; `setTimeout` fires 38–45 s late from doze). Discharged by task 24's `AlarmManager` TurboModule. Never add a "JS backup timer" on this path.
+- **`energy` is an ambiguous field *definition*, not a weak-model problem** — it scored 6–14/16 on **every** model including Bonsai. Cheapest available win, needs no migration. **Task 31 must decide explicitly** whether to pin the definition or mark `energy` non-critical for the corpus; writing 100 golds against an ambiguous definition bakes the ambiguity in permanently.
+
+## Open rulings owed
+
+**Ruled 2026-07-20:** extend splits into +5 / hyperfocus; +5 is **never capped**; repeated +5 queues coaching at **3 presses or 50% over, whichever first**; guardrail **B**, hyperfocus only; recurrence engine **split into task 36**; task 35 **commissioned**.
+
+Still open:
+
+| Ruling | Owner | Gates |
+|---|---|---|
+| **Corpus size for task 31** — 80–120 extraction items is hours of real work | **Jason** | The resolution of the entire model decision. A smaller number is legitimate *if* its resolution is computed and handed to 40 up front. |
+| **The `energy` field definition** — pin it, or mark it non-critical for the corpus | **Jason** (Opus 5 to propose) | Task 31's golds; every downstream `energy` score |
+| `which:"next"` weekday semantics (22) | Opus/Sonnet to propose, Jason to rule | Every resolved date |
+| Multi-day `scheduled` neglect gap (25 §3.1) — reasoned, not ruled | Jason | Revisit with real multi-day schedules |
+| `sessions.model_tier` meaning for a no-model session | Jason | Task 24 handoff; nothing writes it yet |
+| `session_ended_early` — a real trigger not in §7.2's five. Should backing out with time left coach? | Jason | Task 24 handoff |
+| ~~Merged-branch green check~~ → **superseded: there has never been a green run on this tree.** `npx jest` + `npx tsc --noEmit` + `npx eslint .` on `main`. | **Jason** (terminal) | Everything |
+
+---
+
+## Device (`P`) batches
+
+**20 of 40 tasks carry a `P`.** *(The old count of "16 of 37" was stale twice over.)* Because you run the device sessions yourself, these are the scheduling constraint — group them rather than paying setup cost per task.
+
+- **Done and confirmed (9):** 0, 1, 2, Q1, 6, 7, 12, 13, 24
+- **Open, beta (5):** 21 (crisis coverage), 30 (envelope), 20 (real eval numbers), 22 (if solved in the guides), 32 (residue sweep)
+- **Open, strategic (1):** 40 (the bake-off)
+- **Open, later (5):** 8, 14, 15, 19, 29
+
+**No `P`, so they can proceed any time without you (20):** 3, 4, 5, 9, 10, 11, 17, 18, 23, 25, 26, 27, 28, 31, 33, 34, 35, 36, 37, 38.
+
+**Note that 31, 37, and 38 — the entire front half of the critical path — are all headless.** Nothing on the model-migration chain needs the phone until task 40.
+
+---
+
+## Counts
+
+**Total: 40 tasks** (0–40, no 16, plus Q1, minus reserved-and-unused 39).
+
+**✅ Done (25):** 0, 1, 2, 3, 4, 5, Q1, 6, 7, 9, 10, 11, 12, 13, 18, 23, 24, 25, 26, 27, 28, 33, 34, 35, 36
+**🟡 Partial (0):** —
+**⬜ / 🔴 Undone (15):** 8, 14, 15, 17, 19, 20, 21, 22, 29, 30, **31**, 32, **37**, **38**, **40**
+
+## Personal ship: MET (2026-07-29) — with one caveat now visible
+
+**The whole loop runs on the S23 FE, DB-verified** — add-via-chat → session → timer → all five outcomes → coaching → summary, with the alarm firing 11 ms late from the background (task 24). Tasks 23 and 24 both landed; the backend (6/7/9/11/12/13 + data layer) is complete beneath them.
+
+**The caveat:** what was confirmed on device was a *build from a branch* that did not include 35, 36, or the recurrence fix. `main` as it now exists — merged, with 794 tests' worth of code — **has never been built, tested, or run on the phone.** Personal ship is met for the loop that was demonstrated; the tree you'd build from today is new.
+
+## Where the frontier is — two threads, and they don't compete
+
+**Thread 1 — the strategic one (the model-migration decision).** `31 → 38 → 40`, then Jason's call. **Task 31 is the only thing on it that can move today**, it's the longest-lead item on the whole board, and it gates 38, 40, *and* 20 simultaneously. It's headless and it's yours to produce. Start it.
+
+**Thread 2 — the tree, then beta hardening.** In order: (a) run the three checks on `main`; (b) push `main` to GitHub; (c) task **37**, the live grammar bug, before any alpha capture *or* the bake-off; then **14 / 15 / 17 / 21 / 32** and the designed visual pass.
+
+**Beta gates:** the designed/polished pass (24, consuming 23's tokens), **21** (crisis, human), **30** (device envelope, Jason), **20** (real eval numbers), **32**'s device residue. **General:** 8, 29 (tiering / quant path).

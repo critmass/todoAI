@@ -89,7 +89,17 @@ Jason named three. The rest are proposed — take them or cut them, but cut them
 
 ---
 
-## 6. Open questions for Jason
+## 6. Ruled 2026-08-07
 
-- **Is there anything you'd rather not have written down even in alpha?** The answer may well be "no, that's the point," but it should be said out loud once rather than assumed — the crisis-gate log (§1.8) is the one where a future reader might feel differently than you do today.
-- **Retention during alpha.** Keep everything forever, or rotate? Everything-forever is simplest and the volume is probably fine; the findings report will say.
+> **Log everything for now. That log will be completely turned off and deleted before beta.** In alpha I'm basically hiding my actions from myself if I don't log them — something that is not true once we are in beta. — *Jason*
+
+So: **no exclusions, no redaction, no sampling. Everything in §1, including the crisis-gate log.** Retention during alpha is keep-everything; the findings report reports volume, and rotation only becomes a question if that volume turns out to be a problem.
+
+**This ruling is a design constraint, not just a permission — build for the teardown.** Task 42 has to delete all of this and *prove* it deleted it, so:
+
+- **Every byte capture writes lives under one directory it owns.** Nothing scattered, nothing interleaved with product data, nothing in the SQLite DB. §2a already says this for corruption-survival reasons; the teardown requirement makes it non-negotiable.
+- **Capture is one module with one entry point** (§3.1), so removal is a deletion plus the call sites, not an excavation. Don't let capture logic diffuse into the call sites it instruments.
+- **Document the on-disk layout precisely** (§3.3) — task 42's acceptance test enumerates locations to verify they're empty, and it can only do that from a written contract.
+- **No dormant-flag design.** Don't build an off switch and plan to flip it; task 42 removes the code. A disabled capture module is a thing a later change can re-enable by accident.
+
+⚠ **One consequence that reaches beyond this task:** the corpus task 31 builds is *derived* from these logs and will outlive them — 38 trains on it, 40 evaluates on it, 20 uses it as fixtures. Deleting the logs does not delete the corpus, and the corpus contains Jason's real task text verbatim. **Task 42 §1 carries that open question; it is not this task's to answer, but this task should not assume the corpus inherits the logs' fate.**

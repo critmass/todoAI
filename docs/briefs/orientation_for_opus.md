@@ -8,7 +8,7 @@
 
 **The spike's verdict is "migrate to Gemma 4 E2B, gated on a bake-off" — see §1. Any text anywhere still reading "stay on Bonsai" is the superseded `qwen35_spike_findings.md` speaking; the current report is `model_base_spike_final_findings.md`.**
 
-If the master table shows tasks this doc's §2 doesn't, trust the table and fix §2.
+*(§2 no longer carries a task list — see it for branch and verification state only.)*
 
 ---
 
@@ -155,7 +155,7 @@ Three targets, each a higher bar than the last. An item **gates** a target if th
 - *Bar:* safe and coherent for a stranger.
 - *Gates that activate here:*
   - **Crisis detector review + `CRISIS_REFERRAL_TEXT` localization (task 21) — HARD gate.** The moment a non-Jason user can install it, "the developer knows the limits" stops protecting anyone. Human-reviewed, not a code task.
-  - **Privacy reconsideration + consent + capture controls (task 42) — HARD gate.** Task 41 makes the app record everything, deliberately, on the alpha ruling that the only person the data could be hidden from is Jason. **That reasoning expires the instant a second person installs it, and it expires silently** — nothing breaks, no test fails, the app just becomes a device that transcribes a stranger's private thoughts about what they're avoiding. Identical structure to task 21's deferral, governs the same worst-case data (41 logs crisis-gate firings because 21 has no real data otherwise), and **should be reviewed in the same pass.** Brief: `docs/briefs/privacy_consent_task_42.md`.
+  - **Capture teardown + privacy reconciliation (task 42) — HARD gate.** Task 41 makes the app record everything, deliberately. **Ruled 2026-08-07: that log is completely turned off and deleted before beta** — capture is an alpha-only facility, *removed rather than governed* (no consent screen, no toggles; none of it survives). The reasoning behind it — *in alpha I'm hiding my actions from myself* — **expires the instant a second person installs it, and it expires silently** — nothing breaks, no test fails, the app just becomes a device that transcribes a stranger's private thoughts about what they're avoiding. Identical structure to task 21's deferral, governs the same worst-case data (41 logs crisis-gate firings because 21 has no real data otherwise), and **should be reviewed in the same pass.** Brief: `docs/briefs/privacy_consent_task_42.md`.
   - **Designed UI/UX (task 23) + polished screens (task 24).** Strangers need real interaction/visual design, not functional dev screens.
   - **Device-envelope definition.** Testers won't all have an S23 FE; the one-rung 4B path needs a stated minimum spec (RAM / chipset / OS) before hand-off. (The prep item open since the original spike.)
   - **Verification residue cleared** (§9): `add_dependency`/`add_missing_task` dispatch exercised on-device; the D1 recap→constrain flow measured.
@@ -180,6 +180,8 @@ Three targets, each a higher bar than the last. An item **gates** a target if th
 🔴 **The app deliberately discards its own most valuable data.** Migration 001: `conversation_summary TEXT, -- AI-generated, grammar-constrained; raw transcript never stored`. Every real capture since personal ship — weeks of exactly what task 31 needs — is gone and unrecoverable. Second instance: `LlmOutputValidationError` (`src/llm/errors.ts`) carries `surface` and `issues` but **not the payload that failed**, so the D10 ladder throws away the malformed model output on every retry. Task 37's grammar hole needed a dedicated six-model spike to find; with capture it would have been a log line the first time it fired.
 
 **Task 41** fixes this for alpha — nothing discarded, out-of-band append-only, force-kill-safe. It **gates task 31**, which makes the chain `41 → 31 → 38 → 40`. **Task 42** pins the alpha privacy ruling to a beta gate. Briefs: `docs/briefs/event_capture_task_41.md`, `docs/briefs/privacy_consent_task_42.md`.
+
+**Ruled 2026-08-07: log everything in alpha, no exclusions; the whole facility is deleted before beta and the deletion must be *verified*, not asserted.** One ruling still owed — whether the purge reaches task 31's corpus, which is derived from the logs but must outlive them (see task 42 brief §1).
 
 **Two record corrections task 42 owes** (noted here so a future session doesn't flag them as bugs in the meantime): the `conversation_summary` schema comment becomes false once 41 lands, and **constraint #7 needs a clause stating that local capture is not telemetry — the distinction is *transmission*, not recording.** 41 does not violate local-only; nothing leaves the device.
 

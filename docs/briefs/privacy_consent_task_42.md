@@ -1,63 +1,99 @@
-# Task 42 — Privacy reconsideration, consent, and capture controls
+# Task 42 — Capture teardown and privacy reconciliation before beta
 
-**Owner:** **Jason** rules the product intent; **Opus** proposes and implements.
+**Owner:** **Opus** implements; **Jason** rules the one open question in §1.
 **Status:** ⬜ open. 🔴 **HARD BETA GATE.**
-**Depends on:** 41 (there must be something to govern), 21 (crisis review — they overlap on the most sensitive data).
+**Depends on:** 41 (there must be something to tear down), 21 (crisis review — same worst-case data, review together).
 
 ---
 
-## 0. Why this is a gate and not a nice-to-have
+## 0. The ruling this task exists to execute
 
-Task 41 makes the app record everything, deliberately, because in alpha the only person the data could be hidden from is Jason. **That reasoning expires the instant a second person installs it**, and it expires silently — nothing breaks, no test fails, the app just quietly becomes a device that transcribes a stranger's private thoughts about the things they're avoiding.
+**Ruled 2026-08-07 (Jason):**
 
-This is the same structure as the crisis-review deferral (task 21): safe for personal *only* because the sole user is the developer, and dangerous the moment that stops being true. Both are pinned to beta for the same reason, and they should be reviewed together — the crisis-gate log is the single most sensitive artifact the app produces.
+> Log everything for now. That log will be **completely turned off and deleted** before beta. In alpha I'm basically hiding my actions from myself if I don't log them — something that is not true once we are in beta.
 
----
+This is a cleaner ruling than the consent-and-toggles design this brief originally proposed, and it should be respected as such. **Capture is an alpha-only facility. It is removed, not governed.** No consent screen, no per-category switches, no retention policy for capture data — because none of it survives to beta.
 
-## 1. What has to be decided
+Two consequences worth stating up front:
 
-**a. What does the app store at all, by default, for someone who isn't Jason?** Task 41's answer is "everything." Beta's answer probably isn't. The likely shape: product data always, diagnostic capture opt-in, raw conversation transcripts off unless explicitly enabled. But that's a proposal, not a ruling.
-
-**b. What does consent look like?** A first-run screen, or a settings default, or both. What it must say plainly: what's recorded, where it lives (on the device, never transmitted — that's a genuine selling point, not a disclaimer), how to turn it off, and how to delete it.
-
-**c. Granularity of the controls.** One master switch is honest but blunt; per-category switches (conversations / model I/O / performance / crisis) are more useful and more confusing. Recommend a default plus an "advanced" disclosure rather than a wall of toggles.
-
-**d. Retention and purge.** ⚠ **The schema already has an unused mechanism for this.** Migration 001 created `data_retention (table_name, retention_policy, last_cleanup_at, records_cleaned)` with policies `detailed_30_days` / `summary_90_days` / `permanent`. **Nothing has ever written to it or acted on it.** This task either implements it, extends it to cover task 41's out-of-band logs, or retires it — but it must stop being a designed-and-abandoned table that implies a guarantee the app doesn't make.
-
-**e. Export and delete-my-data.** Orientation §8 already lists "full data-lifecycle hardening (export / deletion / corruption recovery)" as a *general*-ship gate. Decide how much of it moves forward to beta. A delete button that doesn't reach the capture logs is worse than no button.
-
-**f. The crisis log specifically.** Task 41 §1.8 captures crisis-gate firings and near-misses, because task 21 is a hard beta gate with no real data behind it. For a beta tester that is a record of their worst moments sitting in a file. This needs its own answer, and it is the one item here where "just make it opt-in" may not be sufficient.
+- **Task 41's out-of-band design pays off here.** Because capture writes append-only JSONL to its own directory and never touches the product database, the teardown is a directory delete plus a code removal. No migration, no risk to product data, nothing to disentangle. The design decision and the ruling reinforce each other — keep them that way; if 41 ever starts writing capture data into the product DB, this task gets much harder and much less certain.
+- **"Deleted" has to be *verified*, not intended.** A teardown that everyone believes happened is exactly the class of thing this project has already been burned by twice this month. §3 makes it an acceptance test.
 
 ---
 
-## 2. Corrections this task must make regardless of the rulings
+## 1. The one open question — Jason rules before this task starts
 
-- **`interactions.conversation_summary`'s schema comment is now false.** It reads `-- AI-generated, grammar-constrained; raw transcript never stored`. After task 41 that is no longer true, and a stale comment asserting a privacy property the code doesn't have is worse than no comment. Fix it in the migration that implements this task's decisions, and correct the spec text that repeats it.
-- **Constraint #7 needs one clause.** "Local-only — no cloud training, no telemetry" is still true and task 41 doesn't violate it (nothing leaves the device). But a reader who finds a verbose transcript log will reasonably wonder. State explicitly that local capture is not telemetry, and that the distinction is *transmission*, not *recording*.
-- **Task 41's redaction seams get switched on**, or removed if the rulings make them unnecessary.
+🔴 **Does the ruling reach task 31's corpus?**
+
+The corpus (`docs/eval/corpus_extraction_v1.jsonl` and siblings) is *derived from* the capture logs. Deleting the logs does not delete the corpus, and the corpus contains **Jason's real task text, verbatim, committed to the repository.** It also has to survive indefinitely — task 38 trains on it, task 40 evaluates on it, task 20 uses it as fixtures, and a bake-off you can't re-run is a bake-off you can't defend.
+
+So there are two readings and they diverge sharply:
+
+| Reading | What it means | Cost |
+|---|---|---|
+| **(a) Delete the raw logs; the corpus survives** *(assumed default)* | Capture teardown is scoped to the log files and the capture code. The corpus persists as a normal project artifact. | Jason's real, unedited task text lives permanently in git, and goes wherever the repo goes — a beta tester with source access, a future open-sourcing, a contractor, a laptop. |
+| **(b) Delete everything derived from the private data** | The corpus goes too. | 38, 40 and 20 lose their basis; the model decision becomes unreproducible and unre-runnable. Effectively fatal to the chain. |
+
+**Recommendation: (a), with the corpus kept out of the repository.** Commit the *schema*, the split assignment, the stratum labels, the per-item IDs and the counts — everything needed to reproduce and audit the evaluation — and keep the item text itself in a gitignored local path or a separate private store. The eval stays reproducible for anyone with the data; the repo stops carrying a verbatim record of Jason's life. Cost is that a fresh clone can't re-run the bake-off without the data file, which is the normal situation for any project with a private dataset and is worth the trade.
+
+**If (a)-without-that-precaution is the ruling, that's legitimate — but it should be a decision, not a default.** The failure mode is quiet and late: nobody notices until the repo is somewhere it wasn't meant to be.
 
 ---
 
-## 3. Deliverables
+## 2. Scope of the teardown
 
-1. The rulings from §1, written down where they bind — spec section, not just chat.
-2. Consent surface (first-run and/or settings), built against task 23's design language.
-3. Capture controls wired to task 41's module through its existing seams.
-4. Retention: `data_retention` implemented, extended, or retired — with the choice recorded.
-5. Export + delete paths that provably reach **both** the product DB and the capture logs.
-6. `docs/eval/task42_findings_report.md`, including a verification that turning capture off actually stops every writer — tested by running a full session with it off and confirming the logs are empty.
+**a. The capture data.** Every JSONL log on the device and every copy pulled to the laptop. Enumerate the locations — this is why task 41 must document its on-disk layout.
+
+**b. The capture code.** Remove it, rather than leaving it dead behind a disabled flag. "Completely turned off" is the ruling, and a dormant capture module is a thing a future change can re-enable by accident.
+
+⚠ **One tradeoff to rule on while doing this:** removing capture entirely means that when a beta tester hits a bug, there is *no* diagnostic capability at all — no crash log, no error trace, nothing but their description. That may be the right call for a small trusted group. If it isn't, the answer is **not** to keep task 41's capture; it's a separate, minimal, consented error/crash log designed for beta from scratch, which would be its own task. Don't let 41's facility survive by being retitled.
+
+**c. Anything capture leaked into the product DB.** Should be nothing, by 41's design. **Verify rather than assume** — that's the point.
 
 ---
 
-## 4. Done means
+## 3. What must be verified, not believed
 
-- A person who is not Jason can install the app, understand what it records, and change it, before it records anything.
-- Every switch has been verified to actually stop the thing it names.
+The acceptance test, run on a beta-candidate build:
+
+1. Build the beta artifact. **Grep the bundle for capture symbols** — the module, the event-type names, the log path. Zero hits.
+2. Run a **full session end to end** on the device: chat capture → session → timer → all five outcomes → coaching → summary.
+3. Pull the device's app-private storage. **Confirm no capture files exist and none were created.**
+4. Pull and inspect the product DB. Confirm no capture-shaped rows.
+5. Confirm the prior log directory is gone, on device and on every machine a copy was pulled to.
+
+A findings report that says "removed" without steps 1–5 having been run does not close this task.
+
+---
+
+## 4. Record corrections this task owes regardless
+
+These are stale-or-soon-to-be-stale claims in the permanent record. They are listed here because they must be true again by beta, and because a future session reading them in the interim should know they are known.
+
+- **`interactions.conversation_summary`'s schema comment.** It reads `-- AI-generated, grammar-constrained; raw transcript never stored`. Task 41 makes that false; this task makes it true again. Confirm the comment matches reality at beta and correct the spec text that repeats it.
+- **Constraint #7 needs one clause.** "Local-only — no cloud training, no telemetry" is still true throughout, and task 41 never violated it, because **the distinction is *transmission*, not recording** — nothing ever left the device. State that explicitly so a future reader who finds a verbose transcript log doesn't conclude the constraint was broken.
+- ⚠ **`data_retention` is a designed-and-abandoned table.** Migration 001 created `data_retention (table_name, retention_policy, last_cleanup_at, records_cleaned)` with policies `detailed_30_days` / `summary_90_days` / `permanent`. **Nothing has ever written to it or acted on it.** It implies a retention guarantee the app does not make. This task implements it, or retires it in a migration — but it stops being a table that lies. *(Note this is about the product database, not capture; it survives the teardown and needs an answer on its own terms.)*
+
+---
+
+## 5. Deliverables
+
+1. Teardown executed per §2, with the §1 ruling applied to the corpus.
+2. `docs/eval/task42_findings_report.md` carrying the §3 verification, step by step, with evidence.
+3. The §4 record corrections landed.
+4. A one-line note in orientation §5 recording that capture was an alpha-only facility, when it was removed, and what became of the corpus — so the history is legible to whoever picks this up later.
+
+---
+
+## 6. Done means
+
+- No capture code and no capture data exist in a beta build or on any device running one, **verified by §3, not asserted.**
+- The corpus disposition matches Jason's §1 ruling.
 - No schema comment, spec line, or constraint text asserts a privacy property the code doesn't have.
-- Reviewed alongside task 21, since they govern the same worst-case data.
+- Reviewed in the same pass as task 21.
 
 ---
 
-## 5. What this task is not
+## 7. What this task is not
 
-It is not a general-ship privacy programme. Encryption at rest, threat modelling, and regulatory posture are beyond beta. This task exists to make sure the alpha ruling — "record everything, privacy is not a concern" — cannot leak into a build that reaches a stranger.
+Not a general-ship privacy programme — encryption at rest, threat modelling, and regulatory posture are beyond beta. Not a consent-and-toggles design, which the 2026-08-07 ruling replaced with removal. Its entire job is to make sure the alpha ruling — *record everything, privacy isn't a concern because I'm only hiding data from myself* — **cannot survive contact with a user who isn't Jason.**

@@ -10,7 +10,7 @@
 **Model key:** **You** (device/human judgment) · **Fable** *(access ended)* · **Opus** · **Sonnet** · **Jason/Human**
 **`P`** in the Dep column = **requires on-device (Phase B) verification.** Desktop reasoning does not close these; a `P` task is not done until it has run on the S23 FE. Sequence headless work and device batches separately.
 
-*(There is no task 16 — retired and split into 23 + 24. Q1 sits between 5 and 6, where it ran. **39 is reserved and unused** — held for an optional corpus→eval-harness step between 38 and 40.)*
+*(There is no task 16 — retired and split into 23 + 24. Q1 sits between 5 and 6, where it ran. **39 is reserved and unused** — held for an optional corpus→eval-harness step between 38 and 40. **41 and 42 added 2026-08-07**: 41 gates 31 after the dogfooding DB turned out to hold no real captures; 42 pins 41's alpha privacy ruling to a beta gate so it can't leak into a stranger's build.)*
 
 > ### ⚠ Read this before trusting any ✅
 >
@@ -55,7 +55,7 @@
 | 28 | ✅ Done | Multi-session work + hyperfocus extend (§8.7) | **Design delivered:** `work_state` axis orthogonal to `status`, `duration_type = estimate\|floor`, cumulative fold at one choke point, extend in +25-min quanta with tail regeneration, one resume slot in the deep-focus block. Zero scoring changes. **AMENDED 2026-07-20** — extend splits into two affordances (+5 flat/uncapped, and hyperfocus in 25-min quanta); guardrail **ruled B, hyperfocus only**. Implementation → 33 (landed) and 13 (runtime). | — | **Fable** |
 | 29 | ⬜ Undone | 8B/1.7B quant path decision + execution | Spec §11's open roadmap decision: ship 4B-first, or build **Stage B** against the PrismML fork for native Q2_0 + Android Vulkan. **Task 8 cannot proceed until this resolves.** *Partly overtaken by task 40 — Bonsai-8B-Q1_0 is in the bake-off, which may answer the 8B half for free.* *General-ship.* | 0, **P** | **Jason** decides; **You + Opus** execute |
 | 30 | ⬜ Undone | Device envelope | Minimum supported spec (RAM, chipset class, OS versions). One device tested (S23 FE, SD 8 Gen 1, 8 GB). Sets the tiering floor and decides whether 8B-first is realistic or aspirational. **Needs more than one device to be a real envelope.** 🔴 **Hard beta gate.** | 0, **P** | **Jason** |
-| **31** | 🔴 **Undone — CRITICAL PATH** | **Real task + friction corpus** | **The measuring instrument for the model decision.** Three item types, three consumers: **extraction items** (→ 38 training, 40 held-out eval, 20 fixtures), **coaching transcripts** (→ 38's no-regression check, 19), **friction episodes** (→ 19). ⚠ **RE-SIZED 2026-08-07:** the old "20–30 real messy tasks" target *cannot do this job.* 16 fixtures resolve to ±12 pts — the reason the model decision is still open. Split 20–30 items in half and the held-out set is ~10–15 → **±23 pts, twice the uncertainty the corpus exists to remove.** Task 40 would run the full device bake-off and still not separate the contenders. **New target: 80–120 extraction items, 45–60 held out (±11 pts).** Split must be **grouped by source situation and stratified on `recurrence`/`due_resolved`**, assigned in-file, never revisited. Brief: `docs/briefs/real_task_corpus_task_31.md` · Init prompt: `docs/briefs/task_31_session_init_prompt.md` | — | **Jason** produces · **Opus 5** designs the split + first ~15 + report · **Sonnet** bulk transcription *(deliberate move out of the "no Opus-5 benefit" tier — a bad split poisons every downstream number)* |
+| **31** | 🔴 **Undone — CRITICAL PATH** | **Real task + friction corpus** | **The measuring instrument for the model decision.** Three item types, three consumers: **extraction items** (→ 38 training, 40 held-out eval, 20 fixtures), **coaching transcripts** (→ 38's no-regression check, 19), **friction episodes** (→ 19). ⚠ **RE-SIZED 2026-08-07:** the old "20–30 real messy tasks" target *cannot do this job.* 16 fixtures resolve to ±12 pts — the reason the model decision is still open. Split 20–30 items in half and the held-out set is ~10–15 → **±23 pts, twice the uncertainty the corpus exists to remove.** Task 40 would run the full device bake-off and still not separate the contenders. **New target: 80–120 extraction items, 45–60 held out (±11 pts).** Split must be **grouped by source situation and stratified on `recurrence`/`due_resolved`**, assigned in-file, never revisited. ⚠ **Gated on task 41.** The dogfooding DB holds no real captures — migration 001 says `raw transcript never stored`, so weeks of exactly this material is gone and unrecoverable. 41 makes the corpus accumulate by itself; 31's interview/reconstruction work runs **in parallel** with that window, not after it. **Synthetic and augmented items are legitimate in the *train* split and fatal in *held-out*** — n buys precision, realism buys validity, and they're independent. Tag every item's `source`. Brief: `docs/briefs/real_task_corpus_task_31.md` · Init prompt: `docs/briefs/task_31_session_init_prompt.md` | **41** | **Jason** produces · **Opus 5** designs the split + first ~15 + report · **Sonnet** bulk transcription *(deliberate move out of the "no Opus-5 benefit" tier — a bad split poisons every downstream number)* |
 | 32 | ⬜ Undone | Device verification sweep | The standing residue, batched into one session: **`add_missing_task` dispatch**, `add_dependency` dispatch, the **unmeasured D1 recap→constrain flow**, task 24 §10's device edges (resume_block recovery, overnight doze on battery, locked-screen full-screen intent, the two untapped recurrence kinds), and 19's two new grammars when they land. Brief: `docs/briefs/device_sweep_task_32.md`. *Entirely device work.* | 12, 19, **P** | **You + Opus** |
 | 33 | ✅ Done | Multi-session / hyperfocus **implementation** | Migration 003 (`work_state`, `duration_type`, `accumulated_minutes`, `last_worked_at`), the park primitive, the cumulative fold in `completeTask`, the three-way anchor in `listActiveByNeglect`, one grammar field. Report: `docs/eval/task33_findings_report.md`. | 28, 25 | **Opus** |
 | 34 | ✅ Done | Schema reconciliation pass | Migration **004** → schema **2.5.0**. `context_fit` dropped from the `factor_name` CHECK and deleted; the four survivors reseeded to **31/23/23/23** but only where `data_points_count = 0` (a guard written for task 17's sake). **`active_tasks_with_neglect` dropped** — it computed retired `weeks²` via a `POWER()` that doesn't exist on-device. Report: `docs/eval/task34_findings_report.md`. | 27, 33 | **Sonnet** |
@@ -65,6 +65,8 @@
 | 38 | ⬜ Undone | Train the Gemma 4 E2B LoRA | **Model-migration chain, step 2.** The six-model spike (`model_base_spike_final_findings.md`) recommends Gemma 4 E2B — trainable (Bonsai's ternary is frozen), 2× faster/capture, best distress. Train a runtime-loadable LoRA (`applyLoraAdapters`) to close its `recurrence`/`due_resolved` gap. **Try the free prompt-only null-convention fix first.** Trains on 31's **train** split only; tunes against a `calibration` slice, never `heldout`. Brief: `docs/briefs/gemma_lora_training_task_38.md`. | **31** | **Opus** (pipeline) + **Jason** (trains) |
 | *39* | — *reserved* | *(optional corpus → eval-harness step)* | Held free in case 31→38 wants an explicit conversion/harness task between them. Currently unused. | — | — |
 | 40 | ⬜ Undone | Three-way model bake-off (migration gate) | **Chain step 3 — gates the decision, doesn't make it.** LoRA-Gemma-E2B vs **Bonsai-8B-Q1_0** (downloaded, never tested) vs T-Bonsai-4B, on task 31's **held-out** split, the spike's exact Gate-2 protocol (same corpus, same day, same build, cooled between runs), pulled-DB verified. **37's grammar fix goes in first.** Must state the resolution it's running at, from 31's findings report. Framing: trainable-but-behind vs frozen-but-ahead — **Jason's call**, recorded to orientation §1. Brief: `docs/briefs/model_bakeoff_task_40.md`. | 38, 31, **P** | **Jason + Opus** |
+| **41** | 🔴 **Undone — GATES 31** | **Lossless local event capture** | **Nothing gets discarded.** Conversation logs (verbatim, both directions, incl. clarifying Q&A), task changes (user- vs model-made, field-level, with surface), task performance (episodes, outcomes, +5/hyperfocus, parks, crash recoveries). **Proposed additions:** 🔴 raw model I/O (composed prompt, **raw completion before parsing**, grammar, D10 rung, latency, tok/s), 🔴 validation failures **with payload** (`LlmOutputValidationError` currently drops it — that's why 37 cost a whole spike), scoring/planning snapshots incl. both reject sets, coaching lifecycle, crisis-gate firings + near-misses (task 21 has *zero* real data today), thermal/device conditions, app lifecycle. **Design:** out-of-band append-only JSONL on app-private storage — never in the product DB, must survive its corruption; synchronous writes (buffering loses exactly the events around a crash); capture failure never breaks the app but never silent either; correlation IDs + `"v":1` on every record; redaction seams present but off. **Acceptance test that matters: force-kill mid-episode loses nothing.** Brief: `docs/briefs/event_capture_task_41.md` | 24, 13, **P** | **Opus** + **Jason** (device) |
+| **42** | ⬜ Undone | **Privacy reconsideration + consent + capture controls** | 🔴 **HARD BETA GATE.** 41's alpha ruling — *record everything, privacy isn't a concern because I'm only hiding data from myself* — **expires the moment a second person installs it, and expires silently.** Decide: what a non-Jason user stores by default; consent surface (first-run and/or settings); control granularity; **retention** (⚠ migration 001 created `data_retention` with three policies and *nothing has ever written to or acted on it* — implement, extend, or retire it); export + delete that provably reach **both** the DB and the capture logs; and the crisis log specifically, which is a record of a stranger's worst moments. **Must also fix:** `interactions.conversation_summary`'s comment (`raw transcript never stored`) becomes false after 41, and constraint #7 needs a clause saying local capture ≠ telemetry (the distinction is *transmission*, not recording). **Review alongside task 21** — same worst-case data. Brief: `docs/briefs/privacy_consent_task_42.md` | 41, 21 | **Jason** rules; **Opus** implements |
 
 ---
 
@@ -114,26 +116,26 @@ Still open:
 
 ## Device (`P`) batches
 
-**20 of 40 tasks carry a `P`.** *(The old count of "16 of 37" was stale twice over.)* Because you run the device sessions yourself, these are the scheduling constraint — group them rather than paying setup cost per task.
+**21 of 42 tasks carry a `P`.** *(The old count of "16 of 37" was stale twice over.)* Because you run the device sessions yourself, these are the scheduling constraint — group them rather than paying setup cost per task.
 
 - **Done and confirmed (9):** 0, 1, 2, Q1, 6, 7, 12, 13, 24
 - **Open, beta (5):** 21 (crisis coverage), 30 (envelope), 20 (real eval numbers), 22 (if solved in the guides), 32 (residue sweep)
-- **Open, strategic (1):** 40 (the bake-off)
+- **Open, strategic (2):** **41** (event capture — gates the whole chain), 40 (the bake-off)
 - **Open, later (5):** 8, 14, 15, 19, 29
 
-**No `P`, so they can proceed any time without you (20):** 3, 4, 5, 9, 10, 11, 17, 18, 23, 25, 26, 27, 28, 31, 33, 34, 35, 36, 37, 38.
+**No `P`, so they can proceed any time without you (21):** 3, 4, 5, 9, 10, 11, 17, 18, 23, 25, 26, 27, 28, 31, 33, 34, 35, 36, 37, 38, 42.
 
-**Note that 31, 37, and 38 — the entire front half of the critical path — are all headless.** Nothing on the model-migration chain needs the phone until task 40.
+**41 is the exception that reshapes the schedule.** It's device work and it now sits in front of 31, so the model-migration chain starts with a device session rather than ending with one. Everything after it (31, 37, 38) is still headless until the bake-off.
 
 ---
 
 ## Counts
 
-**Total: 40 tasks** (0–40, no 16, plus Q1, minus reserved-and-unused 39).
+**Total: 42 tasks** (0–42, no 16, plus Q1, minus reserved-and-unused 39).
 
 **✅ Done (25):** 0, 1, 2, 3, 4, 5, Q1, 6, 7, 9, 10, 11, 12, 13, 18, 23, 24, 25, 26, 27, 28, 33, 34, 35, 36
 **🟡 Partial (0):** —
-**⬜ / 🔴 Undone (15):** 8, 14, 15, 17, 19, 20, 21, 22, 29, 30, **31**, 32, **37**, **38**, **40**
+**⬜ / 🔴 Undone (17):** 8, 14, 15, 17, 19, 20, 21, 22, 29, 30, **31**, 32, **37**, **38**, **40**, **41**, **42**
 
 ## Personal ship: MET (2026-07-29) — with one caveat now visible
 
@@ -143,8 +145,8 @@ Still open:
 
 ## Where the frontier is — two threads, and they don't compete
 
-**Thread 1 — the strategic one (the model-migration decision).** `31 → 38 → 40`, then Jason's call. **Task 31 is the only thing on it that can move today**, it's the longest-lead item on the whole board, and it gates 38, 40, *and* 20 simultaneously. It's headless and it's yours to produce. Start it.
+**Thread 1 — the strategic one (the model-migration decision).** Now **`41 → 31 → 38 → 40`**, then Jason's call. **Task 41 is the new front of the chain** and it's the move that can happen today: once capture is on, the corpus accumulates while you do everything else, which is the only input on the board that grows without effort. 31's interview and reconstruction work runs in parallel with the capture window rather than waiting on it.
 
 **Thread 2 — the tree, then beta hardening.** In order: (a) run the three checks on `main`; (b) push `main` to GitHub; (c) task **37**, the live grammar bug, before any alpha capture *or* the bake-off; then **14 / 15 / 17 / 21 / 32** and the designed visual pass.
 
-**Beta gates:** the designed/polished pass (24, consuming 23's tokens), **21** (crisis, human), **30** (device envelope, Jason), **20** (real eval numbers), **32**'s device residue. **General:** 8, 29 (tiering / quant path).
+**Beta gates:** the designed/polished pass (24, consuming 23's tokens), **21** (crisis, human), **42** (privacy/consent — pinned here for the same reason as 21, and reviewed with it), **30** (device envelope, Jason), **20** (real eval numbers), **32**'s device residue. **General:** 8, 29 (tiering / quant path).

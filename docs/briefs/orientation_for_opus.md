@@ -155,6 +155,7 @@ Three targets, each a higher bar than the last. An item **gates** a target if th
 - *Bar:* safe and coherent for a stranger.
 - *Gates that activate here:*
   - **Crisis detector review + `CRISIS_REFERRAL_TEXT` localization (task 21) — HARD gate.** The moment a non-Jason user can install it, "the developer knows the limits" stops protecting anyone. Human-reviewed, not a code task.
+  - **Privacy reconsideration + consent + capture controls (task 42) — HARD gate.** Task 41 makes the app record everything, deliberately, on the alpha ruling that the only person the data could be hidden from is Jason. **That reasoning expires the instant a second person installs it, and it expires silently** — nothing breaks, no test fails, the app just becomes a device that transcribes a stranger's private thoughts about what they're avoiding. Identical structure to task 21's deferral, governs the same worst-case data (41 logs crisis-gate firings because 21 has no real data otherwise), and **should be reviewed in the same pass.** Brief: `docs/briefs/privacy_consent_task_42.md`.
   - **Designed UI/UX (task 23) + polished screens (task 24).** Strangers need real interaction/visual design, not functional dev screens.
   - **Device-envelope definition.** Testers won't all have an S23 FE; the one-rung 4B path needs a stated minimum spec (RAM / chipset / OS) before hand-off. (The prep item open since the original spike.)
   - **Verification residue cleared** (§9): `add_dependency`/`add_missing_task` dispatch exercised on-device; the D1 recap→constrain flow measured.
@@ -173,6 +174,14 @@ Three targets, each a higher bar than the last. An item **gates** a target if th
 ## 9. Open rulings, handoffs, and residue
 
 *Per-task status and descriptions live in `docs/master_task_table.md`; the work orders live in `docs/briefs/`. What follows is the content that has no other home — decisions owed, handoffs between tasks, and claims that are believed rather than confirmed.*
+
+### The capture gap (new 2026-08-07 — tasks 41 and 42)
+
+🔴 **The app deliberately discards its own most valuable data.** Migration 001: `conversation_summary TEXT, -- AI-generated, grammar-constrained; raw transcript never stored`. Every real capture since personal ship — weeks of exactly what task 31 needs — is gone and unrecoverable. Second instance: `LlmOutputValidationError` (`src/llm/errors.ts`) carries `surface` and `issues` but **not the payload that failed**, so the D10 ladder throws away the malformed model output on every retry. Task 37's grammar hole needed a dedicated six-model spike to find; with capture it would have been a log line the first time it fired.
+
+**Task 41** fixes this for alpha — nothing discarded, out-of-band append-only, force-kill-safe. It **gates task 31**, which makes the chain `41 → 31 → 38 → 40`. **Task 42** pins the alpha privacy ruling to a beta gate. Briefs: `docs/briefs/event_capture_task_41.md`, `docs/briefs/privacy_consent_task_42.md`.
+
+**Two record corrections task 42 owes** (noted here so a future session doesn't flag them as bugs in the meantime): the `conversation_summary` schema comment becomes false once 41 lands, and **constraint #7 needs a clause stating that local capture is not telemetry — the distinction is *transmission*, not recording.** 41 does not violate local-only; nothing leaves the device.
 
 ### Decisions owed (Jason rules; nothing writes these until he does)
 

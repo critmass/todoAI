@@ -95,11 +95,20 @@ Jason named three. The rest are proposed — take them or cut them, but cut them
 
 So: **no exclusions, no redaction, no sampling. Everything in §1, including the crisis-gate log.** Retention during alpha is keep-everything; the findings report reports volume, and rotation only becomes a question if that volume turns out to be a problem.
 
-**This ruling is a design constraint, not just a permission — build for the teardown.** Task 42 has to delete all of this and *prove* it deleted it, so:
+**Clarified in a second pass, same day** — the first reading of this over-extended and is corrected here:
 
-- **Every byte capture writes lives under one directory it owns.** Nothing scattered, nothing interleaved with product data, nothing in the SQLite DB. §2a already says this for corruption-survival reasons; the teardown requirement makes it non-negotiable.
-- **Capture is one module with one entry point** (§3.1), so removal is a deletion plus the call sites, not an excavation. Don't let capture logic diffuse into the call sites it instruments.
-- **Document the on-disk layout precisely** (§3.3) — task 42's acceptance test enumerates locations to verify they're empty, and it can only do that from a written contract.
-- **No dormant-flag design.** Don't build an off switch and plan to flip it; task 42 removes the code. A disabled capture module is a thing a later change can re-enable by accident.
+- **Only the crisis-gate stream (§1.8) is deleted before beta.** The rest of capture **ships into beta and records beta testers**, under consent and controls. Task 42 is therefore teardown *and* governance, not a full purge.
+- **Everything Jason personally generates is kept**, for testing and training — including his own alpha crisis-gate log, which is task 21's only real evidence.
 
-⚠ **One consequence that reaches beyond this task:** the corpus task 31 builds is *derived* from these logs and will outlive them — 38 trains on it, 40 evaluates on it, 20 uses it as fixtures. Deleting the logs does not delete the corpus, and the corpus contains Jason's real task text verbatim. **Task 42 §1 carries that open question; it is not this task's to answer, but this task should not assume the corpus inherits the logs' fate.**
+### 🔴 Build every stream to be removable — independently
+
+This is a **settled decision** (orientation §5), not a preference, and it is the single most consequential design constraint on this task. Task 42 must delete *one stream* while keeping the others, and prove it. So:
+
+- **Streams are separately scoped from the start.** Not one undifferentiated event firehose with a `type` field, but streams that can each be removed — code, call sites, and files — without touching the others. The crisis stream is the proof case, but the principle is general: assume any stream may have to go.
+- **Every byte capture writes lives under one directory it owns**, partitioned by stream. Nothing scattered, nothing interleaved with product data, nothing in the SQLite DB. §2a already requires this for corruption-survival; removability makes it non-negotiable.
+- **One module, one entry point** (§3.1). Removal is a deletion plus call sites, not an excavation. Don't let capture logic diffuse into the code it instruments.
+- **Document the on-disk layout precisely** (§3.3) — 42's acceptance test enumerates locations to verify they're empty, and can only do that against a written contract.
+- **No dormant-flag design for the crisis stream.** Don't build an off switch and plan to flip it; 42 removes that code. A disabled module is something a later change re-enables by accident. *(The streams that survive into beta **do** get runtime controls — that's task 42's Job B — but those are user-facing consent controls, not a developer flag standing in for deletion.)*
+- **The crisis *detector* is untouched.** Only its logging is removable. `checkCrisis` and the referral path are product behaviour and a hard beta gate in their own right (task 21).
+
+⚠ **Retention note:** the corpus task 31 builds is derived from these logs and outlives them (38 trains on it, 40 evaluates on it, 20 uses it as fixtures). Jason's retained data — logs, corpus text, and the alpha crisis log — belongs in a private archive **outside the git repository**; the repo carries schema, splits, IDs and counts. See task 42 §4 for the reasoning.

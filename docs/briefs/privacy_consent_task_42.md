@@ -1,7 +1,7 @@
 # Task 42 — Crisis-stream teardown + consent and controls for the surviving capture
 
 **Owner:** **Opus** implements; **Jason** ruled the scope (§0).
-**Status:** ⬜ open. 🔴 **HARD BETA GATE.**
+**Status:** ⬜ open. 🔴 **HARD CLOSED-BETA GATE.** *(Open-beta and GA pruning is task 43.)*
 **Depends on:** 41 (there must be something to govern), 21 (crisis review — they now share an evidence base as well as a gate).
 
 ---
@@ -84,6 +84,18 @@ The reason is narrow and worth stating: the repo travels. A beta tester with sou
 Cost: a fresh clone can't re-run the bake-off without the data file. That is the normal situation for any project with a private dataset, and it is worth it.
 
 ---
+
+## 4b. Egress and anonymization — the pipeline this task builds
+
+**Ruled 2026-08-07: nothing leaves a tester's device un-anonymized.** Anonymization runs **at the source, before egress** — not after collection on Jason's laptop. So the export path is a **distinct pipeline from the capture path**, consuming 41's redaction seams (41 §2g).
+
+**Closed beta is the last rung at which free-text egress is defensible, and only because the volume permits review.** Recommendation, Jason's to rule: free-text egress permitted but **per-item reviewed before it leaves**, not bulk-scrubbed and shipped. Structured streams (performance, timings, outcomes, model-I/O metadata, thermal) anonymize essentially completely and can be pulled freely.
+
+**Three things this task must write into the record, so nobody later over-trusts the word:**
+
+1. **Anonymizing free-text is best-effort and cannot be fully solved.** Names, employers, places, health and relationship details are embedded in prose. **"Anonymized" must never be read as "safe to publish."**
+2. **Re-identification by combination is the real risk, not proper nouns.** A person's task list is close to a fingerprint — what they avoid, when, how often — even fully scrubbed. This is why task 43 drops free-text *structurally* at open beta instead of relying on better scrubbing.
+3. **The structured/free-text asymmetry is what makes the whole ladder principled** rather than an arbitrary line drawn at a convenient scale.
 
 ## 5. Record corrections this task owes
 

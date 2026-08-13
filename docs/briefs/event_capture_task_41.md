@@ -58,7 +58,9 @@ Jason named three. The rest are proposed — take them or cut them, but cut them
 
 **f. Size, rotation, and the no-space rule.** Raw model I/O is verbose and the device has 8 GB with a 1 GB model on it. State a size cap, a rotation policy, and behaviour when storage runs out. **Align with task 14's block-on-no-space rule** — but note the tension and resolve it explicitly: task 14 blocks *sessions* when there's no space, and a capture log that blocks the app is unacceptable. The likely answer is that capture degrades (drops, counts, warns) where the product DB blocks.
 
-**g. Redaction hooks now, unused.** Don't implement redaction — alpha doesn't want it — but put the seam where task 42 can switch it on without touching every call site.
+**g. Redaction seams now, with a named consumer.** Don't implement redaction — alpha doesn't want it — but place the seam so task 42 can use it without touching every call site. **The consumer is not the capture path; it is the *egress* path.** Ruled 2026-08-07: nothing leaves a tester's device un-anonymized, and anonymization runs at the source before export. So capture writes raw locally (which is fine — it never leaves), and a *separate* export pipeline anonymizes on the way out. Design the seam at that boundary, not inside `record()`.
+
+**h. Per-stream egress policy.** Streams are dropped at different rungs of the capture ladder (task 43): free-text conversation capture ends at open beta; structured streams survive. Each stream therefore needs a declared egress class — **structured** (anonymizes essentially completely, safe to pull) vs **free-text** (best-effort only, per-item review before egress). Declare it in the stream's definition, not in a policy document that drifts away from the code.
 
 ---
 

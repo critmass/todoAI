@@ -92,6 +92,12 @@ Carried forward; none are style preferences.
 - **When a ruling narrows a constraint, amend the constraint text**, so a future session doesn't flag a legitimate ruling as a bug. (R1/R8 narrowed "never cap neglect" → constraint #5 now says *saturation* is the violation, shape and clock-start are tunable.)
 - **Dependencies that aren't tasks rot.** "6 + quants," "device envelope," the recurrence engine — all sat as dangling deps until numbered (29, 30, 36). Every real work item gets a number unless it's a ship stage.
 - **Parallel tracks must be file-disjoint, and say so in both briefs.** 35 (docs) runs clean beside 36 (src) beside 24 (src, different area).
+- 🔴 **Surface every deviation from a human decision — in the report AND in coordination review.** *(Ruled by Jason, 2026-08-07, after task 24 shipped a linear progress bar where task 23's approved design had a dial and he was never asked.)* The information existed and still failed to reach him, so the rule is structural, not aspirational:
+  1. **Every findings report carries a section titled "Deviations from human decisions."** Separate from "decisions this task had to make" and from "deferred deliberately" — both of those titles read as necessity or scheduling and are exactly where the dial hid. **Empty is a valid answer and must be written out explicitly**, so silence stops being ambiguous.
+  2. **Coordination review surfaces that section verbatim**, not summarised. This is the step that failed.
+  3. **A deviation is provisional until Jason rules it.** It does not enter orientation §5 as a settled decision, and it is marked awaiting-sign-off until he says otherwise. Otherwise a builder's call becomes canon and the canon can no longer tell you which is which.
+  4. **Code comments cite the document that actually authorises them.** `WorkScreen.tsx` claims the bar is "explicitly acceptable — preferable, even — per the task brief"; **the brief says nothing about it.** A false citation launders a judgment into a sanction, and it fooled a coordinator reading the comment as evidence. If you cite a brief, open the brief.
+  *(Backlog cleanup for everything that predates this rule is **task 45**.)*
 - **Verify your own edits.** This session's master-table scripts failed uniqueness checks twice on stale anchors; each time the fix was to read the exact current markup first. `str_replace`/`edit_file` anchors go stale the moment the file changes — re-read before re-editing.
 
 ## 5. How Jason works

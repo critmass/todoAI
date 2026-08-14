@@ -44,12 +44,12 @@ Organised as **streams**, because §4 requires each to be independently removabl
 | `modelio` | 🔴 The composed `ChatMessage[]` as sent, the **raw completion string before any parsing**, grammar id, D10 rung, attempt count, `GenerationTimings`, model identity. | free-text (content) / structured (metadata) | content dropped at open beta; metadata survives |
 | `validation` | 🔴 Every `LlmOutputValidationError` **including the offending payload**. | free-text | dropped at open beta |
 | `mutation` | Field-level task changes: what, from, to, by whom (`user` \| `model` \| `system`), through which surface. | structured | survives |
-| `episode` | Planned vs actual minutes, the five outcomes, `+5` presses, hyperfocus quanta, parks, skips, resulting `TailDirective`, crash recoveries, credit written. | structured | survives |
+| `episode` | **Session origin (`planned` \| `quickstart`) — ruled 2026-08-07 (task 44).** Planned vs actual minutes, the five outcomes, `+5` presses, hyperfocus quanta, parks, skips, resulting `TailDirective`, crash recoveries, credit written. | structured | survives |
 | `planning` | The candidate pool with per-factor scores, neglect multiplier, final score, chosen agenda, **and both reject sets with reasons.** | structured | survives |
 | `coaching` | Trigger type + `trigger_data`, queued row, the resolution union emitted, what the app dispatched, observed outcome. | mixed | content dropped at open beta |
 | `crisis` | Every `checkCrisis` hit **and near-miss on the phrase list.** | free-text | 🔴 **removed entirely before closed beta** (task 42 Job A) |
 | `runtime` | Thermal samples and tok/s alongside model calls, time-since-cold, battery/charging, doze transitions. | structured | survives |
-| `lifecycle` | Launch, startup grammar-guard result, crash-recovery firing, alarm scheduled/fired/missed with actual delta, migration runs. | structured | survives |
+| `lifecycle` | Session origin on every session-scoped record. Launch, startup grammar-guard result, crash-recovery firing, alarm scheduled/fired/missed with actual delta, migration runs. | structured | survives |
 
 **Declare the egress class in the stream's definition, in code** — not in a policy document that drifts away from it.
 

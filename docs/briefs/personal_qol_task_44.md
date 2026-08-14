@@ -82,15 +82,30 @@ Reuse the real predicates from `src/planning/` rather than re-deriving them, or 
 
 ---
 
-## 5. Session origin in the record (ruling 5)
+## 5. Session origin in the record (ruling 5, extended 2026-08-07)
 
-A quick-start session must be distinguishable from a normal one.
+A quick-start session must be distinguishable from a normal one, **in both stores.**
 
-**In capture (task 41):** the `episode` and `lifecycle` streams carry a session-origin field — `planned` | `quickstart`. Cheap, and it's the diagnostic view.
+**In capture (task 41):** the `episode` and `lifecycle` streams carry a session-origin field — `planned` | `quickstart`. That is 41's deliverable, already in its brief; nothing here changes it.
 
-⚠ **Recommended, and it's a schema change so it's Jason's call: mark it in `sessions` too.** The reasoning is the one Jason already applied to self-completion in ruling 2 — **the learning layer reads the database, not the capture logs.** A one-task quick-start session is a different population from a planned multi-task session: different length, different selection path, different completion profile. If task 17 pools them naively it learns from a mixed distribution and can't tell. Capture-only means 17 is structurally blind to the distinction.
+**In the database — RULED 2026-08-07 (Jason).** `sessions` gains an `origin` column. **Migration 007 / schema 2.8.0.**
 
-If ruled in, it is a `sessions` column and **migration 007 / schema 2.8.0**, with the standing rule that every migration sweeps prior migrations' test suites.
+The reasoning, recorded because a future session will otherwise read this as a redundant duplicate of the capture field:
+
+1. **Capture is deletable by design; `sessions` is permanent.** Orientation §5 settles that every capture stream is independently removable, task 42 puts streams behind a consent toggle, and task 43 prunes them by ship stage. **A permanent consumer must not depend on an ephemeral store.** If origin lived only in capture, task 17 would lose the distinction the moment a stream is pruned or a user opts out. The general rule: *anything the app needs to reason about itself belongs in the database; capture is for diagnosis and corpus.*
+2. **It is a confounder in the learning loops, not a label.** Quick-start bypasses `runSelectionBoundary` entirely, so its outcome carries **no evidence about whether the ranker chose well** — the ranker didn't choose. Pooling it means the scorer is credited or blamed for outcomes it had no part in, and the bias points the wrong way: a user hand-picking a task they want to do will tend to complete it. Capacity learning is contaminated too — a one-task session is not evidence about how much fits in a session.
+3. **It is the same ruling as ruling 2, one step upstream.** Self-completions are excluded from completion-time learning because a completion with no episode carries no duration evidence. A session with no ranker carries no selection evidence. Enforcing that requires the marker to be visible to the code doing the calculation — which reads `sessions`, not JSONL.
+4. **The table already carries this class of field.** `session_type`, `escape_valve_used`, `extended`, `model_tier`, `tasks_completed`/`skipped`, and `tasks_progressed` (migration 003) are all "what kind of session was this." `origin` is a *broader* distinction than several of them.
+5. **It cannot be backfilled.** You cannot retroactively determine whether a past session was quick-start. Deferring the column until task 17 exists doesn't defer the cost — it destroys the record for every session in the gap. This project has been bitten by that exact shape three times: discarded transcripts, `score.ts` never appearing in a readable diff, and `completion_count`/`success_rate` having no writer while `historicalSuccessFactor` scored every task off a permanent n=0.
+
+**Scope discipline — write the column, defer the modeling.** This task's job is to *record* origin correctly. **How task 17 consumes it is task 17's decision**, made with real requirements rather than guessed at now. Do not build exclusion logic into the learning layer here; do not reshape `session_type` to absorb it.
+
+**Implementation notes:**
+
+- Nullable `TEXT` with a CHECK constraint (`origin IN ('planned','quickstart')`). **NULL is meaningful and correct** for rows written before this migration — "the distinction did not exist yet," not "unknown."
+- **One writer.** Task 24 owns session-row creation (constraint #14, `sessionController.startSession`, born `'abandoned'`); set `origin` there and nowhere else.
+- ⚠ **Every migration sweeps the prior migrations' test suites.** `runMigrations` walks forward, so 006's "latest version" and "full object list" assertions become assertions about 007 and will fail in a file that looks unrelated. Confirmed live through 002–006.
+- If another migration lands first, **this renumbers and re-sweeps.**
 
 ---
 

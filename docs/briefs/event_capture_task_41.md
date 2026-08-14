@@ -1,116 +1,131 @@
 # Task 41 — Lossless local event capture
 
-**Owner:** **Opus** (design + implementation), **Jason** (device run).
-**Status:** ⬜ open. **Gates task 31**, and therefore 38 → 40 and the model-migration decision. `P`.
-**Ship stage:** personal/alpha. **Task 42 revisits every decision here before beta.**
+**Owner:** **Opus 5** for §3 (event schema + stream boundaries), **Opus** for implementation, **Jason** for the device run.
+**Status:** ⬜ open. **Gates task 31**, therefore 38 → 40 and the model-migration decision. `P`.
+**Ship stage:** built for alpha. **Task 42** governs it at closed beta; **task 43** prunes it at open beta and GA. Neither is this task's problem to solve — but §4's removability requirements exist because of them.
 
 ---
 
-## 0. Why this exists, stated plainly
+## 0. Read first
 
-Task 31 needs real captures. I went looking for them in the dogfooding database and found this, in migration 001:
+1. This brief in full.
+2. `docs/briefs/orientation_for_opus.md` — §1 (confirmed device facts), §4 (constraints), §5 (settled decisions, including **capture is built to be removed** and **the capture ladder**).
+3. `docs/briefs/privacy_consent_task_42.md` §1–2 and `docs/briefs/capture_ladder_task_43.md` §2 — what happens to what you build, and when. You are building for a facility that gets pruned; §4 is how.
+4. `src/llm/provider/types.ts`, `ladder.ts`, `errors.ts` — the model path you're instrumenting.
+5. `docs/eval/task24_findings_report.md` §8 and `docs/eval/task13_findings_report.md` §8 — the runtime contracts you're hooking.
+
+---
+
+## 1. Why this exists
+
+Task 31 needs real captures. There are none, because the app throws them away. Migration 001:
 
 ```sql
 conversation_summary TEXT, -- AI-generated, grammar-constrained; raw transcript never stored
 ```
 
-**The app deliberately discards raw user input.** Every real capture since personal ship — weeks of exactly the material task 31 needs — is gone and unrecoverable. The best source of truth for the corpus has been destroying itself the whole time.
+**Every real capture since personal ship — weeks of exactly the material the corpus needs — is gone and unrecoverable.**
 
-There is a second, worse instance. `LlmOutputValidationError` (`src/llm/errors.ts`) carries `surface` and `issues` but **not the payload that failed.** So when the D10 ladder retries, the malformed model output — the single most diagnostic artifact the system produces — is thrown away. Task 37's grammar hole (a bare `","` passing as a valid title) had to be found by a dedicated six-model spike. With capture in place it would have shown up in a log line the first time it fired.
+A second instance, worse because it's silent: `LlmOutputValidationError` (`src/llm/errors.ts`) carries `surface` and `issues` but **not the payload that failed**. `runAttempt` in `src/llm/provider/ladder.ts` catches it, retries, and the malformed generation — the single most diagnostic artifact the system produces — is discarded. Task 37's grammar hole (a bare `","` passing as a schema-valid title) needed a dedicated six-model spike to find. With capture it is a log line the first time it fires.
 
-**The ruling for alpha is that nothing is discarded.** Privacy is not a concern at this stage — the only person the data could be hidden from is Jason, and hiding it from him is what created this problem. Task 42 owns the reconsideration before anyone else installs the app.
-
----
-
-## 1. What must be captured
-
-Jason named three. The rest are proposed — take them or cut them, but cut them deliberately.
-
-### Named
-
-1. **Conversation logs.** Every turn, both directions, verbatim. User text exactly as typed (no trimming, no normalisation — the typos and abbreviations *are* the signal for task 31). Assistant text as rendered. Clarifying questions and their answers, tagged as such, because the seed-fixture schema has a `clarify_answers` field that needs a real counterpart.
-2. **Task changes — user-made and model-made, distinguished.** Every field-level mutation: what changed, from what, to what, by whom (`user` | `model` | `system`), through which surface (chat extraction, task editor, coaching resolution dispatch, recurrence sweep, completion fold). `task_updates` already exists in the schema; this is a superset and should not be jammed into it (see §2).
-3. **Task performance.** Every episode: planned vs. actual minutes, the five outcomes, `+5` presses and hyperfocus quanta, parks, skips, the `TailDirective` that resulted, crash recoveries, and the credit actually written.
-
-### Proposed additions, in rough order of value
-
-4. 🔴 **Raw model I/O.** The exact composed prompt (system + chat-template messages as sent), the **raw completion string before any parsing or validation**, the grammar used, the D10 rung reached, retry count, token counts, latency, and model identity. This is the highest-value item on the list and it is the one that makes task 20's eval harness and task 40's bake-off cheap instead of expensive. It also turns "extraction was wrong" into "here is precisely what it emitted."
-5. 🔴 **Validation failures with payload.** Every `LlmOutputValidationError` including the offending output. Requires widening the error type — a small change, and the reason task 37 cost a spike.
-6. **Scoring and planning snapshots.** At plan time: the full candidate pool with per-factor scores, the neglect multiplier, the final score, the chosen agenda, **and both reject sets with reasons.** `runSelectionBoundary` already retains the capability and dependency rejects — it just never persists them. This is task 17's training input and the answer to "why did it show me *that*."
-7. **Coaching lifecycle.** Trigger type and `trigger_data`, the queued row, the resolution union the model emitted, what the app dispatched, and the observed outcome. Task 19's distillation needs the fired-outcome channel and currently has no source.
-8. **Crisis-gate firings and near-misses.** Every `checkCrisis` evaluation that hits, plus ones that come close on the phrase list. Task 21 is a hard beta gate with *zero* real data behind it today; this is the only way it gets any. Handle with care in task 42.
-9. **Runtime and device conditions.** Thermal samples and tok/s alongside model calls, time-since-cold, battery/charging state, doze transitions. Feeds the thermal sampler stub (assigned to 19) and settles the alarm-delivery questions task 13 and 24 could only infer.
-10. **App lifecycle.** Launch, the startup grammar guard's result, crash-recovery firing, alarm scheduled / fired / missed with actual delta, migration runs.
+🔴 **And the window is finite.** Task 43's ladder drops free-text capture at open beta. The corpus that trains every future LoRA and re-runs every future bake-off is collected during alpha and closed beta **or largely not at all.** That is the argument for doing this now rather than after beta hardening, and it is also why §3 gets the careful model: *you cannot re-collect data you captured in the wrong shape.*
 
 ---
 
-## 2. Design constraints — these are the part that's easy to get wrong
+## 2. What gets captured
 
-**a. Out-of-band, append-only, not in the product database.** The capture log must not be able to corrupt, slow, lock, or migrate the app's SQLite. It must also *survive* the product DB being corrupt, since that's precisely when you want the log. **Recommended: newline-delimited JSON files on app-private external storage, one per day, appended.** Crash-safe by construction, pullable in one `adb pull`, greppable, and it adds no migration burden. A second SQLite database is the alternative and is worse on every one of those axes.
+**Ruled 2026-08-07: log everything in alpha. No exclusions, no redaction, no sampling.** In alpha the only person the data could be hidden from is Jason, and hiding it from him is what created this problem.
 
-**b. Lossless means synchronous at the event, not buffered-and-flushed.** A buffer loses exactly the events surrounding a crash, which are the events worth having. Append synchronously for everything low-frequency; buffer *only* high-frequency telemetry (thermal samples), and flush that on every episode boundary.
+Organised as **streams**, because §4 requires each to be independently removable and task 43 removes them at different rungs.
 
-**c. Capture failure must never break the app — but must never be silent either.** Wrap every write so it can't propagate, and maintain a dropped-event counter that gets written into the log itself on the next successful append. A silent lossy logger is worse than none, because it produces confident wrong conclusions.
+| Stream | Contents | Egress class | Ladder fate |
+|---|---|---|---|
+| `conversation` | Every turn both directions, **verbatim** — user text exactly as typed, no trimming or normalisation (the typos and abbreviations *are* the signal for 31). Clarifying questions and their answers tagged as such, matching the seed fixtures' `clarify_answers`. | free-text | dropped at open beta |
+| `modelio` | 🔴 The composed `ChatMessage[]` as sent, the **raw completion string before any parsing**, grammar id, D10 rung, attempt count, `GenerationTimings`, model identity. | free-text (content) / structured (metadata) | content dropped at open beta; metadata survives |
+| `validation` | 🔴 Every `LlmOutputValidationError` **including the offending payload**. | free-text | dropped at open beta |
+| `mutation` | Field-level task changes: what, from, to, by whom (`user` \| `model` \| `system`), through which surface. | structured | survives |
+| `episode` | Planned vs actual minutes, the five outcomes, `+5` presses, hyperfocus quanta, parks, skips, resulting `TailDirective`, crash recoveries, credit written. | structured | survives |
+| `planning` | The candidate pool with per-factor scores, neglect multiplier, final score, chosen agenda, **and both reject sets with reasons.** | structured | survives |
+| `coaching` | Trigger type + `trigger_data`, queued row, the resolution union emitted, what the app dispatched, observed outcome. | mixed | content dropped at open beta |
+| `crisis` | Every `checkCrisis` hit **and near-miss on the phrase list.** | free-text | 🔴 **removed entirely before closed beta** (task 42 Job A) |
+| `runtime` | Thermal samples and tok/s alongside model calls, time-since-cold, battery/charging, doze transitions. | structured | survives |
+| `lifecycle` | Launch, startup grammar-guard result, crash-recovery firing, alarm scheduled/fired/missed with actual delta, migration runs. | structured | survives |
 
-**d. Correlation IDs on every record.** `session_id`, `episode_id`, `task_id`, plus a monotonic sequence number and a wall-clock and monotonic timestamp pair. Without these the streams can't be reconstructed into a timeline, and the timeline is the whole point for tasks 17 and 19.
-
-**e. Version every record** — `"v":1`, matching the convention `learning_data` already uses. This file format will change and task 31's tooling has to survive that.
-
-**f. Size, rotation, and the no-space rule.** Raw model I/O is verbose and the device has 8 GB with a 1 GB model on it. State a size cap, a rotation policy, and behaviour when storage runs out. **Align with task 14's block-on-no-space rule** — but note the tension and resolve it explicitly: task 14 blocks *sessions* when there's no space, and a capture log that blocks the app is unacceptable. The likely answer is that capture degrades (drops, counts, warns) where the product DB blocks.
-
-**g. Redaction seams now, with a named consumer.** Don't implement redaction — alpha doesn't want it — but place the seam so task 42 can use it without touching every call site. **The consumer is not the capture path; it is the *egress* path.** Ruled 2026-08-07: nothing leaves a tester's device un-anonymized, and anonymization runs at the source before export. So capture writes raw locally (which is fine — it never leaves), and a *separate* export pipeline anonymizes on the way out. Design the seam at that boundary, not inside `record()`.
-
-**h. Per-stream egress policy.** Streams are dropped at different rungs of the capture ladder (task 43): free-text conversation capture ends at open beta; structured streams survive. Each stream therefore needs a declared egress class — **structured** (anonymizes essentially completely, safe to pull) vs **free-text** (best-effort only, per-item review before egress). Declare it in the stream's definition, not in a policy document that drifts away from the code.
-
----
-
-## 3. Deliverables
-
-1. The capture module (`src/capture/` or similar) with a single typed `record(event)` entry point and one event-type union.
-2. Call sites wired at every source in §1, including the widened `LlmOutputValidationError`.
-3. A documented on-disk format — the event-type union, the correlation-ID contract, and the versioning rule — in `docs/design/`, because task 31's tooling, task 20's harness, and task 40's analysis all read it.
-4. A pull/inspect script (`scripts/`) that fetches the logs off the device and can filter by type, session, or date.
-5. `docs/eval/task41_findings_report.md` — including a real measurement of **log volume per session** and **capture overhead on the model path**, taken on the S23 FE. If capture costs meaningful tok/s, that's a finding that changes the design.
+**Declare the egress class in the stream's definition, in code** — not in a policy document that drifts away from it.
 
 ---
 
-## 4. Done means
+## 3. The event schema and stream boundaries — do this first, on the good model
 
-- A full personal session runs on the S23 FE and the log reconstructs it end to end: every turn, every mutation, every model call with raw output, every outcome.
-- A **deliberate force-kill mid-episode** loses no event before the kill. This is the acceptance test that matters — buffering bugs only show up here.
+**This is the one-shot decision.** Data captured in the wrong shape cannot be re-collected once the window closes, and a schema that can't reconstruct a timeline produces a corpus that looks fine and can't answer anything. Design it before writing call sites.
+
+- **Correlation IDs on every record**: `sessionId`, `episodeId`, `taskId`, plus a **monotonic sequence number** and **both** a wall-clock and a monotonic timestamp. Wall-clock alone is not enough — the device's clock moves, and DST arithmetic already bit task 36.
+- **`"v":1` on every record**, matching the `learning_data` convention. The format will change; 31's tooling has to survive it.
+- **One event-type union**, exhaustively typed, so a new stream can't be added without declaring its egress class and ladder fate.
+- **Stream identity is first-class**, not a `type` string on an undifferentiated firehose. §4 depends on this.
+
+---
+
+## 4. 🔴 Removability — a settled decision, not a preference
+
+Orientation §5: *all logging software is written with an eye to potentially being removed, and every stream must be removable independently.* Task 42 deletes **one** stream while the others keep running, and must prove it. So:
+
+- **Streams separately scoped**, each writing to its own path under one directory capture owns. Removing a stream is deleting its module, its call sites, and its directory — not an excavation.
+- **One module, one entry point** (`record(event)`). Capture logic never diffuses into the code it instruments; call sites pass data and know nothing else.
+- **The on-disk layout is a written contract** (§6.3), because task 42's acceptance test enumerates locations to prove they're empty and can only do that against a document.
+- **No dormant-flag design for `crisis`.** Don't build an off switch and plan to flip it; 42 removes the code, and a disabled module is something a later change re-enables by accident. *(Streams that survive into beta do get runtime controls — that's 42 Job B — but those are user-facing consent controls, not a developer flag standing in for deletion.)*
+- **The crisis *detector* is untouched.** `checkCrisis` and the referral path are product behaviour and a hard beta gate in their own right (task 21). Only its logging is removable.
+
+---
+
+## 5. Storage and failure behaviour
+
+**a. Out-of-band, append-only, never in the product database.** Capture must not corrupt, slow, lock or migrate the app's SQLite — and must *survive* that DB being corrupt, which is precisely when you want it. **Newline-delimited JSON on app-private external storage** (`/sdcard/Android/data/com.todoai/files/`, constraint #10), partitioned by stream and day. Crash-safe by append, one `adb pull`, greppable, no migration burden. A second SQLite DB is worse on every axis.
+
+**b. Lossless means synchronous at the event.** A buffer loses exactly the events surrounding a crash, which are the ones worth having. Append synchronously for everything low-frequency; buffer **only** high-frequency telemetry (thermal samples) and flush on every episode boundary.
+
+**c. Failure never breaks the app, and never goes silent.** Wrap every write so it cannot propagate; maintain a dropped-event counter written into the log on the next successful append. A silently lossy logger is worse than none — it produces confident wrong conclusions.
+
+**d. Size, rotation, no-space.** `modelio` is verbose; the device has 8 GB with a 1 GB model on it. State a cap and a rotation policy. **Resolve the tension with task 14 explicitly:** 14 blocks *sessions* on no space; capture blocking the app is unacceptable. Capture degrades (drops, counts, warns) where the product DB blocks.
+
+**e. Redaction seams, unimplemented, with a named consumer.** The consumer is the **egress** path, not `record()`. Ruled: nothing leaves a tester's device un-anonymized, and anonymization runs at the source before export (task 42 §4b). Capture writes raw locally — fine, it never leaves. Put the seam at the export boundary.
+
+---
+
+## 6. Integration points
+
+These are real and current; verify before writing against them.
+
+- **`src/llm/provider/ladder.ts` → `runConstrained()`** is the choke point for every constrained call, and `LadderResult` already carries `raw`, `attempts` and `response`. **`runAttempt()` is where the failed payload is currently dropped** — widen `LlmOutputValidationError` (`src/llm/errors.ts`) to carry it, then capture it.
+- **`src/llm/provider/types.ts` → `LLMProvider.generateResponse()`** is the single generation entry point per the §3.6 contract, so it catches unconstrained calls too (`runUnconstrained`). `LLMResponse` and `GenerationTimings` already carry what `modelio` and `runtime` need.
+- **`src/app/chat/chatController.ts`** — `send()` is the conversation turn entry; `checkCrisis` is called there; `saveTask()` runs extraction. Conversation, crisis and part of modelio hook here.
+- **`src/execution/episodeService.ts`** — `startSessionRuntime`, `startEpisode`, `pauseEpisode`, `resumeEpisode`, `endOfBlockPrompt`, `applyShortExtension`, `applyHyperfocusExtension`, `completeEpisode`, `closeSession`. All exported async functions; a clean surface for `episode`.
+- **`src/planning/planner.ts` → `runSelectionBoundary()`** already returns `eligible`, `capabilityRejects` and `dependencyRejects`. **It just never persists them.** That's the `planning` stream, nearly free.
+- **`src/db/repositories/*.ts`** and **`src/services/recurrence/advance.ts`**, **`src/services/taskCompletion.ts`**, **`src/services/coaching/`** — `mutation` and `coaching`. Attribute the actor correctly: the recurrence sweep and the completion fold are `system`, coaching dispatch is `model`, the editor is `user`.
+
+---
+
+## 7. Deliverables
+
+1. `src/capture/` — one module, one `record()` entry point, the event-type union, per-stream writers.
+2. Call sites wired per §6, including the widened `LlmOutputValidationError`.
+3. `docs/design/capture_format_task41.md` — the event union, correlation-ID contract, on-disk layout, egress classes, versioning rule. **Task 31's tooling, task 20's harness, task 40's analysis and task 42's acceptance test all read this.**
+4. `scripts/pull-capture.js` — fetch logs off the device, filter by stream, session or date.
+5. `docs/eval/task41_findings_report.md` with **measured** log volume per session and **measured** capture overhead on the model path, on the S23 FE. If capture costs meaningful tok/s, that's a finding that changes the design.
+
+---
+
+## 8. Done means
+
+- A full personal session on the S23 FE reconstructs end to end from the logs: every turn, every mutation, every model call with raw output, every outcome.
+- 🔴 **A deliberate force-kill mid-episode loses no event before the kill.** This is the acceptance test that matters — buffering bugs surface nowhere else.
+- Each stream verified independently removable: delete `crisis`, rebuild, confirm the app runs and the other streams are unaffected.
 - Volume and overhead measured, not estimated.
-- Task 31 can point its tooling at the format and start harvesting.
+- Task 31 can point tooling at the documented format and start harvesting.
 
 ---
 
-## 5. Sequencing
+## 9. Open for Jason
 
-- **37 first if convenient**, so the capture isn't full of a grammar bug you already know about — but 37 doesn't block this, since capture records raw *input*, upstream of the grammar. Capturing the bug firing is arguably useful.
-- **41 then runs in the background of everything else.** Once it's on, the corpus accumulates while Jason does other work. It is the only task-31 input that grows without effort, which is why it gates 31 rather than running beside it.
-- **Realistic expectation:** two to three weeks of normal use converts into a held-out split of real captures. Task 31's interview and reconstruction work should run *during* that window, not after it — the two are parallel, and 31's train split doesn't need to wait.
-
----
-
-## 6. Ruled 2026-08-07
-
-> **Log everything for now. That log will be completely turned off and deleted before beta.** In alpha I'm basically hiding my actions from myself if I don't log them — something that is not true once we are in beta. — *Jason*
-
-So: **no exclusions, no redaction, no sampling. Everything in §1, including the crisis-gate log.** Retention during alpha is keep-everything; the findings report reports volume, and rotation only becomes a question if that volume turns out to be a problem.
-
-**Clarified in a second pass, same day** — the first reading of this over-extended and is corrected here:
-
-- **Only the crisis-gate stream (§1.8) is deleted before beta.** The rest of capture **ships into beta and records beta testers**, under consent and controls. Task 42 is therefore teardown *and* governance, not a full purge.
-- **Everything Jason personally generates is kept**, for testing and training — including his own alpha crisis-gate log, which is task 21's only real evidence.
-
-### 🔴 Build every stream to be removable — independently
-
-This is a **settled decision** (orientation §5), not a preference, and it is the single most consequential design constraint on this task. Task 42 must delete *one stream* while keeping the others, and prove it. So:
-
-- **Streams are separately scoped from the start.** Not one undifferentiated event firehose with a `type` field, but streams that can each be removed — code, call sites, and files — without touching the others. The crisis stream is the proof case, but the principle is general: assume any stream may have to go.
-- **Every byte capture writes lives under one directory it owns**, partitioned by stream. Nothing scattered, nothing interleaved with product data, nothing in the SQLite DB. §2a already requires this for corruption-survival; removability makes it non-negotiable.
-- **One module, one entry point** (§3.1). Removal is a deletion plus call sites, not an excavation. Don't let capture logic diffuse into the code it instruments.
-- **Document the on-disk layout precisely** (§3.3) — 42's acceptance test enumerates locations to verify they're empty, and can only do that against a written contract.
-- **No dormant-flag design for the crisis stream.** Don't build an off switch and plan to flip it; 42 removes that code. A disabled module is something a later change re-enables by accident. *(The streams that survive into beta **do** get runtime controls — that's task 42's Job B — but those are user-facing consent controls, not a developer flag standing in for deletion.)*
-- **The crisis *detector* is untouched.** Only its logging is removable. `checkCrisis` and the referral path are product behaviour and a hard beta gate in their own right (task 21).
-
-⚠ **Retention note:** the corpus task 31 builds is derived from these logs and outlives them (38 trains on it, 40 evaluates on it, 20 uses it as fixtures). Jason's retained data — logs, corpus text, and the alpha crisis log — belongs in a private archive **outside the git repository**; the repo carries schema, splits, IDs and counts. See task 42 §4 for the reasoning.
+- **Retention during alpha** — keep everything forever, or rotate? Everything-forever is simplest; the findings report will say whether volume makes that untenable.
+- **Whether to backfill anything.** Nothing is recoverable, but the existing `tasks` rows are real and can seed task 31's reconstruction interviews. Not this task's deliverable — flagging it so it isn't forgotten.

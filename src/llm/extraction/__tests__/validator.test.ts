@@ -118,6 +118,27 @@ describe('validate - cross-field rules (D10)', () => {
     expect(() => validate({ ...baseValid(), title: '   ' }, TODAY)).toThrow(LlmOutputValidationError);
   });
 
+  // Task 37 (docs/briefs/grammar_separator_hole_task_37.md) - the separator-token hole. Before
+  // the fix, `title: ","` was accepted by every gate the pipeline had: the grammar's
+  // `jchar{1,80}` matched it, zod's min(1) matched it, and the trim check above passed it
+  // because a comma trims to a comma. The Qwen3.5-2B spike produced exactly this on 13-15 of 16
+  // fixtures. The grammar's firstChar rule now makes it ungeneratable; this is the second layer,
+  // which also covers the prompt-JSON fallback path where no grammar is in play at all.
+  it('rejects a bare separator token as a title (task 37)', () => {
+    for (const title of [',', '.', ':', '-', ',,,', ' , ', '::', '--']) {
+      expect(() => validate({ ...baseValid(), title }, TODAY)).toThrow(LlmOutputValidationError);
+    }
+  });
+
+  it('still accepts a title that merely STARTS with punctuation (task 37)', () => {
+    // The validator layer is deliberately weaker than the grammar layer: it requires an
+    // alphanumeric somewhere, not in first position. Rejecting throws into the D10 retry ladder,
+    // and these are real task titles a user could dictate.
+    for (const title of ['$50 to the landlord', '(re)schedule dentist', '"Salem\'s Lot" return']) {
+      expect(() => validate({ ...baseValid(), title }, TODAY)).not.toThrow();
+    }
+  });
+
   it('rejects a resolved due date in the past', () => {
     // "in_days: -0" isn't representable (min 1), so use on_date with a date before today that
     // would NOT roll forward (rolling only applies when the naive date is before today, which

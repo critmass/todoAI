@@ -28,16 +28,19 @@ changesContextTags ::= "null" | contextTags
 contextTags ::= "[]" | "[" tag ("," tag){0,4} "]"
 tag ::= tagKnown | newTag
 tagKnown ::= "\"" {{context_tags_known}} "\""
-newTag ::= "\"" jchar{1,20} "\""
+# Every free-text string in this file opens with `firstChar`, not a bare `jchar` - see the
+# firstChar note in the shared-primitives section. Bounds are unchanged in every case:
+# firstChar + jchar{0,n-1} spans exactly the same 1..n characters as jchar{1,n} did.
+newTag ::= "\"" firstChar jchar{0,19} "\""
 changesEnergy ::= "null" | "\"low\"" | "\"med\"" | "\"high\""
-changesNotes ::= "null" | "\"" jchar{1,200} "\""
+changesNotes ::= "null" | "\"" firstChar jchar{0,199} "\""
 
 # --- break_down_task (stub: id only, D8 - triggers task_breakdown.v1 as its own staged call) ---
 breakDownTask ::= "{\"action\":\"break_down_task\",\"task_id\":" taskId "}"
 
 # --- eliminate_task ---
 eliminateTask ::= "{\"action\":\"eliminate_task\",\"task_id\":" taskId ",\"reason\":" reason120 "}"
-reason120 ::= "\"" jchar{1,120} "\""
+reason120 ::= "\"" firstChar jchar{0,119} "\""
 
 # --- defer_task ---
 deferTask ::= "{\"action\":\"defer_task\",\"task_id\":" taskId ",\"until\":" until "}"
@@ -48,14 +51,14 @@ until ::= "null" | untilOnDate | untilInDays | untilWeekday | untilCondition
 # Digit/dash structure is no longer grammar-enforced - validator.ts's date regex (D10) is the
 # sole enforcer now.
 untilOnDate ::= "{\"kind\":\"on_date\",\"date\":" date "}"
-date ::= "\"" jchar{1,10} "\""
+date ::= "\"" firstChar jchar{0,9} "\""
 untilInDays ::= "{\"kind\":\"in_days\",\"days\":" daysInt "}"
 daysInt ::= [1-9] [0-9]{0,2}
 untilWeekday ::= "{\"kind\":\"weekday\",\"day\":" weekday ",\"which\":" which "}"
 weekday ::= "\"monday\"" | "\"tuesday\"" | "\"wednesday\"" | "\"thursday\"" | "\"friday\"" | "\"saturday\"" | "\"sunday\""
 which ::= "\"this\"" | "\"next\""
 untilCondition ::= "{\"condition\":" condition120 "}"
-condition120 ::= "\"" jchar{1,120} "\""
+condition120 ::= "\"" firstChar jchar{0,119} "\""
 
 # --- add_dependency ---
 addDependency ::= "{\"action\":\"add_dependency\",\"task_id\":" taskId ",\"depends_on_task_id\":" dependsOnTaskId "}"
@@ -63,7 +66,7 @@ dependsOnTaskId ::= {{depends_on_task_id}}
 
 # --- add_missing_task (stub: title only, D8 - triggers task_extraction.v1 as its own staged call) ---
 addMissingTask ::= "{\"action\":\"add_missing_task\",\"title\":" title "}"
-title ::= "\"" jchar{1,80} "\""
+title ::= "\"" firstChar jchar{0,79} "\""
 
 # --- no_change (first-class action, D8 - without it the grammar corners the model into inventing an intervention) ---
 noChange ::= "{\"action\":\"no_change\",\"reason\":" reason120 "}"
@@ -73,3 +76,8 @@ taskId ::= {{task_id}}
 
 # --- shared primitives ---
 jchar ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})
+# Separator-token hole (task 37) - a bare `"\"" jchar{1,n} "\""` is satisfied by the single
+# token `","`, producing a schema-valid, validator-passing, useless value. Every free-text
+# string in this file therefore opens with an alphanumeric. A minimum length does NOT close the
+# hole. Full explanation in task_extraction.v1.gbnf's shared-primitives section.
+firstChar ::= [a-zA-Z0-9]

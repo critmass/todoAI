@@ -66,8 +66,22 @@ export type TaskExtractionV1 = z.infer<typeof taskExtractionSchema>;
 
 const SURFACE = 'task_extraction.v1';
 
+/** Task 37 (docs/briefs/grammar_separator_hole_task_37.md §2, "Consider the validator too"):
+ *  second layer under the grammar's `firstChar` fix. A title with no alphanumeric character
+ *  anywhere in it is never a real task - it is the separator-token hole's output (`","`), or
+ *  punctuation debris from a prompt-JSON fallback where no grammar was in play at all.
+ *
+ *  Deliberately WEAKER than the grammar rule, and not a duplicate of it. The grammar constrains
+ *  the FIRST character because it constrains *generation* - a forbidden token is simply
+ *  unavailable and the model takes its next-best one, so being strict there costs nothing but a
+ *  slightly different phrasing. This check *rejects*, and rejecting is expensive (it throws into
+ *  the D10 retry ladder), so it fires only on the case that is unambiguously junk. A legitimate
+ *  title like "$50 to the landlord" or "(re)schedule dentist" must survive it. */
+const HAS_ALPHANUMERIC = /[a-zA-Z0-9]/;
+
 /**
- * zod parse, then cross-field rules (D10): title non-empty after trim; count target >= 1;
+ * zod parse, then cross-field rules (D10): title non-empty after trim and containing at least
+ * one alphanumeric character (task 37); count target >= 1;
  * scheduled/scheduled_quota days non-empty; quota/scheduled_quota quota >= 1; duration in
  * [1,1440]; resolved due date not in the past. Most of these are also enforced by the zod
  * schema's own bounds - kept explicit here too per D10's "at minimum" list and so a future
@@ -86,6 +100,9 @@ export function validate(raw: unknown, todayISO: string): TaskExtractionV1 {
 
   if (data.title.trim().length === 0) {
     issues.push('title: must be non-empty after trim');
+  } else if (!HAS_ALPHANUMERIC.test(data.title)) {
+    // Task 37: a comma trims to a comma, so the check above passes `","` unaltered.
+    issues.push('title: must contain at least one alphanumeric character');
   }
   if (data.estimated_duration_minutes < 1 || data.estimated_duration_minutes > 1440) {
     issues.push('estimated_duration_minutes: must be in [1,1440]');

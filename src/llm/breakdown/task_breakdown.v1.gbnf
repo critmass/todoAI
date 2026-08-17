@@ -18,7 +18,9 @@ ordered ::= "true" | "false"
 subtasks ::= "[" subtask ("," subtask){1,7} "]"
 subtask ::= "{\"title\":" title ",\"estimated_duration_minutes\":" estimatedDurationMinutes ",\"duration_from_user\":" durationFromUser "}"
 
-title ::= "\"" jchar{1,80} "\""
+# Opens with `firstChar`, not a bare `jchar` - see the firstChar note below. Bounds unchanged:
+# firstChar + jchar{0,79} spans the same 1..80 characters as jchar{1,80} did.
+title ::= "\"" firstChar jchar{0,79} "\""
 # Digit-count bounded, not exact-range (see task_extraction.v1.gbnf's note) - the zod
 # validator enforces the exact [1,1440] range.
 estimatedDurationMinutes ::= [1-9] [0-9]{0,3}
@@ -26,3 +28,8 @@ durationFromUser ::= "true" | "false"
 
 # --- shared primitives ---
 jchar ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})
+# Separator-token hole (task 37) - a bare `"\"" jchar{1,n} "\""` is satisfied by the single
+# token `","`, producing a schema-valid, validator-passing, useless value. Every free-text
+# string in this file therefore opens with an alphanumeric. A minimum length does NOT close the
+# hole. Full explanation in task_extraction.v1.gbnf's shared-primitives section.
+firstChar ::= [a-zA-Z0-9]

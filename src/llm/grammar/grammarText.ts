@@ -28,8 +28,11 @@ export const TASK_EXTRACTION_V1_GBNF = `# task_extraction.v1.gbnf
 root ::= "{\\"title\\":" title ",\\"description\\":" description ",\\"estimated_duration_minutes\\":" estimatedDurationMinutes ",\\"duration_from_user\\":" durationFromUser ",\\"duration_type\\":" durationType ",\\"due\\":" due ",\\"context_tags\\":" contextTags ",\\"tool_requirements\\":" toolRequirements ",\\"energy\\":" energy ",\\"importance_user\\":" importanceUser ",\\"recurrence\\":" recurrence "}"
 
 # --- title, description ---
-title ::= "\\"" jchar{1,80} "\\""
-description ::= "null" | "\\"" jchar{1,200} "\\""
+# Every free-text string below opens with \`firstChar\` (alphanumeric), not a bare \`jchar\` - see
+# the firstChar note in the shared-primitives section at the foot of this file. Bounds are
+# unchanged: firstChar + jchar{0,n-1} spans exactly the same 1..n characters as jchar{1,n} did.
+title ::= "\\"" firstChar jchar{0,79} "\\""
+description ::= "null" | "\\"" firstChar jchar{0,199} "\\""
 
 # --- duration ---
 # Digit-count bounded (up to 4 digits), not exact-range: GBNF can't express ">1440 forbidden"
@@ -48,7 +51,7 @@ due ::= "null" | dueOnDate | dueInDays | dueWeekday
 # Digit/dash structure is no longer grammar-enforced - validator.ts's date regex (D10) is the
 # sole enforcer of the real YYYY-MM-DD shape now.
 dueOnDate ::= "{\\"kind\\":\\"on_date\\",\\"date\\":" date "}"
-date ::= "\\"" jchar{1,10} "\\""
+date ::= "\\"" firstChar jchar{0,9} "\\""
 dueInDays ::= "{\\"kind\\":\\"in_days\\",\\"days\\":" daysInt "}"
 daysInt ::= [1-9] [0-9]{0,2}
 dueWeekday ::= "{\\"kind\\":\\"weekday\\",\\"day\\":" weekday ",\\"which\\":" which "}"
@@ -58,11 +61,11 @@ which ::= "\\"this\\"" | "\\"next\\""
 contextTags ::= "[]" | "[" tag ("," tag){0,4} "]"
 tag ::= tagKnown | newTag
 tagKnown ::= "\\"" {{context_tags_known}} "\\""
-newTag ::= "\\"" jchar{1,20} "\\""
+newTag ::= "\\"" firstChar jchar{0,19} "\\""
 
 # --- tool_requirements (static, not a dynamic slot) ---
 toolRequirements ::= "[]" | "[" tool ("," tool){0,4} "]"
-tool ::= "\\"" jchar{1,20} "\\""
+tool ::= "\\"" firstChar jchar{0,19} "\\""
 
 # --- energy, importance_user (D4: user-scale only, code projects through scales.ts) ---
 energy ::= "null" | "\\"low\\"" | "\\"med\\"" | "\\"high\\""
@@ -88,6 +91,19 @@ weekday ::= "\\"monday\\"" | "\\"tuesday\\"" | "\\"wednesday\\"" | "\\"thursday\
 
 # --- shared primitives ---
 jchar ::= [^"\\\\\\x00-\\x1F] | "\\\\" (["\\\\/bfnrt] | "u" [0-9a-fA-F]{4})
+# SEPARATOR-TOKEN HOLE (task 37, docs/briefs/grammar_separator_hole_task_37.md; measured in
+# docs/eval/qwen35_spike_findings.md "Two defects found"): a rule of the bare shape
+# \`"\\"" jchar{1,n} "\\""\` is satisfied by the single token \`","\` - the quote opens the string,
+# the comma is a legal jchar, the quote closes it. The result is well-formed JSON, schema-valid,
+# and passes the validator (which only checked non-empty-after-trim; a comma trims to a comma).
+# The spike hit it on 13-15 of 16 fixtures on Qwen3.5-2B, which ranks that token high at this
+# position; Bonsai has never triggered it only because it does not - luck, not safety.
+# A MINIMUM LENGTH DOES NOT CLOSE IT: the spike tested a 3-char minimum and still got
+# \`",Trash collection"\`. The constraint has to be on the FIRST character, hence this rule.
+# This is a *generation* constraint, not a rejection: under grammar-constrained decoding the
+# leading punctuation token is simply unavailable, so the model takes its next-best token.
+# Rule name is camelCase, no underscore (constraint #2, Q1c).
+firstChar ::= [a-zA-Z0-9]
 `;
 
 export const TASK_BREAKDOWN_V1_GBNF = `# task_breakdown.v1.gbnf
@@ -110,7 +126,9 @@ ordered ::= "true" | "false"
 subtasks ::= "[" subtask ("," subtask){1,7} "]"
 subtask ::= "{\\"title\\":" title ",\\"estimated_duration_minutes\\":" estimatedDurationMinutes ",\\"duration_from_user\\":" durationFromUser "}"
 
-title ::= "\\"" jchar{1,80} "\\""
+# Opens with \`firstChar\`, not a bare \`jchar\` - see the firstChar note below. Bounds unchanged:
+# firstChar + jchar{0,79} spans the same 1..80 characters as jchar{1,80} did.
+title ::= "\\"" firstChar jchar{0,79} "\\""
 # Digit-count bounded, not exact-range (see task_extraction.v1.gbnf's note) - the zod
 # validator enforces the exact [1,1440] range.
 estimatedDurationMinutes ::= [1-9] [0-9]{0,3}
@@ -118,6 +136,11 @@ durationFromUser ::= "true" | "false"
 
 # --- shared primitives ---
 jchar ::= [^"\\\\\\x00-\\x1F] | "\\\\" (["\\\\/bfnrt] | "u" [0-9a-fA-F]{4})
+# Separator-token hole (task 37) - a bare \`"\\"" jchar{1,n} "\\""\` is satisfied by the single
+# token \`","\`, producing a schema-valid, validator-passing, useless value. Every free-text
+# string in this file therefore opens with an alphanumeric. A minimum length does NOT close the
+# hole. Full explanation in task_extraction.v1.gbnf's shared-primitives section.
+firstChar ::= [a-zA-Z0-9]
 `;
 
 export const COACHING_RESOLUTION_V1_GBNF = `# coaching_resolution.v1.gbnf
@@ -150,16 +173,19 @@ changesContextTags ::= "null" | contextTags
 contextTags ::= "[]" | "[" tag ("," tag){0,4} "]"
 tag ::= tagKnown | newTag
 tagKnown ::= "\\"" {{context_tags_known}} "\\""
-newTag ::= "\\"" jchar{1,20} "\\""
+# Every free-text string in this file opens with \`firstChar\`, not a bare \`jchar\` - see the
+# firstChar note in the shared-primitives section. Bounds are unchanged in every case:
+# firstChar + jchar{0,n-1} spans exactly the same 1..n characters as jchar{1,n} did.
+newTag ::= "\\"" firstChar jchar{0,19} "\\""
 changesEnergy ::= "null" | "\\"low\\"" | "\\"med\\"" | "\\"high\\""
-changesNotes ::= "null" | "\\"" jchar{1,200} "\\""
+changesNotes ::= "null" | "\\"" firstChar jchar{0,199} "\\""
 
 # --- break_down_task (stub: id only, D8 - triggers task_breakdown.v1 as its own staged call) ---
 breakDownTask ::= "{\\"action\\":\\"break_down_task\\",\\"task_id\\":" taskId "}"
 
 # --- eliminate_task ---
 eliminateTask ::= "{\\"action\\":\\"eliminate_task\\",\\"task_id\\":" taskId ",\\"reason\\":" reason120 "}"
-reason120 ::= "\\"" jchar{1,120} "\\""
+reason120 ::= "\\"" firstChar jchar{0,119} "\\""
 
 # --- defer_task ---
 deferTask ::= "{\\"action\\":\\"defer_task\\",\\"task_id\\":" taskId ",\\"until\\":" until "}"
@@ -170,14 +196,14 @@ until ::= "null" | untilOnDate | untilInDays | untilWeekday | untilCondition
 # Digit/dash structure is no longer grammar-enforced - validator.ts's date regex (D10) is the
 # sole enforcer now.
 untilOnDate ::= "{\\"kind\\":\\"on_date\\",\\"date\\":" date "}"
-date ::= "\\"" jchar{1,10} "\\""
+date ::= "\\"" firstChar jchar{0,9} "\\""
 untilInDays ::= "{\\"kind\\":\\"in_days\\",\\"days\\":" daysInt "}"
 daysInt ::= [1-9] [0-9]{0,2}
 untilWeekday ::= "{\\"kind\\":\\"weekday\\",\\"day\\":" weekday ",\\"which\\":" which "}"
 weekday ::= "\\"monday\\"" | "\\"tuesday\\"" | "\\"wednesday\\"" | "\\"thursday\\"" | "\\"friday\\"" | "\\"saturday\\"" | "\\"sunday\\""
 which ::= "\\"this\\"" | "\\"next\\""
 untilCondition ::= "{\\"condition\\":" condition120 "}"
-condition120 ::= "\\"" jchar{1,120} "\\""
+condition120 ::= "\\"" firstChar jchar{0,119} "\\""
 
 # --- add_dependency ---
 addDependency ::= "{\\"action\\":\\"add_dependency\\",\\"task_id\\":" taskId ",\\"depends_on_task_id\\":" dependsOnTaskId "}"
@@ -185,7 +211,7 @@ dependsOnTaskId ::= {{depends_on_task_id}}
 
 # --- add_missing_task (stub: title only, D8 - triggers task_extraction.v1 as its own staged call) ---
 addMissingTask ::= "{\\"action\\":\\"add_missing_task\\",\\"title\\":" title "}"
-title ::= "\\"" jchar{1,80} "\\""
+title ::= "\\"" firstChar jchar{0,79} "\\""
 
 # --- no_change (first-class action, D8 - without it the grammar corners the model into inventing an intervention) ---
 noChange ::= "{\\"action\\":\\"no_change\\",\\"reason\\":" reason120 "}"
@@ -195,6 +221,11 @@ taskId ::= {{task_id}}
 
 # --- shared primitives ---
 jchar ::= [^"\\\\\\x00-\\x1F] | "\\\\" (["\\\\/bfnrt] | "u" [0-9a-fA-F]{4})
+# Separator-token hole (task 37) - a bare \`"\\"" jchar{1,n} "\\""\` is satisfied by the single
+# token \`","\`, producing a schema-valid, validator-passing, useless value. Every free-text
+# string in this file therefore opens with an alphanumeric. A minimum length does NOT close the
+# hole. Full explanation in task_extraction.v1.gbnf's shared-primitives section.
+firstChar ::= [a-zA-Z0-9]
 `;
 
 export const SUMMARY_V1_GBNF = `# summary.v1.gbnf
@@ -214,11 +245,19 @@ kind ::= "\\"work_session\\"" | "\\"coaching_conversation\\"" | "\\"task_input\\
 
 # 1-3 key points: one mandatory + 0-2 more, each comma-prefixed.
 keyPoints ::= "[" keyPoint ("," keyPoint){0,2} "]"
-keyPoint ::= "\\"" jchar{1,120} "\\""
+# The three free-text strings below open with \`firstChar\`, not a bare \`jchar\` - see the
+# firstChar note below. Bounds unchanged: firstChar + jchar{0,n-1} spans the same 1..n
+# characters as jchar{1,n} did.
+keyPoint ::= "\\"" firstChar jchar{0,119} "\\""
 
-disposition ::= "null" | "\\"" jchar{1,120} "\\""
-energyNote ::= "null" | "\\"" jchar{1,80} "\\""
+disposition ::= "null" | "\\"" firstChar jchar{0,119} "\\""
+energyNote ::= "null" | "\\"" firstChar jchar{0,79} "\\""
 
 # --- shared primitives ---
 jchar ::= [^"\\\\\\x00-\\x1F] | "\\\\" (["\\\\/bfnrt] | "u" [0-9a-fA-F]{4})
+# Separator-token hole (task 37) - a bare \`"\\"" jchar{1,n} "\\""\` is satisfied by the single
+# token \`","\`, producing a schema-valid, validator-passing, useless value. Every free-text
+# string in this file therefore opens with an alphanumeric. A minimum length does NOT close the
+# hole. Full explanation in task_extraction.v1.gbnf's shared-primitives section.
+firstChar ::= [a-zA-Z0-9]
 `;

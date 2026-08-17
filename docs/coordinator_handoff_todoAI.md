@@ -2,9 +2,14 @@
 
 *Add this to project knowledge. It supersedes the previous handoff; everything still true has been carried forward rather than assumed. You are picking up the **coordinator** role on the ADHD task-management app (todoAI), not starting it.*
 
-*Refreshed 2026-08-07 — the **branch-integration pass**. Personal ship is met. **35 and 36 are now actually merged into `main` (`9d8b691`)** along with the six-model spike and a `score.ts` NUL-byte fix; for four days the record said they were done while they sat on unmerged branches. Task **37 is briefed, not landed** — earlier text here read "35/36/37 landed," which was wrong. A six-model spike reopened the **model-base decision**, now gated on the `31→38→40` chain, and task 31 has been re-sized and given a real brief. Successor picks up the coordinator role, not a fresh project.*
+*Refreshed 2026-08-07 — **handoff to Claude Code.** The coordinator role moves from a chat-based session with sandboxed tooling to Claude Code running in Jason's terminal. §2's tool caveats are rewritten because most of them no longer apply. Personal ship is met and holds. Five new tasks (**41–45**) were commissioned this session, **task 8 was retired** and **29 re-scoped**, and the model-migration chain gained a new first link: it is now **`41 → 31 → 38 → 40`**. Successor picks up the coordinator role, not a fresh project.*
 
-> **⚠ Do this before anything else.** The merged tree has **never** had `jest` + `tsc --noEmit` + `eslint .` run on it. Not "re-confirm a green" — there has never been a green on this tree. See §3.
+> ### ⚠ First actions, in order — you can now do all of these, which the previous coordinator could not
+>
+> 1. **`git merge coordinator/sessions-origin`** — 5 commits, conflict-free at last check (not a fast-forward; `main` moved). Then `git branch -d` it.
+> 2. **`npx jest` · `npx tsc --noEmit` · `npx eslint .`** on the merged `main`. Expect ~794 tests. 🔴 **This has never been run on this tree** — not "re-confirm a green," there has never *been* a green here. The last reported green (711, task 24) was followed by five bug-fix commits; 35/36 landed on a different branch; the four-way merge came after both.
+> 3. **`git push origin main`** — `origin/main` is behind (it does not have task 41's Phase 1 design).
+> 4. **Housekeeping:** `git branch -D _probe _probe2` (throwaway refs from a permission probe), and add a **`.gitattributes`** with `* text=auto eol=lf` — there isn't one, `core.autocrlf` is unset, and the working tree repeatedly shows ~220 files modified that `git diff --ignore-cr-at-eol` reduces to nothing.
 
 ---
 
@@ -41,13 +46,43 @@ You are the **coordinator**, not the builder. Jason is the sole developer and de
 
 *(Jason's requirement was that the board be visible at a glance inside the Claude window. That's a viewing need, not a storage need — the file lives in the repo and gets rendered into the window on change, which satisfies it without the second copy.)*
 
-**A filesystem-tool caveat learned across sessions:** the `Filesystem:*` MCP tools intermittently drop out of the loaded tool set (a `tool_search` for them sometimes returns only Google Drive tools). When that happens, `write_file`/`edit_file` are briefly unavailable; wait and retry, or work through chat artifacts. There is **no delete tool** — a stray file can only be overwritten, not removed (there is one such stray: see §7). **And `edit_file`/`str_replace` fail atomically** — a mid-script uniqueness mismatch writes *nothing*, so re-read the file's current text before retrying; anchors go stale the instant the file changes.
+### Tooling — what changed at the Claude Code handoff
+
+**Most of the previous caveats are gone.** They described a sandboxed chat session, and several shaped decisions you'll find in the record:
+
+| Previously | Now |
+|---|---|
+| `Filesystem:*` MCP tools intermittently dropped out | Direct filesystem access |
+| **No delete tool** — stray files could only be overwritten | `rm` works. *(This is why `docs/build_allocation.md` is a tombstone rather than deleted — that was a tooling limit, not a decision. Leave it; the tombstone earns its place now.)* |
+| Could not run the test suite — Windows-built native modules, slow repo mount | **`npx jest` runs.** Use it. Item 2 above is the first job. |
+| Could not push to a checked-out branch; a stale `.git/index.lock` blocked index writes | Native git. No branch dance needed. |
+| Master-table HTML had to be rendered into the chat window for Jason to see | He reads it in the repo. **Still regenerate it** (`node scripts/gen-task-table.js`) — it's the at-a-glance board. |
+
+**What still holds:** `Edit` fails atomically, so a mid-script uniqueness mismatch writes *nothing* — re-read the file's current text before retrying, because anchors go stale the instant the file changes. This bit twice in one session.
+
+**New capability worth using:** you can run `adb` and read the device directly. Several open items are "believed, not confirmed" purely because the previous coordinator could not reach the phone.
 
 ## 3. Where things stand (as of handoff)
 
 **PERSONAL SHIP IS MET (2026-07-29).** The whole loop — add a task through the chat → session → check-in → timer execution → all five outcomes → coaching when triggered → summary — runs on the S23 FE, every step checked against the pulled database. The alarm fires **11 ms** late from the background. This is the milestone the whole project was aimed at, and it holds.
 
-**Done & confirmed:** 0–13, Q1, 18, 23, 24, 25, 26, 27, 28, 33, **34, 35, 36**. Backend + design + functional UI + the recurrence engine, all real. **794 tests.** Spec v2.4, schema 2.7.0.
+**Done & confirmed:** 0–13, Q1, 18, 23, 24, 25, 26, 27, 28, 33, 34, 35, 36. Backend + design + functional UI + the recurrence engine, all real. **794 tests** *(claimed; see the first-actions box)*. Spec v2.4, schema 2.7.0. **45 tasks total, 1 retired (8), 19 open.**
+
+**Commissioned this session (41–45) — read these before planning anything:**
+
+| # | What | Why it exists |
+|---|---|---|
+| **41** | Lossless local event capture | 🔴 **New front of the critical path.** The app *discards* raw user input by design (`conversation_summary` — "raw transcript never stored"), so task 31 has no corpus to build from and weeks of real captures are gone. **Phase 1 design has landed** (`docs/design/capture_format_task41.md`, `bc36806`) with **six documented deviations and §12 needing rulings** — read it before green-lighting Phase 2. |
+| **42** | Crisis-stream teardown + consent | Closed-beta gate. Alpha logs everything; **only the crisis stream is removed** before beta, the rest ships under consent. |
+| **43** | Capture ladder | Open-beta and GA pruning. **Free-text capture dies at open beta**, which closes the corpus window permanently. |
+| **44** | Personal-use QoL pass | Four alpha items, all product questions ruled. Owns **migration 007 / schema 2.8.0** (`sessions.origin`). |
+| **45** | Deviation audit | Cleans the backlog of builder decisions that overrode Jason's without sign-off. Plus §2b, the six unreviewable `score.ts` diffs. |
+
+**Retired / re-scoped this session:**
+- **Task 8 (tiering ladder) — RETIRED.** Not superseded by 40; **the spike measured its mechanism out from under it**: *"the thermal envelope does not discriminate — all six reach at least SEVERE throttling by twenty minutes."* A 0.8B throttles when the 4B does, so downward tier degradation buys nothing here. Revival condition recorded: it's a **one-device** measurement, so task 30's envelope could reopen it — with the new measurement, not the old assumption.
+- **Task 29 — re-scoped.** Its 8B half is answered by 40 (`Bonsai-8B-Q1_0` is loadable on stock and in the bake-off). Its fork half is newly dead — the spike found PrismML's `Q2_0` **absent from the build entirely**. What's left is a Vulkan-throughput question, general-ship, blocking nothing.
+
+**Three dead tables found, all the same shape** — designed, never written to, implying guarantees the app doesn't make: `data_retention` (→ task 42), `backup_log` (→ task 14), `algorithm_weights`' `completion_count`/`success_rate` writer (→ task 17). **Check for a writer before assuming a table is live.**
 
 **Landed since the last handoff:**
 - **35** (spec fold-in → v2.4) — confirmed no cross-doc conflicts.
@@ -61,7 +96,8 @@ You are the **coordinator**, not the builder. Jason is the sole developer and de
 - **A fourth branch, `claude/interesting-shirley-e10fa1`, existed, carried that fix, and was named nowhere.** Branches carrying real work get a line in orientation §2.
 
 **THE LIVE STRATEGIC THREAD — the model-base decision (reopened 2026-08-03).** A six-model spike (`docs/eval/model_base_spike_final_findings.md` — the **final** report; note the supersession lesson in §4) recommends **migrating off Bonsai to Gemma 4 E2B.** Reasoning: Bonsai-4B is the best extractor measured (14/16 critical) but its ternary format is **permanently frozen** — no LoRA path outside PrismML's proprietary pipeline. Gemma 4 E2B is 12/16 but **trainable** (`llama.rn` exposes `applyLoraAdapters`), 2× faster/capture, best distress response, and two of its three worst fields are a null-convention mismatch fixable by prompt alone. But the gap is *inside* 16-fixture resolution, so **the decision is gated, not made:**
-  - **Task 31 (corpus)** — priority raised to critical-path prerequisite; needs a **held-out split** for eval.
+  - 🔴 **Task 41 (event capture) is now the first link** — 31 has no corpus to build from until the app stops discarding input, and **the collection window closes at open beta** (task 43). The corpus is built during alpha and closed beta or largely not at all.
+  - **Task 31 (corpus)** — critical-path prerequisite, **re-sized**: the old "20–30 real messy tasks" resolves *worse* than the 16 seed fixtures it replaces (~±23 pts vs ±12). New target 80–120 extraction items, 45–60 held out. Needs a **held-out split**, grouped by source situation and stratified.
   - **Task 38** — train the Gemma LoRA (try the free prompt-only null-convention fix first). Depends on 31.
   - **Task 40** — three-way bake-off: **LoRA-Gemma-E2B vs Bonsai-8B-Q1_0 (untested, downloaded) vs T-Bonsai-4B**, on the held-out corpus, pulled-DB verified. Depends on 38. **Gates the decision; Jason makes the call**, recorded to orientation §1.
   - The framing is **"trainable-but-behind vs frozen-but-ahead,"** and the trajectory case (Gemma slightly behind but clearly climbing corpus-over-corpus) is a judgment, not a raw score. Until 40 lands, **Bonsai-4B stays the shipping default** — incumbent pending evidence, not a settled preference. *(39 reserved for an optional corpus→eval-harness task.)*
@@ -72,7 +108,7 @@ You are the **coordinator**, not the builder. Jason is the sole developer and de
 
 **The open qualifier, restated honestly (it was understated before).** This is **not** "re-confirm a green." There has never been a green run on the tree that now exists. The last reported green (711 tests, task 24) was followed by five bug-fix commits; 35/36 landed on a different branch (794 tests *there*); and the four-way merge is hours old. The merge is textually clean, which says nothing about semantic conflicts between the spike branch's `App.tsx` changes and 36's recurrence wiring at app-open.
 
-**Run, on `main`, before building anything:** `npx jest` · `npx tsc --noEmit` · `npx eslint .`. Expect ~794 tests. *(This could not be run from the coordinator's sandbox — the native modules are Windows-built and the repo mount is too slow for the suite. It is genuinely unverified, not verified-and-assumed.)*
+**Run, on `main`, before building anything:** `npx jest` · `npx tsc --noEmit` · `npx eslint .`. Expect ~794 tests. **The previous coordinator could not run this** — Windows-built native modules, slow repo mount. **You can.** It is genuinely unverified, not verified-and-assumed, and it is first-actions item 2.
 
 **Five task-24 handoffs, pinned in orientation §9:** learning_state `last_opened_at` watermark → task 26 (unblocks the 5-day re-orientation); recurrence "every N weeks" interval → was task 36's to consider (check its report for disposition); and three decisions owed — `sessions.model_tier` (meaning for a no-model session), `session_ended_early` (a real trigger not in §7.2's five — should backing out with time left coach?), per-episode `interactions` energy (beta).
 
@@ -141,8 +177,10 @@ The ones that bite most, including the two newest:
 - **Multi-day `scheduled` neglect gap (task 25 §3.1)** — reasoned, not ruled.
 - **Task-24 device edges** (report §10): `resume_block` recovery on hardware; overnight doze on battery; locked-screen full-screen intent watched; four of six recurrence kinds tapped; deep-idle alarm delivery measured (inferred 11–30 ms; deep-idle run stopped at 5:45am). Batch into task 32's device session.
 - **Beta gates:** task 21 (crisis — human, briefed), task 30 (device envelope — Jason), task 20 (real eval numbers).
-- ~~**A stray file to delete:** `docs/briefs/SECTION7_TEMP.md`~~ — **gone, verified 2026-08-07.** Already removed.
-- **Housekeeping Jason must do by hand** (the coordinator's sandbox can create files in `.git/` but cannot delete them, so these were left behind by the integration pass):
+- ~~**A stray file to delete:** `docs/briefs/SECTION7_TEMP.md`~~ — **gone, verified 2026-08-07.**
+- **Task 41 Phase 1 is landed and needs Jason's rulings before Phase 2.** `docs/design/capture_format_task41.md` §12. Its headline finding reaches beyond capture: **there is no way to write a file from JS in this tree** (no RNFS, no FS TurboModule; op-sqlite exposes paths but no write). That reshaped **task 14** too — see its rewritten brief.
+- **Task 14 is paused by Jason** (2026-08-07), brief rewritten and ready. Not blocked, just not now.
+- **Housekeeping — now doable directly** *(left behind by the sandboxed coordinator, which could create files in `.git/` but not delete them)*:
   - `git branch -D _probe _probe2` — two throwaway refs from a write-permission probe.
   - Delete `.git/index.lock`, `.git/packed-refs.lock`, `.git/refs/heads/_probe.lock` — all zero-byte and stale. `index.lock` predates this session and **is why no git command that writes the index can run from the sandbox.**
   - `rm -rf .git/objects/incoming-*` — temp object dirs from the push; harmless, but they'll accumulate.
@@ -166,4 +204,8 @@ The whole personal-ship path was bounded engineering + UI — **nothing on it ne
 
 ---
 
-*It has been a genuinely good project to coordinate. Personal ship is met and holds; 35/36/37 and a six-model spike have landed since; the frontier is now two threads — the **model-migration decision** (`31→38→40`, the strategic one) and the **beta hardening** (14/15/17/21/32). The record is coherent and every "done" has a report behind it. Pick it up with confidence — read the reports not the summaries, check for a *newer* report before acting, and bring Jason the tradeoff with a recommendation rather than a decision.*
+*It has been a genuinely good project to coordinate. Personal ship is met and holds. This session integrated four divergent branches into one `main`, found three things that were in no document (a file git had never shown a readable diff of, an unnamed branch carrying a real fix, and an app deliberately destroying the data its own roadmap depends on), and commissioned tasks 41–45 around them. The frontier is two threads: the **model-migration decision** (`41 → 31 → 38 → 40`, and 41 is the link that can move today) and **beta hardening** (14/15/17/21/32/42).*
+
+*Three habits carried the weight, and they are all the same habit: **read the source, not the summary of it.** A findings report over a status line. A brief over a code comment that cites one — a comment claiming "per the task brief" for something the brief never mentions is how a UI change reached production unasked, and it fooled a coordinator who quoted it as evidence. And the tree over the record: for four days every document said tasks 35 and 36 were done while their work sat on an unmerged branch, and the fix they carried was for a live scoring bug.*
+
+*You can run the tests now. That is the single biggest thing that changed. Start there — bring Jason the tradeoff with a recommendation, surface every deviation from what he decided, and check for a newer report before acting on any finding.*

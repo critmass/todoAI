@@ -43,6 +43,23 @@ Then the same pass over: **13** (timer/lifecycle), **11** (planning), **33** (mu
 
 ---
 
+## 2b. Second pass — the six unreviewable `score.ts` diffs
+
+A different failure of the same family: not a decision nobody surfaced, but a **change nobody could read.**
+
+`src/scoring/score.ts` was binary to git from its first commit until 2026-08-01, so **every diff of it rendered as `Bin 8860 → 9177 bytes`.** Scope it precisely, because the earlier record overstated this:
+
+- **There was never a behavioural defect.** The fix (`db16645`) **re-encoded rather than changed** — `contextGroupKey` still returns `'\x00flexible'`, now written as a source escape instead of a raw byte. The value is byte-identical, and it is a `Map` key: never persisted, never displayed, never compared against user data. **No false positives or negatives are possible from it.**
+- **File reads always worked.** Task 10's Fable composition review read the file, not a diff, and **stands.**
+- **What was impossible was seeing change.** Six commits touched the file before the fix: **8903e74** (task 9, initial), **ac5da48** (10-R1, linear `neglectCurve`), **7083a87** (10-R3, pre-filter + 31/23/23/23), **e86d4cf** (25-U1, dependency pre-filter), **d874b56** (11, planner core), **310e890** (36, missed-quota boost). Three of them landed **after** task 10's review, so the composition was re-reviewed by nobody.
+- **All six are readable now**: `git show --text <sha> -- src/scoring/score.ts`. This is an afternoon, not an investigation.
+
+**Read each diff against the ruling it implements** and confirm: `neglectCurve` linear and **uncapped** (constraint #5 — a ceiling is the violation; the `+1` floor is not one); weights exactly **31/23/23/23**; R6's `(rate·n + 0.5k)/(n+k)`, k=2; R8's `anchor + period/(1+quota)`; U1's partition-and-retain contract; and task 36's boost **derived at scoring time, never written to `importance`**.
+
+**There is already a net under the constants** — `factors.test.ts` asserts 0.31/0.23/0.23/0.23, `score.test.ts` covers R6's k=2 and 36's boost, `noveltyEntropy.test.ts` pins slot-1 ≈ 1.92 bits. So the live risk is **composition**, not constants: how the factors combine, in what order, with what guards. That is exactly what a diff would have shown and a passing test does not.
+
+**Expected outcome: nothing wrong.** Say so plainly if that's what you find — a clean result is the deliverable, not a disappointment.
+
 ## 3. Deliverable
 
 `docs/eval/task45_deviation_audit.md` — one table, ordered by how load-bearing the deviation is:

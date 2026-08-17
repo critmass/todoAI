@@ -1,0 +1,8 @@
+# Normalize line endings. Windows dev host, LF in the repository.
+#
+# Why this file exists: there was no .gitattributes and core.autocrlf was unset,
+# so a Windows tool rewrote the working tree to CRLF and git reported ~220 files
+# as modified when nothing had actually changed. That churn twice concealed real
+# edits sitting underneath it. See commit 178e6c6, which had to make three
+# source-drift guards line-ending agnostic for the same reason.
+* text=auto eol=lf

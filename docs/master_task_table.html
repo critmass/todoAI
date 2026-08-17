@@ -138,9 +138,9 @@
 <td class="dep" data-lbl="Dep">4, 6, <span class="dev">P</span></td><td class="model" data-lbl="Model"><strong>Opus</strong></td></tr>
 
 <tr><td class="num">8</td><td data-lbl="Status"><span class="pill p-undone">Undone</span></td>
-<td class="task" data-lbl="Task">Tiering ladder (§3.1)</td>
-<td class="desc" data-lbl="Description">Runtime health check + downward degradation across 8B/4B/1.7B. <strong>Deferred</strong> — one rung exists, and it stays that way until 29 resolves. Thermal and memory behavior are only observable on hardware. <em>General-ship.</em></td>
-<td class="dep" data-lbl="Dep">6, <strong>29</strong>, <span class="dev">P</span></td><td class="model" data-lbl="Model"><strong>Opus</strong></td></tr>
+<td class="task" data-lbl="Task"><s>Tiering ladder (§3.1)</s></td>
+<td class="desc" data-lbl="Description"><strong>Retired, not deferred — its mechanism was measured and doesn't work on this hardware.</strong> Task 8 was "runtime health check + downward degradation across 8B/4B/1.7B." The premise is that dropping to a smaller model relieves thermal pressure. <strong>The six-model spike measured that it does not:</strong> <em>"The thermal envelope does not discriminate. All six reach at least SEVERE throttling by twenty minutes. It cannot be used to choose between them."</em> A 0.8B throttles at the same twenty minutes as the 4B, so degrading tiers when hot buys nothing. <strong>Its blocker also dissolved:</strong> 29 gated 8 on "does an 8B exist that runs" — <strong>Bonsai-8B-Q1_0</strong> (1.08 GiB, 8B params at the 4B's footprint) is loadable on stock and <strong>enters task 40's bake-off</strong>, which answers it empirically for free. <strong>What survives is already owned:</strong> spec §3.5's <em>"monitor thermal state, reduce context length, defer background work when hot"</em> is <strong>deferral, not tier-switching</strong>, and orientation §8 already assigns the thermal sampler to <strong>task 19</strong>; "real thermal management" remains its own general-ship gate. ⚠ <strong>One condition that could revive it:</strong> the thermal measurement is <strong>one device</strong>. If <strong>task 30</strong>'s envelope finds a device where tier degradation genuinely helps, reopen this — with the new measurement, not the old assumption.</td>
+<td class="dep" data-lbl="Dep"><s>6, 29, P</s></td><td class="model" data-lbl="Model">—</td></tr>
 
 <tr><td class="num">9</td><td data-lbl="Status"><span class="pill p-done">Done</span></td>
 <td class="task" data-lbl="Task">Scoring (§5.1–5.2)</td>
@@ -238,9 +238,9 @@
 <td class="dep" data-lbl="Dep">—</td><td class="model" data-lbl="Model"><strong>Fable</strong></td></tr>
 
 <tr><td class="num">29</td><td data-lbl="Status"><span class="pill p-undone">Undone</span></td>
-<td class="task" data-lbl="Task">8B/1.7B quant path decision + execution</td>
-<td class="desc" data-lbl="Description">Spec §11's open roadmap decision: ship 4B-first, or build <strong>Stage B</strong> against the PrismML fork for native Q2_0 + Android Vulkan. <strong>Task 8 cannot proceed until this resolves.</strong> <em>Partly overtaken by task 40 — Bonsai-8B-Q1_0 is in the bake-off, which may answer the 8B half for free.</em> <em>General-ship.</em></td>
-<td class="dep" data-lbl="Dep">0, <span class="dev">P</span></td><td class="model" data-lbl="Model"><strong>Jason</strong> decides; <strong>You + Opus</strong> execute</td></tr>
+<td class="task" data-lbl="Task">Quant path / Stage B decision</td>
+<td class="desc" data-lbl="Description"><strong>Both halves of the original question have moved.</strong> <em>(a) "Find or make an 8B that runs"</em> — <strong>answered</strong>: <code>Bonsai-8B-Q1_0</code> is loadable on stock and enters <strong>task 40</strong>'s bake-off; no separate work needed. <em>(b) "Build Stage B against the PrismML fork for Q2_0 + Vulkan"</em> — <strong>newly obstructed</strong>: the spike found <code>prism-ml/Ternary-Bonsai-8B</code>'s <strong><code>Q2_0</code> is absent from the build entirely and cannot load</strong>, so the fork path isn't "untried", it's missing its premise. <strong>What's actually left</strong> is a narrower, later question: <em>is a fork build worth it purely for <strong>Vulkan GPU</strong> throughput?</em> — a general-ship performance call, not a quant-path one, and only meaningful after 40 picks a model. <strong>No longer blocks anything</strong> (task 8 retired). <em>General-ship, deferred.</em></td>
+<td class="dep" data-lbl="Dep">0, 40, <span class="dev">P</span></td><td class="model" data-lbl="Model"><strong>Jason</strong></td></tr>
 
 <tr><td class="num">30</td><td data-lbl="Status"><span class="pill p-undone">Undone</span></td>
 <td class="task" data-lbl="Task">Device envelope</td>
@@ -366,21 +366,21 @@
 </table>
 
 <h2>Device (<code>P</code>) batches</h2>
-<p class="body"><strong>22 of 45 tasks carry a <code>P</code>.</strong> <em>(The old count of "16 of 37" was stale twice over.)</em> Because you run the device sessions yourself, these are the scheduling constraint — group them rather than paying setup cost per task.</p>
+<p class="body"><strong>21 of 45 tasks carry a <code>P</code></strong> (task 8 retired). <em>(The old count of "16 of 37" was stale twice over.)</em> Because you run the device sessions yourself, these are the scheduling constraint — group them rather than paying setup cost per task.</p>
 <ul>
 <li><strong>Done and confirmed (9):</strong> 0, 1, 2, Q1, 6, 7, 12, 13, 24</li>
 <li><strong>Open, beta (5):</strong> 21 (crisis coverage), 30 (envelope), 20 (real eval numbers), 22 (if solved in the guides), 32 (residue sweep)</li>
 <li><strong>Open, strategic (2):</strong> <strong>41</strong> (event capture — gates the whole chain), 40 (the bake-off)</li>
 <li><strong>Open, QoL (1):</strong> <strong>44</strong> — batch it onto 41's device session rather than paying setup twice</li>
-<li><strong>Open, later (5):</strong> 8, 14, 15, 19, 29</li>
+<li><strong>Open, later (4):</strong> 14, 15, 19, 29</li>
 </ul>
 <p class="body"><strong>No <code>P</code>, so they can proceed any time without you (23):</strong> 3, 4, 5, 9, 10, 11, 17, 18, 23, 25, 26, 27, 28, 31, 33, 34, 35, 36, 37, 38, 42, 43, 45.</p>
 <p class="body"><strong>41 is the exception that reshapes the schedule.</strong> It's device work and it now sits in front of 31, so the model-migration chain starts with a device session rather than ending with one. Everything after it (31, 37, 38) is still headless until the bake-off.</p>
 <h2>Counts</h2>
-<p class="body"><strong>Total: 45 tasks</strong> (0–45, no 16, plus Q1, minus reserved-and-unused 39).</p>
+<p class="body"><strong>Total: 45 tasks — 1 retired (8)</strong> (0–45, no 16, plus Q1, minus reserved-and-unused 39).</p>
 <p class="body"><strong>✅ Done (25):</strong> 0, 1, 2, 3, 4, 5, Q1, 6, 7, 9, 10, 11, 12, 13, 18, 23, 24, 25, 26, 27, 28, 33, 34, 35, 36</p>
 <p class="body"><strong>🟡 Partial (0):</strong> —</p>
-<p class="body"><strong>⬜ / <span class="gate">🔴 </span>Undone (20):</strong> 8, 14, 15, 17, 19, 20, 21, 22, 29, 30, <strong>31</strong>, 32, <strong>37</strong>, <strong>38</strong>, <strong>40</strong>, <strong>41</strong>, <strong>42</strong>, <strong>43</strong>, <strong>44</strong>, <strong>45</strong></p>
+<p class="body"><strong>⬜ / <span class="gate">🔴 </span>Undone (19):</strong> 14, 15, 17, 19, 20, 21, 22, 29, 30, <strong>31</strong>, 32, <strong>37</strong>, <strong>38</strong>, <strong>40</strong>, <strong>41</strong>, <strong>42</strong>, <strong>43</strong>, <strong>44</strong>, <strong>45</strong></p>
 <h2>Personal ship: MET (2026-07-29) — with one caveat now visible</h2>
 <p class="body"><strong>The whole loop runs on the S23 FE, DB-verified</strong> — add-via-chat → session → timer → all five outcomes → coaching → summary, with the alarm firing 11 ms late from the background (task 24). Tasks 23 and 24 both landed; the backend (6/7/9/11/12/13 + data layer) is complete beneath them.</p>
 <p class="body"><strong>The caveat:</strong> what was confirmed on device was a <em>build from a branch</em> that did not include 35, 36, or the recurrence fix. <code>main</code> as it now exists — merged, with 794 tests' worth of code — <strong>has never been built, tested, or run on the phone.</strong> Personal ship is met for the loop that was demonstrated; the tree you'd build from today is new.</p>
@@ -388,7 +388,7 @@
 <p class="body"><span class="gate">🔴 </span><strong>The corpus collection window is finite, and that reprices everything below.</strong> The capture ladder (43) <strong>drops free-text conversation capture at open beta</strong> — permanently ending the supply of real conversational input that 31's corpus, 38's training data and 40's held-out eval all depend on. <strong>The corpus is built during alpha and closed beta, or it is largely not built at all</strong>, and every future LoRA iteration and every re-run of the bake-off draws on a corpus whose window has already shut. This is an argument for starting <strong>41 now</strong> rather than after the beta-hardening work, and for closed beta being <em>generous</em> with free-text capture while consent and review are still real protections. It is not an argument for extending the window — the mechanism in 43 doesn't bend.</p>
 <p class="body"><strong>Thread 1 — the strategic one (the model-migration decision).</strong> Now <strong><code>41 → 31 → 38 → 40</code></strong>, then Jason's call. <strong>Task 41 is the new front of the chain</strong> and it's the move that can happen today: once capture is on, the corpus accumulates while you do everything else, which is the only input on the board that grows without effort. 31's interview and reconstruction work runs in parallel with the capture window rather than waiting on it.</p>
 <p class="body"><strong>Thread 2 — the tree, then beta hardening.</strong> In order: (a) run the three checks on <code>main</code>; (b) push <code>main</code> to GitHub; (c) task <strong>37</strong>, the live grammar bug, before any alpha capture <em>or</em> the bake-off; then <strong>14 / 15 / 17 / 21 / 32</strong> and the designed visual pass.</p>
-<p class="body"><strong>Beta gates:</strong> the designed/polished pass (24, consuming 23's tokens), <strong>21</strong> (crisis, human), <strong>42</strong> (privacy/consent — pinned here for the same reason as 21, and reviewed with it), <strong>30</strong> (device envelope, Jason), <strong>20</strong> (real eval numbers), <strong>32</strong>'s device residue. <strong>General:</strong> 8, 29 (tiering / quant path).</p>
+<p class="body"><strong>Beta gates:</strong> the designed/polished pass (24, consuming 23's tokens), <strong>21</strong> (crisis, human), <strong>42</strong> (privacy/consent — pinned here for the same reason as 21, and reviewed with it), <strong>30</strong> (device envelope, Jason), <strong>20</strong> (real eval numbers), <strong>32</strong>'s device residue. <strong>General:</strong> 29 only, re-scoped to a Vulkan-throughput question. <strong>Task 8 retired</strong> — the spike measured that thermal throttling doesn't discriminate between model sizes, so downward tier degradation buys nothing on this hardware.</p>
 
 </body>
 </html>

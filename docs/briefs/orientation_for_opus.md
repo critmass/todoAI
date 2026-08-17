@@ -101,6 +101,7 @@ All four working branches are merged into `main` at **`9d8b691`** (2026-08-07), 
 
 ## 5. Settled decisions (do not re-open without a new explicit call)
 
+- **The tiering ladder (task 8) is retired, not deferred** — *ruled by Jason, 2026-08-07.* Downward degradation across 8B/4B/1.7B assumed that dropping to a smaller model relieves thermal pressure. The six-model spike **measured the opposite**: *"the thermal envelope does not discriminate — all six reach at least SEVERE throttling by twenty minutes."* A 0.8B throttles at the same twenty minutes as the 4B, so tier-switching when hot buys nothing. Spec §3.5's surviving item — monitor thermals, reduce context, **defer** background work — is deferral rather than tier-switching and is already assigned to **task 19**. ⚠ **Revival condition:** this is a **one-device** measurement; if task 30's envelope finds hardware where degradation genuinely helps, reopen it with that measurement rather than the original assumption. **Do not build degradation logic for models that can't run, and do not build it for thermal relief it won't provide.**
 - **Model path:** stock `llama.rn` + 4B. The fork/Q2_0/Vulkan/8B is parked *behind the `LLMProvider` interface* — its whole value is that adopting it later stays quarantined to the native layer. Build the tier-selection *seam* (§3.6 `activeTier()`), but wire only the 4B; the "tiering ladder" has one real rung today. Do **not** build degradation logic for models that can't run.
 - **Cloud:** local-only. No cloud escalation in scope; the interface allows a future opt-in `CloudProvider`, disclosed, but that's not this phase.
 - **iOS:** deferred until public deployment with a profit model. Android-only.
@@ -170,7 +171,7 @@ Three targets, each a higher bar than the last. An item **gates** a target if th
 **General** — audience: the public.
 - *Bar:* robust across devices, polished, scalable.
 - *Gates beyond beta:*
-  - **Real tiering + 8B**, if pursued — the fork / Q2_0 / Vulkan decision (spec §11).
+  - ~~**Real tiering + 8B**~~ — **tiering retired** (see §5). What remains is task 29, re-scoped: *is a PrismML fork build worth it purely for Vulkan throughput?* The Q2_0 half is dead — the spike found that build is **absent from the fork entirely and cannot load** — and the 8B half is answered by task 40's bake-off, which runs `Bonsai-8B-Q1_0` on stock.
   - **Real thermal management** (below) — required once tiering or heat-sensitive background work is live.
   - Full data-lifecycle hardening (export / deletion / corruption recovery), richer analytics, and whatever else the privacy model gates.
 

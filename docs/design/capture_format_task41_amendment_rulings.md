@@ -18,9 +18,9 @@ document and this one.
 | 12.1 | Storage mechanism | **(a) A new app-owned TurboModule with a synchronous append.** | §1 — option A is now the design, not a recommendation. |
 | 12.2 | Stream splits | **(a) Split — twelve streams, one egress class each.** | §4, §5 stand as written. |
 | 12.3 | Crisis near-miss | **(c) Log every turn the gate ran on, hit or clear.** | §5.9 superseded — see §2 below. |
-| 12.4 | Actor attribution | **`coach` / `user` / `planner`** — see §3, one value still open. | §5.5's `user \| model \| system` superseded. |
+| 12.4 | Actor attribution | **`user` / `coach` / `system` / `planner`** — see §3. | §5.5's `user \| model \| system` superseded. |
 | 12.5 | `runtime` thermal seam | **(b) Build in-app thermal/battery sampling in task 41.** Jason's explicit instruction. | §4.3's recommendation superseded — see §4. |
-| 12.6 | Retention | **Keep everything**, plus a warning surface near the ceiling. | §8.2 extended — see §5. |
+| 12.6 | Retention | **Keep everything**, plus a single black-swan ceiling warning — no second trigger. | §8.2 extended — see §5. |
 | — | The stale worktree (parent §13) | **Leave it.** Flag in the findings report; a separate cleanup task later. | §13's flag stands; §6 below adds the verification. |
 | — | `fsync` policy (parent §1.2) | **Per event for alpha**, reverting to boundary-only for beta as a pinned future decision. | §1.2's "no fsync per event" superseded for alpha — see §7. |
 
@@ -99,9 +99,11 @@ never resurrect a filtered task, with task 19 owning a guard that does not exist
 appearing in `mutation` would be direct evidence of that contract being violated, from a log that
 was going to be written anyway.
 
-### 🔴 Still open — the fourth value
+### The fourth value — `system`. **Ruled 2026-08-17.**
 
-The ruling answers task **creation**. The `mutation` stream also records every field-level **change**,
+*(Question and reasoning kept below as asked, so the record shows what was put to Jason and why.)*
+
+The creation ruling answers task **creation**. The `mutation` stream also records every field-level **change**,
 and two frequent, expected writers fit none of the three values:
 
 - the recurrence sweep (`advanceRecurrence` rolling `next_due_at` and `last_period_shortfall`, at app
@@ -111,7 +113,7 @@ and two frequent, expected writers fit none of the three values:
 Reading them as `planner` is wrong twice: they are not the planner, and it would fill the bucket
 whose emptiness is the whole point.
 
-**Proposed, pending confirmation:**
+**The actor union, as ruled — four values, final:**
 
 | Actor | Writers |
 |---|---|
@@ -120,7 +122,15 @@ whose emptiness is the whole point.
 | `system` | the recurrence sweep; the completion fold; episode-close writes |
 | `planner` | catch-all sentinel — any write reaching a task through a path not enumerated above. Expected count: zero. |
 
-Phase 2 will not write a call site that depends on this until it is confirmed or collapsed.
+```ts
+type MutationActor = 'user' | 'coach' | 'system' | 'planner';
+```
+
+**Enforcement note for Phase 2.** `planner`'s value is entirely in its emptiness, so nothing may be
+attributed to it by default or by a fallback branch that a future writer silently lands in. Every
+enumerated writer is attributed explicitly at the wiring point in `appServices.ts`, and `planner` is
+what a repository wrapper records when it is invoked through a bundle that named no actor. A
+`planner` row is therefore always a fact about the code, never a shrug.
 
 ---
 
@@ -170,19 +180,28 @@ stand as the backstop.
 3. **It is a warning, not a block.** Brief §5c and parent §8.3: capture degrades where the product
    database blocks. Capture is never a reason a session cannot start.
 
-### 🔴 Still open — the threshold, and whether a second trigger is wanted
+### One warning only. **Ruled 2026-08-17.**
 
-At the projected ~250 KB/day, **512 MB is roughly five years away.** A warning at 80% of the ceiling
-would, on the projection, never fire — so as specified the feature is a safety net for a case that
-should not happen, not a prompt for the thing Jason actually described wanting to do.
+At the projected ~250 KB/day, **512 MB is roughly five years away**, so the ceiling warning will on
+that projection never fire. A second trigger on uncollected volume since the last pull was proposed
+on the grounds that it would be the one that actually fires.
 
-Proposed, pending a ruling: keep the ceiling warning as the safety net (it costs nothing and catches
-the case where the projection is wrong by 50×), **and** add a second trigger on **uncollected volume
-since the last successful `pull-capture.js` run** — the number that actually says "there is material
-worth pulling". Suggested threshold ~50 MB or 14 days, whichever first, but the threshold should be
-one Jason would act on rather than one a builder picked.
+**Ruled against, and the reason belongs in the record because it changes what the feature is:** Jason
+dumps logs regularly without needing to be told. *"The warning is probably never going to be
+triggered and is there for long-tail/black-swan."*
 
-If the second trigger is not wanted, say so and only the ceiling warning is built.
+So the ceiling warning is **not** a workflow prompt and must not be built as one. It is a
+**last-resort net for the case where the volume projection is wrong by orders of magnitude** — a
+runaway retry loop, a pathological prompt, a stream that fires far more than modelled. Two
+consequences for Phase 2:
+
+- **It should be rare enough to be alarming.** No progress bars, no percentage nag, nothing that
+  trains the eye to dismiss it. If it ever appears, something is wrong and the number on it is the
+  finding.
+- **Its non-firing is not evidence of anything** and must not be reported as such. The findings
+  report's volume figure comes from the device measurement, not from the absence of a warning.
+
+No second trigger, and no capture volume surfaced in the ordinary UI.
 
 ---
 
@@ -274,9 +293,11 @@ neither blocking:
 
 ## 10. Where this leaves task 41
 
-**Phase 1: complete.** `docs/design/capture_format_task41.md` plus this amendment. Six of the eight
-questions ruled; two open (§3 and §5 above), neither blocking the start of Phase 2 provided no call
-site is written against them.
+**Phase 1: complete, and fully ruled.** `docs/design/capture_format_task41.md` plus this amendment.
+**Every open question is closed** — the eight of §1, plus the two follow-ups in §3 and §5 ruled
+2026-08-17. Nothing in the format design is now waiting on a decision. The four provisional builder
+calls in §8 remain provisional by the deviation rule; they are the design unless overruled and must
+not enter orientation §5 as settled.
 
 **Phase 2: not started.** Nothing in `src/`. In order: the force-kill test first (parent §14), then
 the TurboModule, `record()` and the writer, then the call sites per brief §6, then the widened

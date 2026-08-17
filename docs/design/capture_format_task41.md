@@ -4,7 +4,7 @@
 against this yet, by instruction. §12 is the list of things that need a ruling before Phase 2 starts.
 
 > ⚠ **§12 has been ruled — read `capture_format_task41_amendment_rulings.md` alongside this.** Jason
-> ruled six of the eight questions on 2026-08-17; two remain open. The amendment states what each
+> ruled all eight questions on 2026-08-17, plus two follow-ups. The amendment states what each
 > ruling changes here, and **where the two documents disagree the amendment wins.** This document is
 > left as written on purpose — it is the record of what was asked. Sections superseded in whole or
 > part: **§1.2** (fsync), **§4.3** (thermal), **§5.5** (actor vocabulary), **§5.9** (crisis events),

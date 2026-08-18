@@ -4,7 +4,7 @@
 
 **This file is the single source for per-task status.** It moved into the repo on 2026-08-07; `orientation_for_opus.md` no longer carries a second copy of it. On conflict: **this table wins on status**; orientation wins on contracts, constraints, settled decisions, and ship gates; a per-task brief wins for its own task.
 
-**`master_task_table.html` is generated — do not hand-edit it.** After changing this file run `node scripts/gen-task-table.js`.
+**`master_task_table.html` is generated — do not hand-edit it.** After changing this file run `node scripts/gen-task-table.js`. 🔴 **Enforced 2026-08-18:** `scripts/__tests__/gen-task-table.test.js` runs the generator's `--check` mode in the suite and **fails if the committed HTML is stale** — so a markdown edit that forgets to regenerate is caught by `npx jest`, not shipped. *(This exists because a stale HTML was committed in `e7e3340` when the generator crashed unnoticed; the guard would have caught it.)* The coordinator also **surfaces the rendered HTML in the chat after every board change**, per Jason's standing request.
 
 **Status key:** ✅ **Done** · 🟡 **Partial** · ⬜ **Undone** · 🔴 **Undone + gate/live bug**
 **Model key:** **You** (device/human judgment) · **Fable** *(access ended)* · **Opus** · **Sonnet** · **Jason/Human**

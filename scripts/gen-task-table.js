@@ -133,8 +133,28 @@ for (let i = 0; i < md.length;) {
 }
 
 out.push('', '</body>', '</html>', '');
-fs.writeFileSync(OUT, out.join('\n'), 'utf8');
-console.log(`wrote ${path.relative(ROOT, OUT)} (${out.join('\n').length} bytes) from ${path.relative(ROOT, SRC)}`);
+const html = out.join('\n');
+
+// --check renders in-memory and compares to the committed HTML WITHOUT writing,
+// exiting non-zero if they differ. This is the drift guard: the markdown is the
+// source of truth and the HTML is generated, so a commit that edits the markdown
+// without regenerating leaves the two disagreeing — the exact failure this repo
+// keeps paying for. `scripts/__tests__/gen-task-table.test.js` runs this in the
+// suite so drift fails loudly instead of shipping silently.
+if (process.argv.includes('--check')) {
+  const existing = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+  if (existing !== html) {
+    console.error(
+      `STALE: ${path.relative(ROOT, OUT)} does not match ${path.relative(ROOT, SRC)}.\n` +
+      `Run: node scripts/gen-task-table.js`
+    );
+    process.exit(1);
+  }
+  console.log(`in sync: ${path.relative(ROOT, OUT)} matches the markdown`);
+} else {
+  fs.writeFileSync(OUT, html, 'utf8');
+  console.log(`wrote ${path.relative(ROOT, OUT)} (${html.length} bytes) from ${path.relative(ROOT, SRC)}`);
+}
 
 function STYLE() {
   return `<style>

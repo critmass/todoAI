@@ -159,7 +159,7 @@ The ones that bite most, including the two newest:
 9. **Extend is two affordances** — `+5` flat/uncapped/coach-later; `Keep going` hyperfocus/count-up/guardrail-B. Capping `+5` is a bug against the ruling.
 10. **The expiry alarm cannot be a JS timer** (task 13, device-confirmed) — task 24 needs `AlarmManager`/notifee/foreground service at `blockEndAtMs`.
 11. **`sessions` is born `'abandoned'`** (crash-truthful); task 24 creates the row, task 13 owns every write after.
-12. **Migrations that change a CHECK need the full rebuild discipline** (task 26 report), **and every migration must sweep prior migrations' test suites** (task 34 §4 — `runMigrations` walks forward, so earlier suites' assertions become assertions about the new one).
+12. **Migrations that change a CHECK need the full rebuild discipline** (task 26 report), **and every migration must sweep prior migrations' test suites** (task 34 §4 — `runMigrations` walks forward, so earlier suites' assertions become assertions about the new one). ⚠ **"Change a CHECK" means altering a CHECK on an *existing* column — that is what SQLite cannot do without DROP+RENAME.** *Adding a new column* whose self-referential CHECK validates only itself (e.g. migration 007's `ALTER TABLE sessions ADD COLUMN origin TEXT CHECK (origin IN (...))`) needs **no** rebuild — SQLite accepts it via plain `ADD COLUMN`, existing rows get NULL, and migration 003 is the precedent. Clarified 2026-08-18 after task 44's deviation 2, whose brief restatement said "any CHECK change" and over-broadened this. The rebuild is about *mutating* a constraint, not *introducing* one.
 
 ## 7. Open items & residue (personal ship met; these are beta/general/parallel/strategic)
 

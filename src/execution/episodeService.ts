@@ -35,6 +35,12 @@ import type { CoachingRepository } from '../db/repositories/coaching';
 import type { RuntimeRepository } from '../db/repositories/runtime';
 import type { ActiveEpisode, SessionRuntime, Task } from '../types/domain';
 import type { CoachingTrigger, EpisodeBlockKind } from '../types/db';
+// TASK 41 — the `episode` stream and the ambient correlation frame (design §11). This module is
+// brief §6's named surface for it: ten exported entry points, every one of them already the single
+// place its transition happens. Recording here rather than in `sessionController` also keeps
+// `src/app/` untouched for task 44, and picks up `recoverOpenEpisode`, which the controller never
+// calls.
+import { captureContext, record } from '../capture';
 import type { AgendaTaskItem } from '../planning/agenda';
 import { completeTask, type CompletionResult } from '../services/taskCompletion';
 import { enqueueCoachingTrigger } from '../services/coaching/triggers';
@@ -138,11 +144,26 @@ export async function startSessionRuntime(
   deps: EpisodeServiceDeps,
   input: { sessionId: string; startedAtMs: number; plannedMinutes: number },
 ): Promise<SessionRuntime> {
-  return deps.runtime.startSession(
+  const runtime = await deps.runtime.startSession(
     input.sessionId,
     input.startedAtMs,
     input.startedAtMs + input.plannedMinutes * MS_PER_MINUTE,
   );
+  // The frame is ambient because `chatController` has no sessionId and threading one in would mean
+  // changing its signature, App.tsx's wiring and its whole suite to carry data it has no other use
+  // for. Safe structurally, not hopefully: one session at a time, `active_episode` is a singleton
+  // by DB CHECK, and JS is single-threaded.
+  //
+  // `origin` is NOT passed: `sessions.origin` is task 44's (migration 007, ruled 2026-08-07) and
+  // does not exist yet, so capture records no origin rather than a guessed 'planned'. Task 44 adds
+  // the argument here.
+  captureContext.setSession(input.sessionId);
+  record({
+    stream: 'episode',
+    type: 'session_start',
+    plannedMinutes: input.plannedMinutes,
+  });
+  return runtime;
 }
 
 /** Epoch ms → the 'YYYY-MM-DD HH:MM:SS' UTC form SQLite's CURRENT_TIMESTAMP produces. The runtime
@@ -182,6 +203,13 @@ export async function closeSession(
   }
   await deps.runtime.clearSessionRuntime(input.sessionId);
   await deps.scheduler?.cancel();
+  record({
+    stream: 'episode',
+    type: 'session_close',
+    sessionStatus: input.status,
+    actualMinutes: runtime ? minutesFromMs(input.now - runtime.startedAtMs) : undefined,
+  });
+  captureContext.clearSession();
 }
 
 // ── Opening, pausing, reading the timer ────────────────────────────────────────────────────────
@@ -212,6 +240,21 @@ export async function startEpisode(
     blockEndAtMs,
   });
   await deps.scheduler?.schedule(blockEndAtMs);
+  // Deterministic episode id (design §3.3): `recoverOpenEpisode` re-reads the same
+  // `active_episode` row after a crash and derives the SAME id, so post-crash records join to the
+  // pre-crash ones. A random id would make the crash a permanent seam in the timeline — in the one
+  // case the whole facility exists to illuminate.
+  captureContext.setEpisode({
+    sessionId: input.sessionId,
+    taskId: input.item.task.id,
+    startedAtMs: episode.startedAtMs,
+  });
+  record({
+    stream: 'episode',
+    type: 'start',
+    blockKind: input.item.blockKind,
+    plannedMinutes: input.item.plannedMinutes,
+  });
   return episode;
 }
 
@@ -237,6 +280,7 @@ export async function pauseEpisode(
     pauseCount: episode.pauseCount + 1,
   });
   await deps.scheduler?.cancel();
+  record({ stream: 'episode', type: 'pause', pauseCount: paused.pauseCount });
   return paused;
 }
 
@@ -259,6 +303,7 @@ export async function resumeEpisode(
     blockEndAtMs: episode.blockEndAtMs + pauseDuration,
   });
   await deps.scheduler?.schedule(resumed.blockEndAtMs);
+  record({ stream: 'episode', type: 'resume', pausedMs: resumed.pausedMs });
   return resumed;
 }
 
@@ -375,6 +420,7 @@ export async function applyShortExtension(
   );
   const sessionEndMoved = await moveSessionEndIfCrossed(deps, episode.sessionId, blockEndAtMs);
   await deps.scheduler?.schedule(blockEndAtMs);
+  record({ stream: 'episode', type: 'extend_short' });
   return { episode: updated, sessionEndMoved, sessionExtended: false, coaching: [] };
 }
 
@@ -428,6 +474,12 @@ export async function applyHyperfocusExtension(
   }
 
   await deps.scheduler?.schedule(blockEndAtMs);
+  record({
+    stream: 'episode',
+    type: 'extend_hyperfocus',
+    hyperfocusQuanta,
+    coachingEnqueued: coaching,
+  });
   return { episode: updated, sessionEndMoved, sessionExtended, coaching };
 }
 
@@ -569,6 +621,35 @@ async function detachEpisode(deps: EpisodeServiceDeps): Promise<void> {
   await deps.scheduler?.cancel();
 }
 
+/**
+ * TASK 41 — one place the four dispositions and the recovery are recorded, so a new outcome cannot
+ * be added without appearing in the `episode` stream. `origin` is absent by design until task 44
+ * lands `sessions.origin` (see startSessionRuntime).
+ */
+function recordEpisodeClose(
+  type: 'complete' | 'park' | 'skip' | 'escape' | 'recover',
+  result: {
+    episodeMinutes: number;
+    interactionId?: number;
+    outcome?: EpisodeOutcome;
+    tail?: TailDirective;
+    coaching: CoachingEnqueued[];
+  },
+  extra: { reason?: string; recoveryDirective?: string; creditMinutes?: number } = {},
+): void {
+  record({
+    stream: 'episode',
+    type,
+    actualMinutes: result.episodeMinutes,
+    outcome: result.outcome,
+    tail: result.tail?.kind,
+    interactionId: result.interactionId,
+    coachingEnqueued: result.coaching,
+    ...extra,
+  });
+  captureContext.clearEpisode();
+}
+
 /** `Done` — the completion path. The fold is already built: pass the episode minutes and let
  *  completeTask pick the primitive (constraint #7). Never re-derive the fold, never touch
  *  actual_duration_history here. */
@@ -591,7 +672,7 @@ export async function completeEpisode(
     ...(task ? await maybeEnqueueRepeatedExtension(deps, episode, task) : []),
   ];
 
-  return {
+  const result: EpisodeCloseResult = {
     outcome: 'completed',
     taskId: episode.taskId,
     sessionId: episode.sessionId,
@@ -601,6 +682,8 @@ export async function completeEpisode(
     coaching,
     completion,
   };
+  recordEpisodeClose('complete', result);
+  return result;
 }
 
 /**
@@ -637,7 +720,7 @@ export async function parkEpisode(
     ...(task ? await maybeEnqueueRepeatedExtension(deps, episode, task) : []),
   ];
 
-  return {
+  const result: EpisodeCloseResult = {
     outcome: 'progress',
     taskId: episode.taskId,
     sessionId: episode.sessionId,
@@ -646,6 +729,8 @@ export async function parkEpisode(
     tail: await tailDirectiveFor(deps, episode, now, episodeMinutes, false),
     coaching,
   };
+  recordEpisodeClose('park', result);
+  return result;
 }
 
 /**
@@ -692,7 +777,7 @@ export async function skipEpisode(
   coaching.push(...(await maybeEnqueuePauseCoaching(deps, episode, now)));
   if (task) coaching.push(...(await maybeEnqueueRepeatedExtension(deps, episode, task)));
 
-  return {
+  const result: EpisodeCloseResult = {
     outcome: 'skipped',
     taskId: episode.taskId,
     sessionId: episode.sessionId,
@@ -701,6 +786,8 @@ export async function skipEpisode(
     tail: await tailDirectiveFor(deps, episode, now, episodeMinutes, false),
     coaching,
   };
+  recordEpisodeClose('skip', result, opts?.reason ? { reason: opts.reason } : {});
+  return result;
 }
 
 /**
@@ -723,7 +810,13 @@ export async function escapeToEasier(
 
   const tail = await tailDirectiveFor(deps, episode, now, closed.episodeMinutes, true);
   await deps.sessions.update(episode.sessionId, { escapeValveUsed: true });
-  return { ...closed, tail };
+  const result: EpisodeCloseResult = { ...closed, tail };
+  // A SECOND record on purpose. The escape valve routes through park or skip, each of which has
+  // already recorded its own close — and constraint #11 makes that distinction load-bearing, so
+  // collapsing the two into one row would erase which primitive actually ran. This row says the
+  // tail was replanned and `escape_valve_used` was set; its `interactionId` matches the row above.
+  recordEpisodeClose('escape', result);
+  return result;
 }
 
 // ── Crash / relaunch recovery (design §1.4) — the part that must be right ──────────────────────
@@ -812,6 +905,21 @@ export async function recoverOpenEpisode(
     };
   }
 
+  // The recovered episode derives the SAME `episodeId` as the pre-crash one, which is what makes
+  // design §14.2's device check ("the second run's crash_recovery record derives the same
+  // episodeId as the first run's episode.start") answerable at all.
+  captureContext.setEpisode({
+    sessionId: episode.sessionId,
+    taskId: episode.taskId,
+    startedAtMs: episode.startedAtMs,
+  });
+  recordEpisodeClose(
+    'recover',
+    { episodeMinutes: creditedMinutes, interactionId, outcome: 'abandoned', coaching: [] },
+    { recoveryDirective: directive.kind, creditMinutes: creditedMinutes },
+  );
+  record({ stream: 'lifecycle', type: 'crash_recovery', deltaMs: now - episode.startedAtMs });
+
   return {
     recovered: true,
     taskId: episode.taskId,
@@ -863,5 +971,7 @@ export async function checkSessionLapse(
     triggerData: { kind: 'session_lapsed' },
     relatedSessionIds: [input.sessionId],
   });
-  return { lapsed: true, coaching: [{ trigger: 'pattern_detected', kind: 'session_lapsed' }] };
+  const coaching: CoachingEnqueued[] = [{ trigger: 'pattern_detected', kind: 'session_lapsed' }];
+  record({ stream: 'episode', type: 'session_lapse', lapsed: true, coachingEnqueued: coaching });
+  return { lapsed: true, coaching };
 }

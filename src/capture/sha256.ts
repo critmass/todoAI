@@ -1,3 +1,7 @@
+/* eslint-disable no-bitwise -- SHA-256 IS bitwise arithmetic. The rule is a house style for
+ * application code where a `&` is usually a typo for `&&`; here every operator below is the
+ * algorithm as specified in FIPS 180-4, and rewriting them would make the implementation
+ * unverifiable against the spec for no benefit. */
 // Task 41 — SHA-256, because `modelio.grammarSha8` has to be a real SHA-256 prefix.
 //
 // WHY NOT A CHEAPER HASH. The field's entire job is to answer "which grammar text was actually

@@ -61,6 +61,11 @@ export async function runCoachingResolution(
     grammar: args.grammar,
     maxTokens: args.maxTokens ?? RESOLUTION_MAX_TOKENS,
     validate: (raw) => validateCoachingResolution(raw),
+    // TASK 41 — the surface label for the `modelio` stream. Without it this call would be recorded
+    // as the ladder's generic 'constrained_generation' and the corpus could not separate a
+    // coaching disposition from a task extraction. One optional field on ConstrainedCall; deleting
+    // the modelio stream deletes it and `tsc` names this line.
+    capture: { surface: 'coaching_resolution.v1', grammarId: 'coaching_resolution.v1' },
   });
 
   if (ladder.status === 'fallback') {

@@ -16,6 +16,7 @@ import type { DependenciesRepository } from '../db/repositories/dependencies';
 import type { CoachingRepository } from '../db/repositories/coaching';
 import { pendingBreakdownCompleteTaskIds } from '../services/breakdownLifecycle';
 import type { Rng } from '../scoring/score';
+import { recordPlan, recordSelectionBoundary } from '../capture/streams/planning';
 import type { SessionPlan } from './agenda';
 import {
   planSession,
@@ -49,6 +50,10 @@ export async function loadSelectionBoundary(
   return runSelectionBoundary(pool, checkIn, unresolvedBlockers, pendingBreakdownComplete);
 }
 
+/** TASK 41 — the `planning` stream, recorded at the ASYNC EDGE rather than inside the pure
+ *  `runSelectionBoundary`, so `src/planning/planner.ts` stays a pure module with no capture import
+ *  and its (large) test suite is unaffected. Both plan and replan funnel through here. */
+
 /** Session-start planning over live repository state (spec §6.2's "plan generated (hidden)"). */
 export async function planSessionFromRepositories(
   repos: PlanningRepositories,
@@ -58,7 +63,9 @@ export async function planSessionFromRepositories(
   adjustPlan?: PlanAdjustment,
 ): Promise<SessionPlan> {
   const boundary = await loadSelectionBoundary(repos, request.checkIn);
+  recordSelectionBoundary(boundary, request.checkIn, request.sessionType, now);
   const plan = planSession(boundary, request, now, rng);
+  recordPlan('plan', plan);
   return adjustPlan ? adjustPlan(plan) : plan;
 }
 
@@ -76,6 +83,8 @@ export async function replanRemainingFromRepositories(
   adjustPlan?: PlanAdjustment,
 ): Promise<SessionPlan> {
   const boundary = await loadSelectionBoundary(repos, request.checkIn);
+  recordSelectionBoundary(boundary, request.checkIn, request.sessionType, now);
   const plan = replanRemaining(boundary, request, remainingMinutes, now, rng, options);
+  recordPlan('replan', plan);
   return adjustPlan ? adjustPlan(plan) : plan;
 }

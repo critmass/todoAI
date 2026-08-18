@@ -21,6 +21,7 @@
 
 import { buildGrammarRegistry, runStartupGuard, type LLMProvider } from '../../llm/provider';
 import { TernaryBonsaiProvider } from '../../llm/provider/ternaryBonsaiProvider';
+import { record, sampleThermal, thermalStatusSampler } from '../../capture';
 
 export interface ReadyModel {
   provider: LLMProvider;
@@ -54,14 +55,47 @@ export function createModelHost(deps: ModelHostDeps = {}): ModelHost {
   const log = deps.onLog ?? (() => {});
 
   async function load(): Promise<ReadyModel> {
-    const provider = deps.createProvider ? deps.createProvider() : new TernaryBonsaiProvider();
+    const provider = deps.createProvider
+      ? deps.createProvider()
+      : // TASK 41 — the thermal sampler, which has stood at `() => 0` since task 6 with a comment
+        // saying it would be wired "in Phase B". `currentThermalHeadroom()` and `activeTier()` are
+        // built on top of it, so this is a live product seam that was standing empty.
+        //
+        // 🔴 THIS IS A DEVIATION FROM A SETTLED RECORD AND IT IS JASON'S INSTRUCTION, NOT THE
+        // BUILDER'S JUDGMENT. Orientation §8 pins the thermal sampler to task 19; Jason reassigned
+        // it to task 41 on 2026-08-17 (amendment §4): "this falls under logging as far as I'm
+        // concerned, so it can go here." Recorded under "Deviations from human decisions" in
+        // docs/eval/task41_findings_report.md.
+        //
+        // SAMPLING ONLY, NO POLICY. Nothing here degrades a tier, defers work or gates background
+        // activity; those remain task 19's and task 8's.
+        new TernaryBonsaiProvider({}, { thermalStatusSampler });
     phase = 'loading';
     const startedAt = Date.now();
     await provider.load();
-    log(`model loaded in ${Date.now() - startedAt}ms`);
+    const modelLoadMs = Date.now() - startedAt;
+    log(`model loaded in ${modelLoadMs}ms`);
+    const sample = sampleThermal();
+    record({
+      stream: 'runtime',
+      type: 'model_load',
+      modelLoadMs,
+      thermalStatus: sample && sample.thermalStatus >= 0 ? sample.thermalStatus : undefined,
+      batteryLevel: sample && sample.batteryLevel >= 0 ? sample.batteryLevel : undefined,
+      charging: sample?.charging,
+    });
 
     phase = 'checking_grammars';
     const guard = await runStartupGuard(provider.compileGrammar, buildGrammarRegistry());
+    // Constraint #3's startup guard result, in the log from the first run. It has never been
+    // recorded anywhere durable, so "did the grammar path survive this build" has only ever been
+    // answerable by watching a console.
+    record({
+      stream: 'lifecycle',
+      type: 'grammar_guard',
+      grammarEnabled: guard.grammarEnabled,
+      grammarFailures: guard.failures,
+    });
     if (!guard.grammarEnabled) {
       for (const failure of guard.failures) {
         log(`grammar FAILED to compile: ${failure.surface} — ${failure.error}`);

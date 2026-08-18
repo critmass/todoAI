@@ -23,6 +23,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors, spacing } from './theme';
 import { Body, Caption, Display, Screen } from './components';
 import { initAppServices, type AppServices } from './appServices';
+import {
+  CaptureCeilingNotice,
+  checkCeilingAndReportHealth,
+  dismissCeilingWarning,
+  installCapture,
+  pendingCeilingWarning,
+  record,
+  type CaptureCeilingState,
+} from '../capture';
 import { pendingAtSessionStart, runLaunchSequence } from './launch';
 import {
   createSessionController,
@@ -141,7 +150,22 @@ function AppRoot() {
   const [controllers, setControllers] = useState<Controllers | null>(null);
   const [route, setRoute] = useState<Route>({ kind: 'dashboard' });
   const [bootError, setBootError] = useState<string | null>(null);
+  const [ceiling, setCeiling] = useState<CaptureCeilingState | null>(null);
   const started = useRef(false);
+
+  // TASK 41 — the `runtime` stream's AppState half, and capture's own health write.
+  //
+  // `AppState` is the honest doze PROXY available to JS, and it is also the moment design §7.2's
+  // second mechanism fires: `dropped` on the envelope dies with the process if no later write ever
+  // succeeds, so a running total goes out at every background transition. Backgrounding is NOT a
+  // pause (task 13 report §8) and nothing here touches the episode.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      record({ stream: 'runtime', type: 'app_state', appState: next });
+      if (next !== 'active') checkCeilingAndReportHealth();
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (started.current) return;
@@ -149,6 +173,11 @@ function AppRoot() {
 
     async function boot(): Promise<void> {
       const services = await initAppServices();
+      // TASK 41 — capture comes up immediately after the services and BEFORE the launch sequence,
+      // so the recurrence sweep and the crash recovery are both inside the log. If the native
+      // module is absent (an older APK, or Jest) this is a counted no-op and nothing below changes.
+      installCapture({ schemaVersion: services.schemaVersion });
+      record({ stream: 'lifecycle', type: 'launch', schemaVersion: services.schemaVersion });
       const now = () => Date.now();
       const session = createSessionController({
         episode: services.episode,
@@ -160,16 +189,19 @@ function AppRoot() {
       });
       const chat = createChatController({
         model: createModelHost(),
-        tasks: services.repos.tasks,
-        recurrence: services.repos.recurrence,
+        // Task 41: `coach` / `chat_extraction`, and `coach` / `coaching_dispatch` — see
+        // appServices.ts for why the actor is a property of the bundle, not of the call.
+        tasks: services.chatTasks,
+        recurrence: services.chatRecurrence,
         coaching: services.repos.coaching,
-        dispatch: { tasks: services.repos.tasks, dependencies: services.repos.dependencies },
+        dispatch: services.chatDispatch,
         now,
       });
       const library = createTaskLibraryController({
-        tasks: services.repos.tasks,
-        recurrence: services.repos.recurrence,
-        dependencies: services.repos.dependencies,
+        // `user` / `editor`.
+        tasks: services.editor.tasks,
+        recurrence: services.editor.recurrence,
+        dependencies: services.editor.dependencies,
       });
 
       // Crash recovery FIRST, before any screen is chosen (see ./launch.ts); the recurrence sweep
@@ -205,6 +237,12 @@ function AppRoot() {
       // Asked at launch, never mid-session: a permission dialog on top of a running block is
       // exactly the interruption the alarm exists to avoid causing.
       fire(ensureNotificationPermission());
+
+      // TASK 41 — the ceiling check, at APP OPEN. Never mid-episode (amendment §5): this is an
+      // ADHD app and capture is not permitted to compete with focus. It is a warning and not a
+      // block; nothing below depends on its result.
+      checkCeilingAndReportHealth();
+      setCeiling(pendingCeilingWarning());
     }
 
     boot().catch((err) => setBootError(err instanceof Error ? err.message : String(err)));
@@ -212,7 +250,21 @@ function AppRoot() {
 
   if (bootError) return <BootFailed message={bootError} />;
   if (!controllers) return <Booting />;
-  return <Router controllers={controllers} route={route} setRoute={setRoute} />;
+  return (
+    <>
+      <Router controllers={controllers} route={route} setRoute={setRoute} />
+      {/* TASK 41 — ONE LINE. The whole ceiling surface lives in `src/capture/`, so removing
+          capture removes this line and leaves nothing dangling (orientation §5's removability
+          decision). A warning, never a block. */}
+      <CaptureCeilingNotice
+        state={ceiling}
+        onDismiss={() => {
+          dismissCeilingWarning();
+          setCeiling(null);
+        }}
+      />
+    </>
+  );
 }
 
 function Booting() {

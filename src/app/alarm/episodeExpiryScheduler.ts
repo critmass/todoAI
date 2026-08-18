@@ -9,6 +9,7 @@
 
 import { PermissionsAndroid, Platform } from 'react-native';
 
+import { record } from '../../capture';
 import type { EpisodeExpiryScheduler } from '../../execution';
 import NativeEpisodeAlarm from '../../specs/NativeEpisodeAlarm';
 
@@ -41,6 +42,16 @@ export function createEpisodeAlarm(): EpisodeAlarm {
   return {
     schedule(atMs: number): void {
       native?.schedule(atMs, ALARM_TITLE, ALARM_BODY);
+      // TASK 41 — constraint #13's 11 ms measurement gets a permanent home. Task 24 measured the
+      // alarm by hand in a device session and orientation §9 still carries "overnight-doze alarm
+      // delivery — inferred, never measured to completion". With scheduled/fired in the log that
+      // residue item answers itself from the first overnight run, with no instrumented build.
+      record({
+        stream: 'lifecycle',
+        type: 'alarm_scheduled',
+        scheduledAtMs: atMs,
+        exactAllowed: native ? native.canScheduleExactAlarms() : false,
+      });
     },
     cancel(): void {
       native?.cancel();

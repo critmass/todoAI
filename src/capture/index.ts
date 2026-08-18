@@ -34,5 +34,5 @@ export type { CaptureCeilingState } from './retention';
 export { CaptureCeilingNotice } from './CaptureCeilingNotice';
 export { sampleThermal, thermalStatusSampler, captureRootPath } from './nativeWriter';
 export type { ThermalSample } from './nativeWriter';
-export { recordModelCall, type ModelCallCapture } from './streams/modelCall';
+export { recordModelCall, recordValidationFailure, type ModelCallCapture } from './streams/modelCall';
 export { sha8 } from './sha256';

@@ -35,7 +35,6 @@ let workspace: string;
 /** Transpiles the real capture sources with the repo's own babel config (the same one Jest uses),
  *  so the child runs the shipped code rather than a copy of it. */
 function buildWorkspace(): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const babel = require('@babel/core');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'todoai-capture-'));
   for (const file of RUNTIME_MODULES) {

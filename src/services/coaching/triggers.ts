@@ -8,6 +8,7 @@
 import type { CoachingRepository } from '../../db/repositories/coaching';
 import type { CoachingQueueEntry } from '../../types/domain';
 import type { CoachingTrigger, CoachingUrgency } from '../../types/db';
+import { record } from '../../capture';
 
 /**
  * Urgency tier for a coaching trigger. The three original §7.2 triggers are spec-pinned; R4 and
@@ -70,6 +71,21 @@ export async function enqueueCoachingTrigger(
     triggerType: input.trigger,
     urgency: input.urgency ?? urgencyForTrigger(input.trigger),
     triggerData: input.triggerData,
+  });
+
+  // TASK 41 — the `coaching` stream's `enqueued` record. Here rather than at the four callers
+  // because this is the single place a queue row is created, so a new trigger cannot be added
+  // without appearing in the log. `trigger_data.kind` is recorded separately from the trigger TYPE
+  // (constraint #12: `repeated_extension` and `long_extend` are data on `pattern_detected`, not
+  // trigger types of their own).
+  record({
+    stream: 'coaching',
+    type: 'enqueued',
+    trigger: entry.triggerType,
+    triggerKind: typeof input.triggerData?.kind === 'string' ? input.triggerData.kind : undefined,
+    queueEntryId: entry.id,
+    urgency: entry.urgency,
+    candidateTaskIds: input.relatedTaskIds,
   });
 
   for (const taskId of input.relatedTaskIds ?? []) {

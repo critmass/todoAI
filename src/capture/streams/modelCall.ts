@@ -39,8 +39,10 @@ export interface ModelCallCapture {
 }
 
 /**
- * Records one model attempt. Returns nothing — call sites are statements, and nothing above
- * capture may branch on whether a record was written (design §7.1).
+ * Records one model attempt. Returns the `seq` of the `modeltext` record it wrote, so the caller
+ * can point a `validation` record at the same payload — NOT a success/failure signal: nothing
+ * above capture may branch on whether a record was written (design §7.1), and a returned seq is
+ * meaningful whether or not the write landed.
  *
  * `messages` and `raw` are stored VERBATIM. That is a deliberate, provisional call (amendment §8):
  * the composed array for turn N contains the system prompt, the field guide and turns 1..N−1, so a
@@ -55,7 +57,7 @@ export function recordModelCall(
   response: LLMResponse | null,
   latencyMs: number,
   outcome: 'ok' | 'parse_failed' | 'validation_failed' | 'truncated' | 'threw',
-): void {
+): number {
   record({ stream: 'modeltext', type: 'call', messages, raw: response?.text ?? '' });
   const textRef = lastSeq();
   record({
@@ -79,6 +81,7 @@ export function recordModelCall(
     outcome,
     todayISO: input.todayISO,
   });
+  return textRef;
 }
 
 /** The `validation` record for a failed attempt. `textRef` points at the `modeltext` record whose

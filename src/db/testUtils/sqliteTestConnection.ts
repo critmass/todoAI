@@ -26,7 +26,13 @@ export interface TestSqliteConnection extends SqliteConnection {
 export function createTestConnection(): TestSqliteConnection {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
+  return Object.assign(wrapDatabase(db), { raw: db });
+}
 
+/** The SqliteConnection adapter over an already-open better-sqlite3 handle. Split out of
+ *  `createTestConnection` so task 14's file-backed double (fileDbOperations.ts) can reuse exactly
+ *  the same driver semantics against a real file instead of ':memory:'. */
+export function wrapDatabase(db: Database.Database): SqliteConnection {
   const connection: SqliteConnection = {
     execute: async (query, params) => runStatement(db, query, params ?? []),
     transaction: async (fn) => {
@@ -57,5 +63,5 @@ export function createTestConnection(): TestSqliteConnection {
     close: () => db.close(),
   };
 
-  return Object.assign(connection, { raw: db });
+  return connection;
 }

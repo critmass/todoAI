@@ -32,7 +32,14 @@ export {
 } from './retention';
 export type { CaptureCeilingState } from './retention';
 export { CaptureCeilingNotice } from './CaptureCeilingNotice';
-export { sampleThermal, thermalStatusSampler, captureRootPath } from './nativeWriter';
+export {
+  sampleThermal,
+  thermalStatusSampler,
+  captureRootPath,
+  // Task 14's free-space query, exposed here and consumed by nothing in task 41.
+  availableBytesFor,
+  normaliseAvailableBytes,
+} from './nativeWriter';
 export type { ThermalSample } from './nativeWriter';
 export { recordModelCall, recordValidationFailure, type ModelCallCapture } from './streams/modelCall';
 export { sha8 } from './sha256';

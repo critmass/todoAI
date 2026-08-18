@@ -41,6 +41,46 @@ export function captureRootPath(): string | null {
 }
 
 /**
+ * Normalises the native module's free-space answer: **`null` means "cannot tell", and is never
+ * conflated with `0`.**
+ *
+ * Exported so the distinction is pinned by a test rather than trusted. A caller deciding whether to
+ * block a session must be able to separate "the disk is full" from "I could not measure it"; the
+ * native side signals the latter with -1, and any non-finite or negative value is treated the same
+ * way rather than being passed through as a number.
+ */
+export function normaliseAvailableBytes(raw: number | null | undefined): number | null {
+  if (raw == null || !Number.isFinite(raw) || raw < 0) return null;
+  return raw;
+}
+
+/**
+ * Free bytes on the volume holding `path`, or **`null` when the answer is unknown** — the native
+ * module is absent (Jest, or an APK built before this method existed), the path cannot be stat'd, or
+ * the call threw.
+ *
+ * 🔴 ADDED FOR TASK 14 AND CONSUMED BY NOTHING HERE. Ruled by Jason 2026-08-18: task 14's report
+ * costed a `StatFs` method and recommended bundling it with this module's rebuild rather than
+ * spending a separate device build on it. **Task 41 exposes the number; task 14 wires it.** Nothing
+ * in `src/services/backup/` is touched, no threshold or policy is defined here, and capture's own
+ * black-swan ceiling warning (./retention.ts) is a different mechanism against a different budget —
+ * capture's 512 MB of its own files, not the volume's free space.
+ *
+ * Pass the location you are about to WRITE to. Task 14 writes backups to
+ * `ANDROID_EXTERNAL_FILES_PATH` and salvage to `ANDROID_DATABASE_PATH`, which are not guaranteed to
+ * be the same volume — see the spec file for why this is path-scoped.
+ */
+export function availableBytesFor(path: string): number | null {
+  const native = NativeCaptureLog;
+  if (!native) return null;
+  try {
+    return normaliseAvailableBytes(native.availableBytesFor(path));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Design §6 rule 6 asks that the storage root come from op-sqlite's `ANDROID_EXTERNAL_FILES_PATH`
  * "so there is one notion of where the app's storage is" (constraint #10).
  *

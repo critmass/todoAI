@@ -6,7 +6,9 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import android.os.StatFs
 import android.os.SystemClock
+import android.util.Log
 import com.facebook.react.bridge.ReactApplicationContext
 import com.todoai.specs.NativeCaptureLogSpec
 import java.io.File
@@ -152,6 +154,38 @@ class CaptureLogModule(reactContext: ReactApplicationContext) :
   }
 
   override fun rootPath(): String = root().absolutePath
+
+  /**
+   * Free bytes on the volume holding [path]. **-1.0 when unknown, never 0.**
+   *
+   * Added for task 14 (ruled by Jason 2026-08-18) and consumed by nothing in this task — see
+   * `src/specs/NativeCaptureLog.ts` for why it is path-scoped and why it is bundled into this
+   * module rather than given a spec of its own.
+   *
+   * `StatFs` throws on a path that does not exist, and the caller's target directory legitimately
+   * may not exist yet (the first backup, a freshly wiped app), so this walks up to the nearest
+   * existing ancestor. That is the right answer rather than a fallback: free space is a property of
+   * the VOLUME, and every ancestor of a path is on the same volume as the path will be. It stops at
+   * the filesystem root and returns -1.0 rather than looping.
+   *
+   * ZERO IS A REAL ANSWER AND -1 IS THE ABSENCE OF ONE. A caller deciding whether to block a
+   * session must be able to tell "the disk is full" from "I could not measure it"; returning 0 for
+   * the latter would make an unreadable volume indistinguishable from a full one.
+   */
+  override fun availableBytesFor(path: String): Double {
+    return try {
+      var candidate: File? = File(path)
+      while (candidate != null && !candidate.exists()) {
+        candidate = candidate.parentFile
+      }
+      if (candidate == null) -1.0 else StatFs(candidate.absolutePath).availableBytes.toDouble()
+    } catch (error: Throwable) {
+      // IllegalArgumentException from StatFs, or a SecurityException on a path this process cannot
+      // stat. Both mean "I cannot tell you", which is -1 and not 0.
+      Log.w(MODULE_NAME, "availableBytesFor($path) failed: ${error.message}")
+      -1.0
+    }
+  }
 
   companion object {
     // Deliberately not called NAME: the codegen-generated spec already carries a static NAME, and

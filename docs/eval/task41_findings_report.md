@@ -30,7 +30,7 @@ until he does.
 | Model I/O | `src/capture/streams/modelCall.ts` | `modeltext` / `modelio` / `validation` triple |
 | Planning | `src/capture/streams/planning.ts` | Boundary + plan/replan |
 | SHA-256 | `src/capture/sha256.ts` | So `grammarSha8` is a real SHA-256 prefix |
-| Native module | `src/specs/NativeCaptureLog.ts`, `CaptureLogModule.kt`, `CaptureLogPackage.kt` | Synchronous append, `elapsedRealtime`, size/rotation, thermal/battery |
+| Native module | `src/specs/NativeCaptureLog.ts`, `CaptureLogModule.kt`, `CaptureLogPackage.kt` | Synchronous append, `elapsedRealtime`, size/rotation, thermal/battery, **and task 14's free-space query (§2A) — exposed, unconsumed** |
 | Egress | `scripts/pull-capture.js` | The only egress path, and therefore the redaction seam |
 
 ---
@@ -50,10 +50,13 @@ because it happens to be cheap here is the shape of the problem task 45 exists t
 likes to keep actions in their tasks (as I've prompted it to be) but this falls under logging as far
 as I'm concerned, so it can go here."*
 
-So it is built here. **This is recorded as a deviation because the settled record still says task
-19, and an audit trail that lost the attribution would read as scope drift by the builder.**
-Orientation §8's pin should be amended to point at 41 — that is a coordinator edit, not a builder
-one, and it has not been made.
+So it is built here. **This is recorded as a deviation because the settled record said task 19, and
+an audit trail that lost the attribution would read as scope drift by the builder.**
+Orientation §8's pin needed amending to point at 41 — a coordinator edit, not a builder one.
+**That edit has since been made** (confirmed 2026-08-18): §8 now reads *"REASSIGNED to task 41,
+ruled by Jason 2026-08-17,"* with the sampling/policy split spelled out. The deviation entry stays
+as written, because the deviation happened and the attribution is the point of recording it; what
+changed is that the record is no longer inconsistent with itself.
 
 **Scope held exactly where the ruling put it.** `PowerManager.getCurrentThermalStatus()` and a
 `BatteryManager` read on the capture TurboModule, surfaced into (a) the `runtime` stream and (b)
@@ -96,6 +99,83 @@ run and touches nothing in the detector; `patternIndex` is absent; `fsync` is pe
 revert pinned; retention keeps everything with a single warning and no second trigger; the actor
 vocabulary is the ruled four values; `v` is global; the stale worktree is untouched; **no migration
 007 was created and no schema change of any kind was made.**
+
+---
+
+## 2A. Task 14's free-space query, added to this module (ruled 2026-08-18)
+
+**Added after Phase 2 was accepted, before the device build, because that is the only moment it is
+cheap.** Task 14's backup/restore ladder ships attempt-and-catch (`VACUUM INTO`, catch
+`SQLITE_FULL`/`ENOSPC`), which correctly implements the *blocking* rule but cannot warn at 90% full,
+cannot tell the user how much to free, and cannot separate "disk full" from "quota exceeded". Task
+14's own report costed a `StatFs` TurboModule method as its option 3 and recommended **bundling it
+with this module's rebuild rather than spending a device build cycle on it alone**. Jason ruled yes
+on 2026-08-18. **The bundling window closes the moment he builds.**
+
+**This is not a deviation** — it is new scope, ruled, and it departs from nothing previously
+decided. §2 is unchanged by it.
+
+### The method
+
+```ts
+availableBytesFor(path: string): number      // native; -1 means unknown
+availableBytesFor(path: string): number|null // JS accessor; null means unknown
+```
+
+`StatFs.getAvailableBytes()` on the volume holding `path`. `src/specs/NativeCaptureLog.ts`,
+`CaptureLogModule.kt`, and a thin accessor in `src/capture/nativeWriter.ts` exported through
+`src/capture/index.ts`.
+
+### 🔴 Path-scoped, and this is the substantive design point
+
+A bare `getAvailableBytes()` would have been wrong. **Task 14 writes to two different volumes:**
+`opSqliteOperations.ts` sets `backupLocation: ANDROID_EXTERNAL_FILES_PATH` and
+`salvageLocation: ANDROID_DATABASE_PATH`. On most modern Android devices external storage is
+emulated on the same physical partition as `/data`, so the two numbers are usually identical —
+**usually is a device-dependent fact, not a guarantee.** A single unqualified free-space number
+would be correct for one caller and silently wrong for the other, in a gate that decides whether to
+block the user. The caller names the volume it is about to write to.
+
+The Kotlin walks up to the nearest existing ancestor when the target directory does not exist yet
+(the first backup, a freshly wiped app), because `StatFs` throws on a nonexistent path. That is the
+right answer and not a fallback: free space is a property of the **volume**, and every ancestor of a
+path is on the same volume the path will be created on.
+
+### Degradation, kept legible
+
+**`null` (JS) / `-1` (native) means "I cannot tell you". It is never conflated with `0`.** Zero free
+bytes and an unreadable volume are opposite answers for a caller deciding whether to block, and
+collapsing them would make a missing module look like a full disk — the worst available confusion
+for that decision. `null` is returned when the module is absent (Jest, or an APK built before the
+method existed — the binding is `TurboModuleRegistry.get`, not `getEnforcing`), when the path cannot
+be stat'd, or when the call throws. **Pinned by test**, including that a genuine `0` survives as a
+number: `src/capture/__tests__/availableBytes.test.ts`.
+
+### Representation
+
+Bytes as a JS number (`Double` in Kotlin), the same mapping `sizeOnDisk()` already uses and which
+`EpisodeAlarmModule` demonstrates on-device — deliberately **not** an unusual codegen mapping, for
+the same reason `listDaysCsv()` returns a string (§3.4). Doubles hold integers exactly to 2^53
+(≈ 9 PB), so this is exact for any volume a phone will ever have. A larger volume would lose
+precision; that is stated here rather than discovered later, and no truncation is silent.
+
+### ⚠ It takes a path from JS, which §2.2 argues against for `append` — deliberately
+
+The asymmetry is the reason the two differ, not an inconsistency. `append` **writes**, so a wrong
+path escapes app-private storage and violates constraint #10. `availableBytesFor` only **reads a
+filesystem statistic**: a wrong path returns a number for the wrong volume or `-1`, and can neither
+corrupt nor exfiltrate anything. Both the spec and the Kotlin carry this note in place.
+
+### 🔴 Exposed only. Consumed by nothing. The wiring is task 14's and is UNBUILT.
+
+Nothing in `src/services/backup/` was touched — its report §13 deliberately leaves those call sites
+unwired and they are not mine. No threshold, no policy, no warning UI was added around this number,
+and **no session gate or backup-ladder call site reads it**. A future session must not assume a
+free-space check is live anywhere: today this method is dead code with a consumer named.
+
+It is also **not** related to capture's own ceiling warning (§ retention). That one is a black-swan
+net against *capture's own 512 MB budget*; this is the *volume's* free space, for a different task
+against a different budget. They are separate mechanisms and must not be merged.
 
 ---
 
@@ -142,6 +222,9 @@ departed from.
   resets.
 - **The egress gate refuses**: free-text streams without `--raw-i-am-jason`, and `--anonymize`
   refused rather than ignored.
+- **Free space distinguishes "unknown" from "zero"** (`availableBytes.test.ts`): `-1`, `null`,
+  `undefined`, `NaN` and `Infinity` all normalise to `null`, a genuine `0` survives as a number, and
+  the accessor returns `null` rather than throwing when the native module is absent.
 - **`pull-capture.js`'s stream table is pinned to `src/capture/streams.ts`** by a test that reads the
   TypeScript and compares — a drift there could classify a free-text stream as structured.
 
@@ -160,6 +243,10 @@ departed from.
   `am force-stop` does not touch the page cache — but that is a desktop inference about a device.
   **Design §14.2 is the real test and it is Jason's.**
 - **`PowerManager.getCurrentThermalStatus()` returns something useful on the S23 FE.** Unmeasured.
+- **`StatFs.availableBytes` returns a sane number for both of task 14's locations, and whether they
+  are in fact the same volume on this device.** Unmeasured — and worth actually checking on the
+  first build, because if they differ, §2A's path-scoping is load-bearing rather than merely
+  careful.
 - **The whole log reconstructs a session end to end** (brief §8). Believed by construction; not seen.
 
 ---
@@ -214,10 +301,13 @@ stays; the amendment §6 verified it is a genuine duplicate (one file's differen
 | | Raw (what jest prints) | Real (this tree) |
 |---|---|---|
 | Baseline before this task | 1666 tests / 143 suites | **872 / 75** |
-| After this task | **1704 tests / 148 suites** | **910 / 80** |
+| After Phase 2 | 1704 tests / 148 suites | **910 / 80** |
+| After §2A's free-space method | **1718 tests / 150 suites** | **924 / 82** |
 
-**38 tests added, 5 suites**, all in the real tree — the worktree is at an older commit and cannot
-have gained any. All green.
+**52 tests added in total, 7 suites**, all in the real tree — the worktree is at an older commit and
+cannot have gained any.
+
+Phase 2 measured green end to end:
 
 ```
 npx jest        1704 passed / 148 suites passed   (halve: 910 / 80)
@@ -225,8 +315,33 @@ npx tsc --noEmit  clean
 npx eslint .      0 errors, 56 warnings
 ```
 
-**The eslint warning count is unchanged from the baseline** — the same 56 inline-style warnings in
-`src/dev/`. `sha256.ts` carries a file-level `no-bitwise` disable with its reason stated (SHA-256 is
+⚠ **§2A's verification run could NOT be taken cleanly, and the reason is not capture.** Task 44 was
+mid-edit in the same working tree when the free-space method landed, so a whole-tree `jest` reports
+**4 failing suites / 8 failing tests** and `tsc` reports **2 errors in `src/app/App.tsx`** — all of
+them task 44's in-flight work, attributed by inspection rather than assumed:
+
+- `salvage`/`backup`/`restore` fail on `Expected "2.7.0" / Received "2.8.0"` — that is **migration
+  007**, which is task 44's and which task 41 was explicitly forbidden to create.
+- `taskLibraryController` and the two `App.tsx` type errors are task 44's new `TaskLibraryDeps`
+  (`coaching`, `interactions`) and `TaskListProps` (`onQuickStart`, `onSelfComplete`,
+  `selfCompletingTaskId`) contracts, mid-rewire.
+- **No failure names any capture symbol.**
+
+What *was* measured cleanly, over every suite that covers this task's code:
+
+```
+npx jest src/capture scripts/__tests__/pull-capture src/llm src/planning src/scoring
+                  741 passed / 67 suites passed
+npx eslint src/capture src/specs scripts
+                  clean
+```
+
+**The whole-tree numbers should be re-taken once task 44 lands.** The 1718/150 figure above is the
+count jest collected, not a green result, and it is quoted that way on purpose.
+
+**The eslint warning count is unchanged from the baseline for this task's code** — the same 56
+inline-style warnings in `src/dev/`. (A whole-tree run now reports 57; the extra one is in task 44's
+new `QuickStartWarningScreen.tsx`, and `npx eslint src/capture src/specs scripts` is clean.) `sha256.ts` carries a file-level `no-bitwise` disable with its reason stated (SHA-256 is
 bitwise arithmetic as specified in FIPS 180-4); without it the count would have been 110 and the
 baseline comparison would have become meaningless.
 
@@ -253,7 +368,7 @@ controller never calls.
 
 **Outside `src/app/`:**
 
-`src/capture/**` (new, 19 files) · `src/specs/NativeCaptureLog.ts` (new) ·
+`src/capture/**` (new, 20 files) · `src/specs/NativeCaptureLog.ts` (new) ·
 `android/.../CaptureLogModule.kt`, `CaptureLogPackage.kt` (new), `MainApplication.kt` (+4 lines) ·
 `src/llm/errors.ts` (optional third constructor param + `withPayload`) ·
 `src/llm/provider/ladder.ts` (capture + payload enrichment) ·
@@ -311,6 +426,11 @@ statements + 1 object field. Flagged rather than assumed.
    of §14.2's checks directly — contiguity, boot records for both runs, and any `dropped`.
 4. **The three measurements in §5**, especially §5.3's app-open comparison.
 5. **Rule on §2.2** (the capture root), and on §8.5 if it matters.
+6. **While the module is fresh, check §2A's assumption**: compare
+   `availableBytesFor(ANDROID_EXTERNAL_FILES_PATH)` against
+   `availableBytesFor(ANDROID_DATABASE_PATH)`. Equal numbers mean the two are emulated on one
+   partition on this device; different numbers mean task 14 must keep using the path-scoped form
+   deliberately rather than by habit.
 
 ---
 

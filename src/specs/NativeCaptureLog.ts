@@ -88,6 +88,40 @@ export interface Spec extends TurboModule {
 
   /** The absolute path of `capture/`, for the findings report and `scripts/pull-capture.js`. */
   rootPath(): string;
+
+  /**
+   * Free bytes on the volume that holds `path`, via `StatFs.getAvailableBytes()`. **-1 when the
+   * answer is unknown** — see the representation note below.
+   *
+   * ADDED FOR TASK 14, RULED BY JASON 2026-08-18, AND CONSUMED BY NOTHING YET. Task 14's
+   * backup/restore ladder currently ships attempt-and-catch (`VACUUM INTO`, catch `SQLITE_FULL`),
+   * which is a correct implementation of the *blocking* rule but cannot warn at 90% full, cannot
+   * tell the user how much to free, and cannot distinguish "disk full" from "quota exceeded". Task
+   * 14's report costed a `StatFs` method as option 3 and recommended **bundling it with this
+   * module's rebuild rather than spending a separate device build on it**. That is why it is here
+   * and not in a spec of its own. Task 41 exposes it; task 14 wires it.
+   *
+   * 🔴 WHY PATH-SCOPED RATHER THAN A BARE `getAvailableBytes()`. Task 14 writes to TWO volumes:
+   * backups go to `ANDROID_EXTERNAL_FILES_PATH` and salvage goes to `ANDROID_DATABASE_PATH`
+   * (`opSqliteOperations.ts` — `backupLocation` vs `salvageLocation`). On most modern Android
+   * devices external storage is emulated on the same physical partition as `/data`, so the two
+   * numbers are usually identical — **usually is not a guarantee**, it is a device-dependent fact,
+   * and a single unqualified free-space number would be right for one caller and silently wrong for
+   * the other. The caller names the volume it is about to write to.
+   *
+   * ⚠ THIS TAKES A PATH FROM JS, WHICH TASK 41's FINDINGS REPORT §2.2 ARGUES AGAINST FOR `append`.
+   * The asymmetry is deliberate and is the whole reason the two differ: `append` WRITES, so a wrong
+   * path escapes app-private storage and violates constraint #10. This only READS a filesystem
+   * statistic — a wrong path returns a number for the wrong volume or -1, and can neither corrupt
+   * nor exfiltrate anything.
+   *
+   * REPRESENTATION. Bytes as a JS number (Double). Integers are exact to 2^53 ≈ 9 PB, so this is
+   * exact for any volume a phone will ever have; a larger one would lose precision, which is stated
+   * rather than discovered. **-1 means "I cannot tell you" and is NEVER conflated with 0.** Zero
+   * free bytes and an unreadable volume are opposite answers for a caller deciding whether to
+   * block, and collapsing them would make a missing module look like a full disk.
+   */
+  availableBytesFor(path: string): number;
 }
 
 // `get`, not `getEnforcing`, mirroring the alarm module's precedent: under Jest, or on a JS bundle

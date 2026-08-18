@@ -61,4 +61,35 @@ describe('sessionsRepository', () => {
     expect(deepFocus?.sessionCount).toBe(1);
     expect(deepFocus?.completionRate).toBeCloseTo(0, 5);
   });
+
+  // Task 44 — migration 007's sessions.origin, round-tripped through the domain mapper.
+  describe('origin (task 44, migration 007)', () => {
+    it('defaults to null when not supplied — "the distinction did not exist yet"', async () => {
+      const created = await repo.create('s-no-origin', {
+        sessionType: 'quick',
+        plannedDuration: 10,
+        status: 'abandoned',
+      });
+      expect(created.origin).toBeNull();
+    });
+
+    it("round-trips 'planned' and 'quickstart'", async () => {
+      const planned = await repo.create('s-planned', {
+        sessionType: 'moderate',
+        plannedDuration: 30,
+        status: 'abandoned',
+        origin: 'planned',
+      });
+      expect(planned.origin).toBe('planned');
+      expect((await repo.getById('s-planned'))?.origin).toBe('planned');
+
+      const quickstart = await repo.create('s-quickstart', {
+        sessionType: 'moderate',
+        plannedDuration: 30,
+        status: 'abandoned',
+        origin: 'quickstart',
+      });
+      expect(quickstart.origin).toBe('quickstart');
+    });
+  });
 });

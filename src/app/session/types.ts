@@ -49,6 +49,12 @@ export type SessionPhase =
    *  next session (spec §7.2's third skip: "stop serving tasks and talk about what they can take
    *  on RIGHT NOW"). The shell opens the coach on this phase. */
   | { kind: 'coaching_interrupt'; trigger: CoachingTrigger; taskIds: number[] }
+  /** Task 44 §3, ruling §0.4: quick-start's check-in happens AFTER the task is already chosen, so
+   *  the ordinary capability pre-filter has no pool to act on — this mirrors it post-hoc against
+   *  the one task, using the SAME `src/planning/` predicates the pre-filter uses, so the warning
+   *  can never drift from the filter it's reporting on. Proceeding is allowed; this is informed
+   *  consent, not a block. */
+  | { kind: 'quick_start_warning'; taskTitle: string; reasons: string[] }
   | { kind: 'summary'; summary: SessionSummary };
 
 export interface SessionSummary {

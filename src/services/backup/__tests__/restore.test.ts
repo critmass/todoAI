@@ -75,7 +75,7 @@ describe('restoreFromBackup', () => {
 
     expect(result.from.schemaVersion).toBe('2.2.0');
     expect(result.migrated).toBe(true);
-    expect(result.schemaVersion).toBe('2.7.0');
+    expect(result.schemaVersion).toBe('2.8.0');
 
     const restored = fixture.ops.open(WORKING);
     expect(await countRows(restored, 'tasks')).toBe(1);
@@ -203,7 +203,7 @@ describe('freshStart', () => {
       config: fixture.config,
       now: fixture.now,
     });
-    expect(result.schemaVersion).toBe('2.7.0');
+    expect(result.schemaVersion).toBe('2.8.0');
     expect(result.imported).toBe(false);
 
     const db = fixture.ops.open(WORKING);
@@ -262,7 +262,7 @@ describe('fullReset', () => {
       { consent: true },
     );
 
-    expect(result.schemaVersion).toBe('2.7.0');
+    expect(result.schemaVersion).toBe('2.8.0');
     expect(reclaimSpace).toHaveBeenCalledTimes(1);
     const slots = resolveConfig(fixture.config).slots;
     expect(fixture.ops.exists(slots[0])).toBe(false);
@@ -279,7 +279,7 @@ describe('runMigrations against a restored file', () => {
     const fixture = createFixture();
     const db = fixture.ops.open({ name: 'probe.db' });
     await runMigrations(db);
-    expect(await getCurrentSchemaVersion(db)).toBe('2.7.0');
+    expect(await getCurrentSchemaVersion(db)).toBe('2.8.0');
     db.close();
     fixture.cleanup();
   });

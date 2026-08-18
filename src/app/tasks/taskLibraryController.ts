@@ -10,10 +10,15 @@
 // #7): a one-off closes on completion; an unscheduled task resets its neglect clock and stays
 // active forever. Writing the wrong one turns "I finished this" into "I'll be asked again forever".
 
+import type { CoachingRepository } from '../../db/repositories/coaching';
 import type { DependenciesRepository } from '../../db/repositories/dependencies';
+import type { InteractionsRepository } from '../../db/repositories/interactions';
 import type { RecurrenceRepository } from '../../db/repositories/recurrence';
 import type { TasksRepository } from '../../db/repositories/tasks';
 import type { Task } from '../../types/domain';
+import { pendingBreakdownCompleteTaskIds } from '../../services/breakdownLifecycle';
+import { selfCompleteTask } from '../../services/taskCompletion';
+import { describeBlocked } from '../../services/taskBlocking';
 import type { TaskListRow } from '../screens/contracts';
 import {
   describeRecurrence,
@@ -26,9 +31,18 @@ import {
 } from './taskDraft';
 
 export interface TaskLibraryDeps {
-  tasks: Pick<TasksRepository, 'listActive' | 'getById' | 'create' | 'update' | 'softDelete'>;
-  recurrence: Pick<RecurrenceRepository, 'getByTaskId' | 'create' | 'update' | 'remove'>;
-  dependencies: Pick<DependenciesRepository, 'listDependents'>;
+  tasks: Pick<
+    TasksRepository,
+    'listActive' | 'getById' | 'create' | 'update' | 'softDelete' | 'recordUnscheduledCompletion'
+  >;
+  recurrence: Pick<
+    RecurrenceRepository,
+    'getByTaskId' | 'create' | 'update' | 'remove' | 'incrementCountProgress' | 'incrementPeriodProgress'
+  >;
+  dependencies: Pick<DependenciesRepository, 'listDependents' | 'listUnresolvedBlockersForActiveTasks'>;
+  /** Task 44 — the R7 hold signal (§0 ruling 1's second half) and self-complete's interactions row. */
+  coaching: Pick<CoachingRepository, 'priorityQueue'>;
+  interactions: Pick<InteractionsRepository, 'create' | 'linkTask'>;
 }
 
 export interface TaskLibraryState {
@@ -39,6 +53,9 @@ export interface TaskLibraryState {
   canDelete: boolean;
   saving: boolean;
   error: string | null;
+  /** Task 44 — set while a self-complete write is in flight, so the screen can disable the row's
+   *  button rather than let a second tap fire a second completion. */
+  selfCompletingTaskId: number | null;
 }
 
 type Listener = (state: TaskLibraryState) => void;
@@ -51,6 +68,7 @@ export function createTaskLibraryController(deps: TaskLibraryDeps) {
     canDelete: false,
     saving: false,
     error: null,
+    selfCompletingTaskId: null,
   };
   const listeners = new Set<Listener>();
 
@@ -70,14 +88,34 @@ export function createTaskLibraryController(deps: TaskLibraryDeps) {
   }
 
   /** Loads the list. One recurrence read per task: an N+1, consciously — a personal task list is
-   *  tens of rows, and the alternative is a bespoke join that only this screen would use. */
+   *  tens of rows, and the alternative is a bespoke join that only this screen would use.
+   *
+   *  Task 44 — the two blocking signals (dependency + R7 hold) are read ONCE for the whole list,
+   *  not per row, because both repository reads are already whole-pool queries (the same two
+   *  reads `src/planning/service.ts`'s `loadSelectionBoundary` makes) — reading them per-row would
+   *  be N+1 on top of the recurrence N+1 for no benefit. */
   async function refresh(): Promise<void> {
     await guard(async () => {
       const tasks = await deps.tasks.listActive();
+      const titleById = new Map(tasks.map((task) => [task.id, task.title]));
+      const unresolvedBlockers = await deps.dependencies.listUnresolvedBlockersForActiveTasks();
+      const pendingBreakdownComplete = await pendingBreakdownCompleteTaskIds(deps.coaching);
       const rows: TaskListRow[] = [];
       for (const task of tasks) {
         const recurrence = await deps.recurrence.getByTaskId(task.id);
-        rows.push({ id: task.id, title: task.title, summary: summarize(task, recurrence) });
+        const blocked = describeBlocked(
+          task.id,
+          unresolvedBlockers,
+          pendingBreakdownComplete,
+          (id) => titleById.get(id),
+        );
+        rows.push({
+          id: task.id,
+          title: task.title,
+          summary: summarize(task, recurrence),
+          blocked: blocked.blocked,
+          blockedReason: blocked.reason,
+        });
       }
       publish({ rows });
     });
@@ -142,6 +180,23 @@ export function createTaskLibraryController(deps: TaskLibraryDeps) {
     else await deps.recurrence.create(taskId, next);
   }
 
+  /**
+   * Task 44 §4 — "mark a task done that you finished away from the app." A defensive re-check of
+   * `row.blocked` guards against a stale row (the button should already be disabled — see
+   * `refresh` — but a row rendered before the last refresh is not a reason to record an
+   * impossibility, per the ruling: "you cannot have finished something whose prerequisite is
+   * incomplete").
+   */
+  async function selfComplete(taskId: number): Promise<boolean> {
+    const row = state.rows.find((entry) => entry.id === taskId);
+    if (row?.blocked) return false;
+    publish({ selfCompletingTaskId: taskId, error: null });
+    const result = await guard(() => selfCompleteTask(deps, taskId));
+    publish({ selfCompletingTaskId: null });
+    if (result) await refresh();
+    return result !== undefined;
+  }
+
   /** Soft-delete only — history and foreign keys depend on the row surviving. */
   async function remove(): Promise<boolean> {
     const id = state.draft.id;
@@ -166,6 +221,7 @@ export function createTaskLibraryController(deps: TaskLibraryDeps) {
     change,
     save,
     remove,
+    selfComplete,
   };
 }
 

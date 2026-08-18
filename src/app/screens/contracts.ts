@@ -34,6 +34,12 @@ export interface TaskListRow {
   title: string;
   /** e.g. "3× a week on Mon/Wed · In progress". Built by the controller. */
   summary: string;
+  /** Task 44 §0 ruling 1 — true for a dependency-blocked task OR one held for R7
+   *  `breakdown_complete`. Both quick-start and self-complete are disabled when true. */
+  blocked: boolean;
+  /** The visible reason ("blocked by X"), non-null iff `blocked`. A disabled button with a
+   *  reason, never a hidden one (brief §3). */
+  blockedReason: string | null;
 }
 
 export interface TaskListProps {
@@ -41,6 +47,12 @@ export interface TaskListProps {
   onOpen: (taskId: number) => void;
   onAdd: () => void;
   onBack: () => void;
+  /** Task 44 §3 — launches a normal, full-check-in session for exactly this one task. */
+  onQuickStart: (taskId: number) => void;
+  /** Task 44 §4 — marks a task done that was finished away from the app. */
+  onSelfComplete: (taskId: number) => void;
+  /** True while a self-complete write for that row is in flight (prevents a double-tap). */
+  selfCompletingTaskId: number | null;
 }
 
 export interface TaskEditorProps {
@@ -146,6 +158,19 @@ export interface RecoveredProps {
   onKeepWorking: () => void;
   onDone: () => void;
   onLater: () => void;
+}
+
+// Task 44 §3 — the check-in warning screen (ruling §0.4). Fires when any condition the ordinary
+// capability pre-filter would have checked — wrong context, missing tools, doesn't fit the time —
+// would have filtered this task out, had it gone through the pool instead of being hand-picked.
+export interface QuickStartWarningProps {
+  taskTitle: string;
+  /** One sentence per failed condition, already worded for display (the controller reuses the
+   *  real `src/planning/` predicates to build these — see sessionController's `quickStartReasons`). */
+  reasons: string[];
+  /** Proceeding is allowed — the point is informed consent, not a block. */
+  onProceedAnyway: () => void;
+  onBack: () => void;
 }
 
 export interface PlanEmptyProps {

@@ -503,6 +503,129 @@ describe('session controller (task 24)', () => {
     });
   });
 
+  describe('quick-start (task 44 §3)', () => {
+    /** Drives the check-in end to end for a specific task, mirroring `startSession` above. */
+    async function quickStart(ctl: ReturnType<typeof controller>, taskId: number, minutes = 30) {
+      await ctl.beginQuickStart(taskId);
+      ctl.setEnergy('med');
+      ctl.setDuration(minutes, 'moderate');
+      await ctl.setContexts([]);
+      return ctl.getState();
+    }
+
+    it('writes origin=quickstart on the sessions row (migration 007)', async () => {
+      const task = await makeTask({ title: 'Mix track' });
+      const ctl = controller();
+      await quickStart(ctl, task.id);
+      expect((await repos.sessions.getById('sess-1'))?.origin).toBe('quickstart');
+    });
+
+    it('an ordinary begin() writes origin=planned', async () => {
+      await makeTask({ title: 'Mix track' });
+      const ctl = controller();
+      await startSession(ctl);
+      expect((await repos.sessions.getById('sess-1'))?.origin).toBe('planned');
+    });
+
+    it('serves exactly the requested task, ignoring the rest of the pool', async () => {
+      const target = await makeTask({ title: 'Target task' });
+      await makeTask({ title: 'Some other task' });
+      const ctl = controller();
+      const state = await quickStart(ctl, target.id);
+      expect(state.phase.kind === 'work' && state.phase.item.task.id).toBe(target.id);
+    });
+
+    it('goes straight to work when the task passes the mirrored predicates', async () => {
+      const task = await makeTask({ title: 'Mix track', estimatedDuration: 10, contextTags: [] });
+      const ctl = controller();
+      const state = await quickStart(ctl, task.id, 30);
+      expect(state.phase.kind).toBe('work');
+    });
+
+    it('warns — naming the specific condition — when context would have filtered it out', async () => {
+      const task = await makeTask({ title: 'Mix track', contextTags: ['studio'] });
+      const ctl = controller();
+      const state = await quickStart(ctl, task.id, 30); // check-in contexts: []
+      expect(state.phase.kind).toBe('quick_start_warning');
+      if (state.phase.kind === 'quick_start_warning') {
+        expect(state.phase.reasons.join(' ')).toMatch(/context/);
+        expect(state.phase.reasons.join(' ')).toMatch(/studio/);
+      }
+    });
+
+    it('routes a tool-requiring task through the ordinary ToolsCheckScreen, same as any session', async () => {
+      // Tools are never a check-in-time filter in this codebase (see quickStartReasons's own
+      // comment) — the real check is the per-task tools screen, which quick-start reaches exactly
+      // like an ordinary session because `serveQuickStartTask` builds a real AgendaTaskItem.
+      const task = await makeTask({ title: 'Edit video', toolRequirements: ['laptop'] });
+      const ctl = controller();
+      const state = await quickStart(ctl, task.id, 30);
+      expect(state.phase.kind).toBe('tools');
+    });
+
+    it('ends the session (rather than replanning the whole pool) when tools are declined missing', async () => {
+      const task = await makeTask({ title: 'Edit video', toolRequirements: ['laptop'] });
+      await makeTask({ title: 'Another easy task' });
+      const ctl = controller();
+      const state = await quickStart(ctl, task.id, 30);
+      expect(state.phase.kind).toBe('tools');
+      const item = (state.phase as { item: import('../../../planning/agenda').AgendaTaskItem }).item;
+      await ctl.toolsMissing(item);
+      expect(ctl.getState().phase.kind).toBe('summary');
+    });
+
+    it('warns when the task does not fit the planned duration', async () => {
+      const task = await makeTask({ title: 'Long thing', estimatedDuration: 90 });
+      const ctl = controller();
+      const state = await quickStart(ctl, task.id, 10);
+      expect(state.phase.kind).toBe('quick_start_warning');
+      if (state.phase.kind === 'quick_start_warning') {
+        expect(state.phase.reasons.join(' ')).toMatch(/fit/);
+      }
+    });
+
+    it('proceedQuickStart goes ahead anyway, informed rather than blocked', async () => {
+      const task = await makeTask({ title: 'Mix track', contextTags: ['studio'] });
+      const ctl = controller();
+      await quickStart(ctl, task.id, 30);
+      await ctl.proceedQuickStart();
+      const state = ctl.getState();
+      expect(state.phase.kind).toBe('work');
+    });
+
+    it('cancelQuickStart ends the session cleanly (the back-out)', async () => {
+      const task = await makeTask({ title: 'Mix track', contextTags: ['studio'] });
+      const ctl = controller();
+      await quickStart(ctl, task.id, 30);
+      await ctl.cancelQuickStart();
+      expect(ctl.getState().phase.kind).toBe('summary');
+      expect((await repos.sessions.getById('sess-1'))?.status).toBe('completed');
+    });
+
+    it('is one task long: finishing the task ends the session rather than serving another', async () => {
+      const task = await makeTask({ title: 'Mix track', estimatedDuration: 10 });
+      await makeTask({ title: 'Another task' });
+      const ctl = controller();
+      await quickStart(ctl, task.id, 30);
+      await ctl.beginBlock((ctl.getState().phase as { item: import('../../../planning/agenda').AgendaTaskItem }).item);
+      await ctl.done();
+      expect(ctl.getState().phase.kind).toBe('summary');
+    });
+
+    it('the escape valve does not pull in the rest of the pool mid quick-start', async () => {
+      const task = await makeTask({ title: 'Mix track', estimatedDuration: 10 });
+      await makeTask({ title: 'Another easy task', estimatedDuration: 5 });
+      const ctl = controller();
+      await quickStart(ctl, task.id, 30);
+      const item = (ctl.getState().phase as { item: import('../../../planning/agenda').AgendaTaskItem }).item;
+      await ctl.beginBlock(item);
+      await ctl.somethingEasier();
+      // Ruling §5's reasoning: quick-start bypasses runSelectionBoundary entirely, so the escape
+      // valve must not silently reintroduce it — the session simply ends.
+      expect(ctl.getState().phase.kind).toBe('summary');
+    });
+  });
+
   describe('recovery routing', () => {
     it('resume_block re-opens the SAME block end rather than handing back the dead minutes', async () => {
       await makeTask({ title: 'Mix track', estimatedDuration: 25 });

@@ -25,6 +25,7 @@
 import type { Task } from '../types/domain';
 import type { TasksRepository } from '../db/repositories/tasks';
 import type { RecurrenceRepository } from '../db/repositories/recurrence';
+import type { InteractionsRepository } from '../db/repositories/interactions';
 import { NotFoundError } from '../db/errors';
 
 export interface TaskCompletionDeps {
@@ -162,4 +163,59 @@ export async function completeTask(
       };
     }
   }
+}
+
+// =====================================================================
+// Task 44 §4 — self-complete: "mark a task done that you finished away from the app."
+// =====================================================================
+
+/** Marker written to `interactions.notes` on every self-completion (task 44 §4). Not a new
+ *  column: `interactions` has no boolean "was this a self-completion" flag, and adding one for a
+ *  single caller was judged more schema than the feature needs. A plain, greppable string is the
+ *  convention task 17 should inherit for finding/excluding these rows — see the task 44 findings
+ *  report for the reasoning and for why `tasks.completion_count`/`success_rate` are deliberately
+ *  NOT written here. */
+export const SELF_COMPLETED_MARKER = 'self_completed';
+
+export interface SelfCompleteDeps extends TaskCompletionDeps {
+  interactions: Pick<InteractionsRepository, 'create' | 'linkTask'>;
+}
+
+/**
+ * Marks `taskId` done from outside the app's own session flow. REUSES `completeTask` for the
+ * entire recurrence-branching write (constraint #7, R7's fold, task 36's advance is unaffected —
+ * completion still bumps `last_completed_at`, which is what the sweep reads) — this function adds
+ * exactly one thing completeTask does not do: an `interactions` row recording that the completion
+ * happened with NO EPISODE behind it.
+ *
+ * Ruling §0.2 ("self-completed tasks are excluded from completion-time calculations"), concretely:
+ *   - `sessionId`, `userEnergyLevelStart/End`, `durationMinutes` are all EXPLICIT `null` — never
+ *     invented. `completeTask` is called with no `episodeMinutes` (defaults to 0), so the
+ *     cumulative-duration fold adds nothing beyond whatever was already `accumulatedMinutes` from
+ *     real parked work — this call contributes zero NEW duration evidence.
+ *   - `notes` carries `SELF_COMPLETED_MARKER` so a duration-weighted learner (task 17) can filter
+ *     these out without a schema change.
+ *   - It still COUNTS for completion and for the neglect clock, because `completeTask`'s own
+ *     primitives (`recordUnscheduledCompletion` / `update({status:'completed'})`) are exactly what
+ *     ordinary completion uses — there is no second completion path here, only a second CALLER.
+ *   - Recurring tasks still advance (task 36's sweep reads `last_completed_at`, which every
+ *     `completeTask` branch writes) — nothing here bypasses that.
+ */
+export async function selfCompleteTask(
+  deps: SelfCompleteDeps,
+  taskId: number,
+  opts?: CompleteTaskOptions,
+): Promise<CompletionResult> {
+  const result = await completeTask(deps, taskId, opts);
+  const interaction = await deps.interactions.create({
+    interactionType: 'task_completion',
+    sessionId: null,
+    userEnergyLevelStart: null,
+    userEnergyLevelEnd: null,
+    durationMinutes: null,
+    completionStatus: 'completed',
+    notes: SELF_COMPLETED_MARKER,
+  });
+  await deps.interactions.linkTask(interaction.id, taskId);
+  return result;
 }

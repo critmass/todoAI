@@ -50,7 +50,7 @@ describe('salvageDatabase', () => {
 
     expect(report.lost).toHaveLength(0);
     expect(report.taskRowsRecovered).toBe(3);
-    expect(await getCurrentSchemaVersion(db)).toBe('2.7.0');
+    expect(await getCurrentSchemaVersion(db)).toBe('2.8.0');
 
     const deps = await db.execute('SELECT COUNT(*) AS n FROM task_dependencies');
     expect(Number(deps.rows[0].n)).toBe(1);
@@ -85,7 +85,7 @@ describe('salvageDatabase', () => {
       destination: DESTINATION,
     });
     expect(report.recovered.map((entry) => entry.table)).not.toContain('schema_metadata');
-    expect(await getCurrentSchemaVersion(db)).toBe('2.7.0');
+    expect(await getCurrentSchemaVersion(db)).toBe('2.8.0');
     db.close();
   });
 

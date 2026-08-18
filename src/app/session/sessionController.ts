@@ -25,10 +25,16 @@ import type { PlanningRepositories } from '../../planning/service';
 import { planSessionFromRepositories, replanRemainingFromRepositories } from '../../planning/service';
 import type { AgendaTaskItem, SessionPlan } from '../../planning/agenda';
 import { firstWorkableWithTools } from '../../planning/agenda';
+import {
+  isPlaceableInBlock,
+  plannedMinutes as computePlannedMinutes,
+  treatedAsOpenEnded,
+} from '../../planning/plannedMinutes';
 import type { PlanRequest } from '../../planning/planner';
+import { filterBySessionCapability } from '../../scoring/filter';
 import type { SessionsRepository } from '../../db/repositories/sessions';
 import type { Session, Task } from '../../types/domain';
-import type { SessionType } from '../../types/db';
+import type { SessionOrigin, SessionType } from '../../types/db';
 import { userToInternalEnergy, type UserEnergy } from '../../types/scales';
 import {
   MS_PER_MINUTE,
@@ -92,6 +98,14 @@ interface SessionState {
   /** Coaching queued by the engine during this session — read for the summary's estimate note. */
   coaching: Array<CoachingEnqueued & { taskId?: number }>;
   lapsed: boolean;
+  /** Task 44 §3 — set by `beginQuickStart`. Non-null for the lifetime of a quick-start session:
+   *  it is what `setContexts` reads to route to `startQuickStartSession` instead of the ordinary
+   *  planner, and what `followTail` reads to refuse to re-enter the planner mid-session (ruling
+   *  §5's reasoning: quick-start bypasses runSelectionBoundary ENTIRELY, not just at the start). */
+  quickStartTaskId: number | null;
+  /** The task a quick-start warning is currently showing, so `proceedQuickStart` doesn't have to
+   *  re-fetch it. Cleared once the warning is resolved either way. */
+  quickStartPendingTask: Task | null;
 }
 
 export interface SessionControllerState {
@@ -120,6 +134,8 @@ function emptyState(): SessionState {
     cursor: 0,
     coaching: [],
     lapsed: false,
+    quickStartTaskId: null,
+    quickStartPendingTask: null,
   };
 }
 
@@ -232,11 +248,16 @@ export function createSessionController(deps: SessionControllerDeps) {
   }
 
   /** The last check-in step. On a fresh check-in this CREATES the session; on a recovered one it
-   *  only refreshes the context and replans the remainder. */
+   *  only refreshes the context and replans the remainder. Quick-start (task 44 §3) branches to
+   *  its own session-creation path — see `startQuickStartSession` — rather than the planner's. */
   async function setContexts(contexts: string[]): Promise<void> {
     session.contexts = contexts;
     if (session.sessionId) {
       await replanRemainder();
+      return;
+    }
+    if (session.quickStartTaskId != null) {
+      await startQuickStartSession(session.quickStartTaskId);
       return;
     }
     await startSession();
@@ -245,29 +266,38 @@ export function createSessionController(deps: SessionControllerDeps) {
   // ── Starting the session (the 13/24 boundary) ────────────────────────────────────────────
 
   /**
-   * Creates the `sessions` row and hands the clock to task 13.
+   * Creates the `sessions` row and hands the clock to task 13. Shared by the ordinary
+   * check-in flow (`startSession`) and quick-start (`startQuickStartSession`) — `origin` is the
+   * one thing that differs, written here exactly once per session (migration 007, task 44 §5).
    *
    * The row is born **'abandoned'** (constraint #14): `sessions.status` has no in-progress value,
    * so a running session must carry a terminal one, and 'abandoned' is the truthful thing to find
    * after a crash. `closeSession` overwrites it on a clean end. Task 24 writes this row once, at
    * creation; every write after it is task 13's.
    */
+  async function createSessionRow(origin: SessionOrigin): Promise<{ sessionId: string; startedAtMs: number }> {
+    const startedAtMs = deps.now();
+    const sessionId = nextSessionId();
+    await deps.sessions.create(sessionId, {
+      sessionType: session.sessionType,
+      plannedDuration: session.plannedMinutes,
+      status: 'abandoned',
+      userEnergyStart: userToInternalEnergy(session.energy ?? 'med'),
+      origin,
+    });
+    session.sessionId = sessionId;
+    await startSessionRuntime(deps.episode, {
+      sessionId,
+      startedAtMs,
+      plannedMinutes: session.plannedMinutes,
+      origin,
+    });
+    return { sessionId, startedAtMs };
+  }
+
   async function startSession(): Promise<void> {
     await guard(async () => {
-      const startedAtMs = deps.now();
-      const sessionId = nextSessionId();
-      await deps.sessions.create(sessionId, {
-        sessionType: session.sessionType,
-        plannedDuration: session.plannedMinutes,
-        status: 'abandoned',
-        userEnergyStart: userToInternalEnergy(session.energy ?? 'med'),
-      });
-      session.sessionId = sessionId;
-      await startSessionRuntime(deps.episode, {
-        sessionId,
-        startedAtMs,
-        plannedMinutes: session.plannedMinutes,
-      });
+      const { startedAtMs } = await createSessionRow('planned');
       setPhase({ kind: 'planning' });
       // Tools are assumed present at planning time and CONFIRMED per task (spec §6.2's order:
       // plan first, tools checklist second). Planning with an empty tool set would hard-filter
@@ -281,6 +311,151 @@ export function createSessionController(deps: SessionControllerDeps) {
       );
       await adoptPlan(plan);
     });
+  }
+
+  // ── Quick-start (task 44 §3) ─────────────────────────────────────────────────────────────
+  //
+  // "A normal session that happens to be one task long" (ruling §0.3): the SAME check-in screens
+  // (`begin` → `setEnergy` → `setDuration` → `setContexts`) run; only what happens once check-in
+  // finishes differs. Blocked-task disabling is the caller's job (the button itself — see the
+  // task-library controller), because a disabled button needs a reason BEFORE the check-in ever
+  // starts, which this flow — already past task selection — cannot supply.
+
+  /** Opens a fresh check-in scoped to one task. Mirrors `begin` exactly except for recording
+   *  which task this session is for. */
+  async function beginQuickStart(taskId: number): Promise<void> {
+    session = emptyState();
+    session.quickStartTaskId = taskId;
+    await guard(() => advanceRecurrence(deps.recurrence, sweepDateFrom(deps.now())));
+    await guard(async () => {
+      const active = await deps.catalog.listActive();
+      const counts = new Map<string, number>();
+      for (const task of active) {
+        for (const tag of task.contextTags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+      const knownContexts = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([tag]) => tag);
+      publish({ knownContexts });
+    });
+    setPhase({ kind: 'check_in_energy' });
+  }
+
+  /** Which of the real `src/planning/` predicates this task would have failed, given the
+   *  check-in just gathered — ruling §0.4: "if any check-in condition would have filtered the
+   *  task out … show a warning naming the specific condition." Reuses `filterBySessionCapability`
+   *  (context) and `isPlaceableInBlock` (duration fit) rather than re-deriving them, so the
+   *  warning cannot drift from the filter it mirrors (brief §3).
+   *
+   *  NOT included, and why — two conditions the ruling's prose names that this deliberately
+   *  leaves to the mechanism that already handles them, rather than duplicating a second one:
+   *
+   *  - "Insufficient energy": `checkIn.energy` is a SCORING input (`energyMatchFactor`) in this
+   *    codebase, never a hard filter — no predicate in `src/planning/` or `src/scoring/filter.ts`
+   *    rejects a task for energy mismatch, so there is nothing here to mirror. Inventing one would
+   *    be exactly the re-derivation this method exists to avoid.
+   *  - "Missing tools": tools are NEVER a check-in-time filter in this codebase, for anyone. The
+   *    check-in (`check_in_context`) asks contexts only; `session.tools` is deliberately the
+   *    OPTIMISTIC union of every active task's tool requirements (`knownTools()`, "assumed present
+   *    at planning time"), so `filterBySessionCapability` against `checkIn.tools` can never reject
+   *    on tools for ANY session, quick-start or ordinary. The real check is `ToolsCheckScreen`,
+   *    asked per-task after selection — which quick-start already reaches naturally, for the same
+   *    reason an ordinary session does (`adoptPlan`/`serveFrom` route to the `tools` phase whenever
+   *    the served item needs something). `toolsMissing()` below is what quick-start's version of
+   *    "not with me" does instead of re-entering the planner. This satisfies ruling §0.3 ("quick-
+   *    start runs the full check-in… a normal session that happens to be one task long") more
+   *    faithfully than duplicating the check pre-emptively would: the SAME screen, at the SAME
+   *    moment, asks the SAME question, for a quick-start task exactly as for any other. See the
+   *    task 44 findings report for this reasoning recorded in full, including why it reads as a
+   *    considered interpretation of the ruling's prose rather than a silent narrowing of it.
+   *
+   *  Dependency/R7 blocking is deliberately NOT re-checked here: the button that reaches this flow
+   *  is already disabled for a blocked task (ruling §0.1), so reaching `beginQuickStart` on a
+   *  blocked task is a bug elsewhere, not a condition this screen should explain politely. */
+  function quickStartReasons(task: Task, sessionCheckIn: SessionCheckIn): string[] {
+    const reasons: string[] = [];
+    const capability = filterBySessionCapability(
+      [{ task, weeksNeglected: 0, neglectMultiplier: 1, missedQuota: null }],
+      sessionCheckIn,
+    );
+    const reject = capability.rejected[0];
+    if (reject && reject.missingContexts.length > 0) {
+      reasons.push(`wrong context — this session doesn't have ${reject.missingContexts.join(', ')}`);
+    }
+    if (!isPlaceableInBlock(task, session.plannedMinutes, session.plannedMinutes)) {
+      reasons.push(`doesn't fit in the time planned (${session.plannedMinutes} min)`);
+    }
+    return reasons;
+  }
+
+  /** The check-in has finished; decide whether this task would have survived the ordinary
+   *  pre-filter and either warn or go straight to work. */
+  async function startQuickStartSession(taskId: number): Promise<void> {
+    await guard(async () => {
+      const task = await deps.episode.tasks.getById(taskId);
+      if (!task) {
+        await finish();
+        return;
+      }
+      await createSessionRow('quickstart');
+      session.tools = await knownTools();
+      const reasons = quickStartReasons(task, checkIn());
+      if (reasons.length > 0) {
+        session.quickStartPendingTask = task;
+        setPhase({ kind: 'quick_start_warning', taskTitle: task.title, reasons });
+        return;
+      }
+      await serveQuickStartTask(task);
+    });
+  }
+
+  /** Builds the ONE-item agenda quick-start serves and hands it to the ordinary walker. No deep-
+   *  focus allocation, no ramp, no breaks — those are whole-SESSION planning concerns and this
+   *  session has exactly one task by construction. Sizing mirrors `plannedMinutes.ts`'s own rules
+   *  (open-ended tasks fill their block; estimate-typed tasks use their remaining estimate,
+   *  capped at what's actually planned) rather than reaching into `planner.ts`'s private
+   *  deep-focus-block builder, which allocates across a whole agenda quick-start doesn't have. */
+  async function serveQuickStartTask(task: Task): Promise<void> {
+    const openEnded = treatedAsOpenEnded(task);
+    const item: AgendaTaskItem = {
+      kind: 'task',
+      task,
+      blockKind: openEnded ? 'openBlock' : 'countdown',
+      plannedMinutes: openEnded
+        ? session.plannedMinutes
+        : Math.min(computePlannedMinutes(task, session.plannedMinutes), session.plannedMinutes),
+      deepFocus: false,
+      resumeClaim: task.workState === 'in_progress',
+    };
+    const plan: SessionPlan = {
+      sessionType: session.sessionType,
+      sessionMinutes: session.plannedMinutes,
+      items: [item],
+      outcome: 'planned',
+      splitCandidate: null,
+      capabilityRejects: [],
+      dependencyRejects: [],
+    };
+    await adoptPlan(plan);
+  }
+
+  /** The warning screen's "go anyway" — informed, not blocked (ruling §0.4). */
+  async function proceedQuickStart(): Promise<void> {
+    const task = session.quickStartPendingTask;
+    session.quickStartPendingTask = null;
+    if (!task) {
+      await finish();
+      return;
+    }
+    await guard(() => serveQuickStartTask(task));
+  }
+
+  /** The warning screen's back-out. Ends the session cleanly rather than leaving a half-started
+   *  one behind — there is no task to fall back to (quick-start has exactly one), so "back out"
+   *  and "end the session" are the same action here. */
+  async function cancelQuickStart(): Promise<void> {
+    session.quickStartPendingTask = null;
+    await finish();
   }
 
   /** Every tool any active task requires — the optimistic set the plan is built against. */
@@ -335,8 +510,18 @@ export function createSessionController(deps: SessionControllerDeps) {
   }
 
   /** Spec §6.2's missing-tools fallback. NOT a skip: no episode has opened, so there is nothing
-   *  to decline — the app simply misjudged what the user has to hand, and re-plans around it. */
+   *  to decline — the app simply misjudged what the user has to hand, and re-plans around it.
+   *
+   *  Quick-start (task 44 §3) has no "rest of the agenda" to re-plan around — it is one task
+   *  long by construction — and re-entering the planner here would be exactly the runSelection
+   *  Boundary bypass violation `followTail` already guards against for tail directives. Ending
+   *  the session is the honest outcome: the one task quick-start was for isn't workable right
+   *  now, so there is nothing left for this session to do. */
   async function toolsMissing(item: AgendaTaskItem): Promise<void> {
+    if (session.quickStartTaskId != null) {
+      await finish();
+      return;
+    }
     await guard(async () => {
       const present = session.tools.filter((tool) => !item.task.toolRequirements.includes(tool));
       session.tools = present;
@@ -578,6 +763,15 @@ export function createSessionController(deps: SessionControllerDeps) {
     }
     if (directive.kind === 'continue') {
       await serveFrom(session.cursor + 1);
+      return;
+    }
+    // Quick-start never re-enters the planner, at ANY point in the session, not only at the
+    // start (ruling §5's reasoning: it bypasses runSelectionBoundary entirely, which is what
+    // makes its outcome a confounder rather than evidence). A `regenerate` tail directive here
+    // would otherwise silently pull the full active pool back in through the escape valve or a
+    // long-stretch replan — ending the "one task long" contract without anyone deciding to.
+    if (session.quickStartTaskId != null) {
+      await finish();
       return;
     }
     const plan = await runTailDirective(deps.planning, planRequest(), directive, deps.now(), rng);
@@ -828,6 +1022,9 @@ export function createSessionController(deps: SessionControllerDeps) {
     /** The live timer reading — recomputed from the stored end-time on every call, never ticked. */
     readTimer: () => currentTimer(deps.episode, deps.now()),
     begin,
+    beginQuickStart,
+    proceedQuickStart,
+    cancelQuickStart,
     setEnergy,
     setDuration,
     setContexts,

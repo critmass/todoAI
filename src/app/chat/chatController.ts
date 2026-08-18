@@ -207,6 +207,16 @@ export function createChatController(deps: ChatControllerDeps) {
   }
 
   function open(purpose: ChatPurpose): void {
+    // TASK 44 §1 — warm the model on SCREEN OPEN, not first send. `ensure()` already dedupes via
+    // its own `inFlight` (modelHost.ts), so this is safe to call even when a load is already
+    // running or done; the `.catch` is deliberate and swallows the rejection here — `ensure()`'s
+    // real error handling already lives at each call site that actually needs the model (`send`,
+    // `saveTask`, `resolve`), which surface `phase() === 'failed'` through their own try/catch and
+    // publish an error onto `state`. This call exists ONLY to start the ~3s load earlier; a screen
+    // that unmounts before it resolves must not throw into a component that's gone, which is
+    // exactly what the bare `.catch(() => {})` prevents. Constraint #3 gets safer, not weaker: the
+    // startup guard still runs (inside `ensure()`) before any token is generated, just sooner.
+    deps.model.ensure().catch(() => {});
     nextId = 1;
     const isInput = purpose.kind === 'task_input';
     state = {

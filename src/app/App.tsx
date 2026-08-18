@@ -65,6 +65,7 @@ import BreakScreen from './screens/BreakScreen';
 import RecoveredScreen from './screens/RecoveredScreen';
 import PlanEmptyScreen from './screens/PlanEmptyScreen';
 import SessionSummaryScreen from './screens/SessionSummaryScreen';
+import QuickStartWarningScreen from './screens/QuickStartWarningScreen';
 
 type Route =
   | { kind: 'dashboard' }
@@ -198,10 +199,14 @@ function AppRoot() {
         now,
       });
       const library = createTaskLibraryController({
-        // `user` / `editor`.
+        // `user` / `editor`. Task 44 — self-complete is a direct user action from the task list,
+        // same attribution as every other editor write; it is not routed through the `system` /
+        // `episode_close` bundle because no episode is involved.
         tasks: services.editor.tasks,
         recurrence: services.editor.recurrence,
         dependencies: services.editor.dependencies,
+        coaching: services.editor.coaching,
+        interactions: services.editor.interactions,
       });
 
       // Crash recovery FIRST, before any screen is chosen (see ./launch.ts); the recurrence sweep
@@ -341,6 +346,27 @@ function Router({
     setRoute({ kind: 'session' });
   }, [services, session, openChat, setRoute]);
 
+  /** Task 44 §3 — same pending-coaching pre-empt as `startWork` (spec §7.2's urgency tier is a
+   *  property of SESSION START, not of which check-in flow follows it), then hands off to the
+   *  quick-start-scoped check-in. */
+  const startQuickStart = useCallback(
+    async (taskId: number) => {
+      const waiting = pendingAtSessionStart(await services.repos.coaching.priorityQueue());
+      if (waiting) {
+        openChat({
+          kind: 'coaching',
+          trigger: waiting.triggerType,
+          queueEntryId: waiting.id,
+          candidateTaskIds: waiting.relatedTaskIds,
+        });
+        return;
+      }
+      await session.beginQuickStart(taskId);
+      setRoute({ kind: 'session' });
+    },
+    [services, session, openChat, setRoute],
+  );
+
   const openMetrics = useCallback(async () => {
     const active = await services.repos.tasks.listActive();
     setMetrics({
@@ -427,6 +453,9 @@ function Router({
             library.openNew();
             setRoute({ kind: 'taskEditor' });
           }}
+          onQuickStart={(taskId) => fire(startQuickStart(taskId))}
+          onSelfComplete={(taskId) => fire(library.selfComplete(taskId))}
+          selfCompletingTaskId={libraryState.selfCompletingTaskId}
           onBack={toDashboard}
         />
       );
@@ -588,12 +617,16 @@ function SessionFlow({
         setRoute({ kind: 'dashboard' });
         return true;
       }
+      if (phase.kind === 'quick_start_warning') {
+        fire(session.cancelQuickStart());
+        return true;
+      }
       backOut();
       return true;
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBack);
     return () => subscription.remove();
-  }, [phase.kind, backOut, setRoute]);
+  }, [phase.kind, backOut, setRoute, session]);
 
   const progress = useMemo(() => {
     if (!timer) return 0;
@@ -640,6 +673,16 @@ function SessionFlow({
 
     case 'planning':
       return <Booting />;
+
+    case 'quick_start_warning':
+      return (
+        <QuickStartWarningScreen
+          taskTitle={phase.taskTitle}
+          reasons={phase.reasons}
+          onProceedAnyway={() => fire(session.proceedQuickStart())}
+          onBack={() => fire(session.cancelQuickStart())}
+        />
+      );
 
     // The effect above navigates away; this render is the single frame in between.
     case 'coaching_interrupt':

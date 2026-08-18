@@ -34,7 +34,7 @@ import type { SessionsRepository } from '../db/repositories/sessions';
 import type { CoachingRepository } from '../db/repositories/coaching';
 import type { RuntimeRepository } from '../db/repositories/runtime';
 import type { ActiveEpisode, SessionRuntime, Task } from '../types/domain';
-import type { CoachingTrigger, EpisodeBlockKind } from '../types/db';
+import type { CoachingTrigger, EpisodeBlockKind, SessionOrigin } from '../types/db';
 // TASK 41 — the `episode` stream and the ambient correlation frame (design §11). This module is
 // brief §6's named surface for it: ten exported entry points, every one of them already the single
 // place its transition happens. Recording here rather than in `sessionController` also keeps
@@ -142,7 +142,7 @@ export interface EpisodeCloseResult {
  *  `sessions` row; from here on the end-time is this module's. */
 export async function startSessionRuntime(
   deps: EpisodeServiceDeps,
-  input: { sessionId: string; startedAtMs: number; plannedMinutes: number },
+  input: { sessionId: string; startedAtMs: number; plannedMinutes: number; origin?: SessionOrigin },
 ): Promise<SessionRuntime> {
   const runtime = await deps.runtime.startSession(
     input.sessionId,
@@ -154,10 +154,12 @@ export async function startSessionRuntime(
   // for. Safe structurally, not hopefully: one session at a time, `active_episode` is a singleton
   // by DB CHECK, and JS is single-threaded.
   //
-  // `origin` is NOT passed: `sessions.origin` is task 44's (migration 007, ruled 2026-08-07) and
-  // does not exist yet, so capture records no origin rather than a guessed 'planned'. Task 44 adds
-  // the argument here.
-  captureContext.setSession(input.sessionId);
+  // TASK 44 — the one line the brief authorized in this "not yours" file: `sessions.origin`
+  // (migration 007) now exists, and `sessionController.startSession`/`startQuickStartSession` pass
+  // it through. `origin` stays optional here (not required) so every OTHER caller of
+  // startSessionRuntime — none exist today outside sessionController, but the type shouldn't
+  // assume that — degrades to "no origin recorded" rather than a compile error.
+  captureContext.setSession(input.sessionId, input.origin);
   record({
     stream: 'episode',
     type: 'session_start',
@@ -623,8 +625,13 @@ async function detachEpisode(deps: EpisodeServiceDeps): Promise<void> {
 
 /**
  * TASK 41 — one place the four dispositions and the recovery are recorded, so a new outcome cannot
- * be added without appearing in the `episode` stream. `origin` is absent by design until task 44
- * lands `sessions.origin` (see startSessionRuntime).
+ * be added without appearing in the `episode` stream. `origin` is now set on the ambient capture
+ * frame at session start (startSessionRuntime — task 44), but `record()` does not fold frame
+ * fields into the envelope automatically (only sessionId/episodeId/taskId are) — stamping `origin`
+ * onto the PAYLOAD of each `episode`/`lifecycle` event is a `src/capture/` change task 44's brief
+ * explicitly does not authorize (only the one `captureContext.setSession` argument is in scope
+ * here). `captureContext.current().origin` is available to any future capture change that does
+ * this; recorded as residue for task 41/42's owner rather than done here.
  */
 function recordEpisodeClose(
   type: 'complete' | 'park' | 'skip' | 'escape' | 'recover',

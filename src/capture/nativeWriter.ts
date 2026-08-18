@@ -3,7 +3,10 @@
 // This is the ONLY file in `src/capture/` that imports the native spec, which is what lets
 // `record.ts` and everything below it run in a bare Node child process for the force-kill test.
 
+import { ANDROID_EXTERNAL_FILES_PATH } from '@op-engineering/op-sqlite';
+
 import NativeCaptureLog from '../specs/NativeCaptureLog';
+import { CAPTURE_ROOT_DIR } from './streams';
 import { FSYNC_PER_EVENT } from './record';
 import type { CaptureWriter } from './writer';
 
@@ -35,6 +38,24 @@ export function createNativeCaptureWriter(): CaptureWriter | null {
  *  Null when the module is absent. */
 export function captureRootPath(): string | null {
   return NativeCaptureLog ? NativeCaptureLog.rootPath() : null;
+}
+
+/**
+ * Design §6 rule 6 asks that the storage root come from op-sqlite's `ANDROID_EXTERNAL_FILES_PATH`
+ * "so there is one notion of where the app's storage is" (constraint #10).
+ *
+ * ⚠ THE IMPLEMENTATION DEVIATES, AND VERIFIES INSTEAD OF ASSERTING. The Kotlin module computes its
+ * own root from `Context.getExternalFilesDir(null)` — the same call op-sqlite's constant is derived
+ * from — because handing a native file-writer a path string from JS adds a failure mode (a wrong or
+ * empty constant becomes a write outside app-private storage) for no benefit. What rule 6 actually
+ * protects is that there is ONE directory, so this compares the two and returns the disagreement
+ * rather than trusting either. A mismatch is recorded once at boot and is a real finding.
+ */
+export function rootPathDisagreement(): { native: string; opSqlite: string } | null {
+  const native = captureRootPath();
+  if (!native) return null;
+  const expected = `${ANDROID_EXTERNAL_FILES_PATH}/${CAPTURE_ROOT_DIR}`;
+  return native === expected ? null : { native, opSqlite: expected };
 }
 
 /**

@@ -14,7 +14,12 @@
 // to pretend it cannot happen.
 
 import { record, currentRunId, processStartMs, setCaptureWriter } from './record';
-import { createNativeCaptureWriter, nativeCaptureAvailable, sampleThermal } from './nativeWriter';
+import {
+  createNativeCaptureWriter,
+  nativeCaptureAvailable,
+  rootPathDisagreement,
+  sampleThermal,
+} from './nativeWriter';
 import { CAPTURE_FORMAT_VERSION, STREAM_NAMES } from './streams';
 import type { CaptureWriter } from './writer';
 
@@ -52,6 +57,16 @@ export function installCapture(input: InstallCaptureInput = {}): CaptureInstalla
     bootWallMs: processStartMs(),
     bootMonoMs: writer.monoMs(),
   });
+
+  // Design §6 rule 6, verified rather than assumed — see nativeWriter.rootPathDisagreement.
+  const disagreement = rootPathDisagreement();
+  if (disagreement) {
+    record({
+      stream: 'lifecycle',
+      type: 'capture',
+      lastDropReason: `capture root disagrees with op-sqlite: native=${disagreement.native} opSqlite=${disagreement.opSqlite}`,
+    });
+  }
 
   // First runtime sample of the run, so the app-open records have a heat baseline to be read
   // against. Sampling only — nothing here changes what the app does (amendment §4).

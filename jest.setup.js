@@ -16,6 +16,12 @@
 
 jest.mock('@op-engineering/op-sqlite', () => ({
   ANDROID_DATABASE_PATH: '/mock/databases',
+  // Task 41. The real package destructures its path constants out of
+  // NativeModules.OPSQLite.getConstants() at MODULE IMPORT TIME, so a missing constant fails at
+  // import rather than at use and reads like unrelated breakage. `src/capture/nativeWriter.ts`
+  // reads this one to cross-check the capture root against op-sqlite's notion of app storage
+  // (design §6 rule 6, constraint #10).
+  ANDROID_EXTERNAL_FILES_PATH: '/mock/external-files',
   open: () => ({
     execute: async () => ({ rows: [], rowsAffected: 0 }),
     executeSync: () => ({ rows: [], rowsAffected: 0 }),

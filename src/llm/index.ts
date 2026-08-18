@@ -41,6 +41,8 @@ export { expandBoundedRepetition, rewriteBoundedRepetition } from './grammar/bou
 export {
   JCHAR_RULE,
   JCHAR_RULE_NAME,
+  FIRST_CHAR_RULE,
+  FIRST_CHAR_RULE_NAME,
   boundedStringRule,
   boundedIntRule,
   literalAlternationRule,

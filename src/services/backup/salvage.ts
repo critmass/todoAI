@@ -205,6 +205,21 @@ export async function salvageDatabase(
     taskRowsRecovered: 0,
   };
 
+  try {
+    return { report: await rebuild(deps, db, report), db };
+  } catch (err) {
+    // Never leak the destination handle out of a failed salvage - the caller has no reference to
+    // close, and on Windows an open handle also makes the scratch file undeletable.
+    db.close();
+    throw err;
+  }
+}
+
+async function rebuild(
+  deps: SalvageDeps,
+  db: ManagedDb,
+  report: SalvageReport,
+): Promise<SalvageReport> {
   await runMigrations(db);
 
   // Outside any transaction — see this file's header and task 26 §2.
@@ -273,5 +288,5 @@ export async function salvageDatabase(
     await db.execute('PRAGMA foreign_keys = ON');
   }
 
-  return { report, db };
+  return report;
 }

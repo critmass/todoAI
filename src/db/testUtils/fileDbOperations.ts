@@ -89,7 +89,15 @@ export function createFileDbOperations(root?: string): FileDbOperations {
       queryFault = match;
     },
     openHandles: () => open,
-    cleanup: () => fs.rmSync(directory, { recursive: true, force: true }),
+    cleanup: () => {
+      // Best effort: on Windows a still-open SQLite handle makes the directory undeletable, and a
+      // leaked handle is a test-hygiene problem, not a reason to fail the assertion that found it.
+      try {
+        fs.rmSync(directory, { recursive: true, force: true });
+      } catch {
+        /* the OS will reclaim the temp directory */
+      }
+    },
 
     open(ref: DbFileRef): ManagedDb {
       const target = pathFor(ref);
@@ -144,6 +152,12 @@ export type CorruptionMode =
   | 'header'
   /** Overwrites a b-tree page well past the header, so the file opens and fails on read. */
   | 'page'
+  /** Garbles only the FINAL page. This is the partial-damage case salvage exists for: the database
+   *  still describes itself and most of it reads, but `integrity_check` fails. Anything broader
+   *  than this against THIS schema takes the schema out too — `sqlite_master` for ~40 tables has
+   *  pages spread throughout the file, so a "corrupt the last third" mode makes `ATTACH` itself
+   *  return SQLITE_CORRUPT and there is nothing left to salvage. Measured, not assumed. */
+  | 'lastPage'
   /** Cuts the file in half, the shape a partial write or a full disk leaves behind. */
   | 'truncate';
 
@@ -152,6 +166,13 @@ export function corruptDatabaseFile(target: string, mode: CorruptionMode = 'page
   const bytes = fs.readFileSync(target);
   if (mode === 'header') {
     bytes.fill(0x00, 0, 16);
+    fs.writeFileSync(target, bytes);
+    return;
+  }
+  if (mode === 'lastPage') {
+    const pageSize = bytes.readUInt16BE(16) || 4096;
+    const start = bytes.length - pageSize;
+    if (start > 0) bytes.fill(0xa5, start + 8, Math.min(start + 200, bytes.length));
     fs.writeFileSync(target, bytes);
     return;
   }

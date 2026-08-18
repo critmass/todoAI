@@ -9,7 +9,7 @@ until he does.
 `docs/design/capture_format_task41_amendment_rulings.md`, which wins. Brief:
 `docs/briefs/event_capture_task_41.md`.
 
-**Branch:** `main`, four commits on top of `6e63573`. **Not pushed.**
+**Branch:** `main`, five commits on top of `6e63573`. **Not pushed.**
 
 ---
 

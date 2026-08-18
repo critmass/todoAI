@@ -224,7 +224,17 @@ export interface SessionRow {
   model_tier: ModelTier | null;
   started_at: string | null;
   completed_at: string | null;
+  /** Migration 007 (task 44), NULLABLE. NULL means "the distinction did not exist yet" for every
+   *  row written before this column, never "unknown" or a default of 'planned'. Written exactly
+   *  once, at session-row creation, by src/app/session/sessionController.ts. */
+  origin: SessionOrigin | null;
 }
+
+/** 'planned': the ordinary check-in → planner → agenda flow (runSelectionBoundary ran).
+ *  'quickstart': task 44 §3 — a session for one specific task, chosen by the user directly; the
+ *  planner's selection boundary never runs, which is why this is a confounder for the learning
+ *  loops and not merely a label (orientation §5). */
+export type SessionOrigin = 'planned' | 'quickstart';
 
 // ---------------------------------------------------------------------
 // Session runtime (migration 005, task 13). All *_at_ms columns are epoch

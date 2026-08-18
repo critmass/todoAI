@@ -35,6 +35,7 @@ import type {
   PatternType,
   RecentSessionPerformanceRow,
   RetentionPolicy,
+  SessionOrigin,
   SessionRow,
   SessionRuntimeRow,
   SessionStatus,
@@ -489,6 +490,8 @@ export interface Session {
   modelTier: ModelTier | null;
   startedAt: string | null;
   completedAt: string | null;
+  /** Migration 007 (task 44). NULL for every row born before this column existed — see SessionRow. */
+  origin: SessionOrigin | null;
 }
 
 export function sessionRowToDomain(row: SessionRow): Session {
@@ -508,6 +511,7 @@ export function sessionRowToDomain(row: SessionRow): Session {
     modelTier: row.model_tier,
     startedAt: row.started_at,
     completedAt: row.completed_at,
+    origin: row.origin ?? null,
   };
 }
 
@@ -537,8 +541,11 @@ export function sessionDomainToRow(input: SessionWriteInput): Partial<SessionRow
   if (input.extended !== undefined) row.extended = boolToRow(input.extended);
   if (input.modelTier !== undefined) row.model_tier = input.modelTier;
   if (input.completedAt !== undefined) row.completed_at = input.completedAt;
+  if (input.origin !== undefined) row.origin = input.origin;
   return row;
 }
+
+export type { SessionOrigin };
 
 // =====================================================================
 // Session runtime (migration 005, task 13) - the live timer state that must survive a process

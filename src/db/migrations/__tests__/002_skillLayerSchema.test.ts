@@ -56,9 +56,9 @@ describe('migration 002 - skill layer schema (v2.2 -> v2.3)', () => {
 
     await runMigrations(conn);
 
-    // runMigrations walks the whole list, so the DB lands at the latest version (003-006 ride
+    // runMigrations walks the whole list, so the DB lands at the latest version (003-007 ride
     // along). The row-preservation assertions below are what this test is really about for 002.
-    expect(await getCurrentSchemaVersion(conn)).toBe('2.7.0');
+    expect(await getCurrentSchemaVersion(conn)).toBe('2.8.0');
 
     expect(conn.raw.prepare('SELECT * FROM tasks WHERE id = 1').get()).toMatchObject({
       title: 'Write report',
@@ -242,6 +242,6 @@ describe('migration 002 - skill layer schema (v2.2 -> v2.3)', () => {
   it('is idempotent: running twice does not reapply 002 or throw', async () => {
     await runMigrations(conn);
     await expect(runMigrations(conn)).resolves.toBeUndefined();
-    expect(await getCurrentSchemaVersion(conn)).toBe('2.7.0');
+    expect(await getCurrentSchemaVersion(conn)).toBe('2.8.0');
   });
 });

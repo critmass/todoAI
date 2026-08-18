@@ -11,6 +11,7 @@ import { MIGRATION_003_SQL } from './003_multisession_work';
 import { MIGRATION_004_SQL } from './004_algorithm_weights_reconciliation';
 import { MIGRATION_005_SQL } from './005_session_runtime';
 import { MIGRATION_006_SQL } from './006_recurrence_period';
+import { MIGRATION_007_SQL } from './007_session_origin';
 import { splitSqlStatements } from './statementSplitter';
 
 interface Migration {
@@ -35,6 +36,11 @@ const MIGRATIONS: Migration[] = [
   // 006 rebuilds task_recurrence to add a CHECK (reset_date is NULL for unscheduled/count), so it
   // does need the dance - task 36.
   { version: '2.7.0', sql: MIGRATION_006_SQL, rebuildsTables: true },
+  // 007 adds sessions.origin with a CHECK, but via plain ADD COLUMN - SQLite allows a CHECK on a
+  // brand-new column that references only itself (confirmed against this repo's better-sqlite3
+  // build; see 007_session_origin.sql's header). No existing CHECK is altered, so no rebuild dance
+  // - matching 003's/005's ADD-COLUMN discipline, not 002's/004's/006's rebuild one - task 44.
+  { version: '2.8.0', sql: MIGRATION_007_SQL },
 ];
 
 export async function getCurrentSchemaVersion(db: SqliteConnection): Promise<string | null> {

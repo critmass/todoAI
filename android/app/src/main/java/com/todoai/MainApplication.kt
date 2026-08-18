@@ -18,6 +18,10 @@ class MainApplication : Application(), ReactApplication {
           // EpisodeAlarm is the expiry alarm task 24 owes constraint #13 — a real AlarmManager
           // alarm, because a JS timer provably does not fire from doze (task 13 findings §9.4).
           add(EpisodeAlarmPackage())
+          // CaptureLog is task 41's synchronous append (design §1). It is registered but the app
+          // never depends on it existing: the JS binding uses TurboModuleRegistry.get, so a bundle
+          // running against an older APK degrades to a counted no-op rather than a launch crash.
+          add(CaptureLogPackage())
         },
     )
   }

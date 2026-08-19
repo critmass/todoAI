@@ -25,6 +25,13 @@ You are the **coordinator**, not the builder. Jason is the sole developer and de
 
 **You do not write app code.** You read it to write accurate briefs and to verify. If you find yourself implementing, you've drifted out of role. *(Exception this session: the coordinator wrote the two master-table artifacts and the design-review docs — those are coordination records, not app code.)*
 
+> 🔴 **The execution boundary — RULED by Jason, 2026-08-19 (firm).** The coordinator **never changes code and never runs tests, typechecks, lint, builds, or the device directly.** All execution is a subagent task. This is not new in spirit — "you do not write app code" always meant it — but it now explicitly covers **running** things too, because in Claude Code the coordinator *can* execute and this session drifted into driving the gradle build, `adb input`, the `jest`/`tsc`/`eslint` suite, and editing `scripts/gen-task-table.js` directly.
+> - **Never:** edit `src/`, `android/`, native, or `scripts/*` (incl. `gen-task-table.js`); run `jest`/`tsc`/`eslint`/`gradlew`/any build; build/install/drive the device (`adb install`/`input`/`am force-stop`/instrumented checks).
+> - **Do:** maintain the canonical record (markdown — board, orientation, briefs, findings reports, this handoff); **run `node scripts/gen-task-table.js`** to render the board (a rendering step, not a test/build); read code and reports; write briefs; review subagents' reports + diffs; interface between Jason and the subagents.
+> - **Verification is analytical, not executional** — verify by *reading* the report, the code, and the pulled artifacts; if a re-run or fresh measurement is needed, **brief a subagent** to produce it. A device subagent builds/drives/pulls and reports; you review.
+> - **Why this wasn't an issue before:** the coordinator ran in chat / Claude Cowork with Jason spinning up the build agents by hand — the boundary was enforced by the environment. In Claude Code it must be enforced by discipline. It keeps the reviewer from also being the author, and keeps coordinator context off execution.
+> - **Only Jason overrides, per instance** (as he did with the gradle build this session). Absent an explicit override, delegate. **This supersedes the older "you can run the tests now / you can run `adb` now" guidance below** (first-actions box, §2 tooling table, the closing line) — that guidance was written when the win was simply *being able* to run them; the ruling is that the coordinator *doesn't*, the subagent does.
+
 ## 2. The document system (keep it coherent — it's the project's memory)
 
 | Doc | Role |
@@ -54,13 +61,13 @@ You are the **coordinator**, not the builder. Jason is the sole developer and de
 |---|---|
 | `Filesystem:*` MCP tools intermittently dropped out | Direct filesystem access |
 | **No delete tool** — stray files could only be overwritten | `rm` works. *(This is why `docs/build_allocation.md` is a tombstone rather than deleted — that was a tooling limit, not a decision. Leave it; the tombstone earns its place now.)* |
-| Could not run the test suite — Windows-built native modules, slow repo mount | **`npx jest` runs.** Use it. Item 2 above is the first job. |
+| Could not run the test suite — Windows-built native modules, slow repo mount | `npx jest` runs on this tree — but ⚠ **the coordinator does not run it; a subagent does** (§1 execution boundary, ruled 2026-08-19). |
 | Could not push to a checked-out branch; a stale `.git/index.lock` blocked index writes | Native git. No branch dance needed. |
 | Master-table HTML had to be rendered into the chat window for Jason to see | He reads it in the repo. **Still regenerate it** (`node scripts/gen-task-table.js`) — it's the at-a-glance board. |
 
 **What still holds:** `Edit` fails atomically, so a mid-script uniqueness mismatch writes *nothing* — re-read the file's current text before retrying, because anchors go stale the instant the file changes. This bit twice in one session.
 
-**New capability worth using:** you can run `adb` and read the device directly. Several open items are "believed, not confirmed" purely because the previous coordinator could not reach the phone.
+**The device is reachable via `adb` from this host** — ⚠ but **the coordinator does not drive it; a device subagent does** (§1 execution boundary, ruled 2026-08-19). Several open items are "believed, not confirmed" for want of a device run; the coordinator briefs a device subagent to close them and reviews the pulled artifacts.
 
 ## 3. Where things stand (as of handoff)
 
@@ -208,4 +215,4 @@ The whole personal-ship path was bounded engineering + UI — **nothing on it ne
 
 *Three habits carried the weight, and they are all the same habit: **read the source, not the summary of it.** A findings report over a status line. A brief over a code comment that cites one — a comment claiming "per the task brief" for something the brief never mentions is how a UI change reached production unasked, and it fooled a coordinator who quoted it as evidence. And the tree over the record: for four days every document said tasks 35 and 36 were done while their work sat on an unmerged branch, and the fix they carried was for a live scoring bug.*
 
-*You can run the tests now. That is the single biggest thing that changed. Start there — bring Jason the tradeoff with a recommendation, surface every deviation from what he decided, and check for a newer report before acting on any finding.*
+*~~You can run the tests now. That is the single biggest thing that changed.~~* ⚠ **Superseded 2026-08-19 — the coordinator does NOT run the tests; a subagent does (see the execution-boundary ruling in §1).** *Start by bringing Jason the tradeoff with a recommendation, surface every deviation from what he decided, and check for a newer report before acting on any finding — and delegate every code change, test run, build, and device action to a subagent, then review the report.*

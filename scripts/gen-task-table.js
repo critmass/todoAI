@@ -98,6 +98,21 @@ for (let i = 0; i < md.length;) {
     const isTaskTable = header[0] === '#' && header.length === 6;
 
     if (isTaskTable) {
+      // Every task row must split into exactly 6 cells. A stray or missing
+      // unescaped `|` (literal pipes in content must be written `\|`) yields a
+      // mis-celled row: too few crashes the render, too many silently shifts
+      // Dep/Model into the wrong columns. Fail loud rather than emit a wrong
+      // board -- this has bitten repeatedly. (Row 0 is the `#`/Status/... header
+      // already consumed as `header`; `rows` are the data rows only.)
+      for (const r of rows) {
+        if (r.length !== 6) {
+          console.error(
+            `MALFORMED task row: got ${r.length} cells, expected 6 (id "${(r[0] || '').trim()}").\n` +
+            `A literal | in a cell must be escaped as \\|. Cells: ${JSON.stringify(r.map((c) => c.slice(0, 20)))}`
+          );
+          process.exit(1);
+        }
+      }
       out.push('<table>',
         '<colgroup><col class="c-num"><col class="c-stat"><col class="c-task">' +
         '<col class="c-desc"><col class="c-dep"><col class="c-model"></colgroup>',

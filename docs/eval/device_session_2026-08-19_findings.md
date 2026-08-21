@@ -171,3 +171,45 @@ the warning fired correctly.
 Repo: this report. Archive (outside repo): `todoAI_private_archive/device_session_2026-08-19/` — the
 2.6.0 pre-migration DB, the 2.8.0 post-migration DB, the after-flows DB, the full capture corpus (incl.
 `modeltext` raw completions), and all screenshots. The board rows for 36, 41, 44, 14, 13 point here.
+
+---
+
+## Appendix — the coordinator's device-subagent spawn prompts (added for completeness)
+
+*Added by the coordinator 2026-08-19. The two device-verification subagents this session ran on inline prompts with no brief file — this appendix records them verbatim so the audit trail is complete, per the rule ruled that day. Their findings are already folded into the body of this report.*
+
+### D1 — device UI verification sweep (self-complete, quick-start warning, blocked buttons)
+
+> You are a device-verification agent for the todoAI project. You drive the app on a physically-connected Samsung S23 FE via `adb` and report what you observe. You do NOT edit code or the canonical docs — you drive, pull, and report. The coordinator verifies your pulled artifacts. The device is a SINGLE SERIAL RESOURCE — you are the only agent touching it; screenshot before each tap, act, screenshot after; never run destructive commands.
+>
+> **Current state (do not re-derive):** device authorized; debug build of merged `main` installed and running; Metro running on the host with `adb reverse tcp:8081 tcp:8081` set — do NOT stop Metro or the app breaks. The app is at some screen post-crash-recovery (a force-kill test just ran) — relaunch clean first (`adb shell monkey -p com.todoai -c android.intent.category.LAUNCHER 1`), confirm the "Focus" dashboard. Schema 2.8.0. The task list has Charlie/Delta/Echo (each "One-time · 2 min · In progress") and "Call the dentist for 10 minutes tomorrow" (1 min), plus others below the fold.
+>
+> **Coordinates:** screenshots come back 1080×2340, displayed scaled to 923-wide (multiply by ~1.17). `adb shell input tap X Y` takes ORIGINAL 1080-wide coordinates. Verify every tap with a follow-up screenshot. `adb exec-out screencap -p > path.png` then Read it.
+>
+> **TEST A — Self-complete:** Review task list → pick a task NOT one of Charlie/Delta/Echo (use "Call the dentist…") → tap "Mark done" → screenshot the result → report what you observe (the coordinator pulls the DB to verify the interactions row).
+>
+> **TEST B — The quick-start warning screen:** tap "Quick start" on a task → go through the check-in (energy Medium, duration "About 10 minutes", context) → on the context screen deliberately pick a context that does NOT match the task, then Start → watch for a warning screen naming a filter condition with "Start anyway"/"Back out"; screenshot if it appears; if it doesn't, report that too. If you reach a warning, tap "Back out".
+>
+> **TEST C — Blocked-button states:** scroll the full task list (swipe up), look for any task whose "Quick start"/"Mark done" appear disabled/greyed with a visible reason; screenshot any you find; if none, say so plainly (a finding, not a failure).
+>
+> **After:** return to the dashboard, leave the app there. Do NOT pull or analyse capture logs or the DB — that's the coordinator's step. Report per test: what you tapped, what you saw (with screenshot paths under `…/scratchpad/devsweep/`), any anomaly. Separate confident from uncertain. End with any task names + states you touched so the coordinator can pull the exact rows.
+>
+> **Hard limits:** never run `am force-stop`, disk-filling, DB writes/`PRAGMA`, `pm uninstall`/`clear`, file deletion, or `adb reverse --remove`; never stop Metro or kill the app; do not navigate into Jason's other apps/settings/data — if you land on the Android home screen, relaunch todoai and touch nothing else; if anything is destructive-looking or ambiguous, stop and report.
+
+### D2 — coaching drain + mismatch-warning test
+
+> You are a device-verification agent for the todoAI project. You drive the installed app on a physically-connected Samsung S23 FE via `adb` and report what you observe. You do NOT edit code or docs. The coordinator verifies against a DB pull afterward. The device is a SINGLE SERIAL RESOURCE — you are the only agent touching it.
+>
+> **Setup (do not re-derive):** `adb devices` shows `device`; debug build of merged `main` installed; Metro running with `adb reverse tcp:8081 tcp:8081` set — do NOT stop Metro. Screenshot via `adb exec-out screencap -p`; taps use ORIGINAL 1080-wide coordinates (displayed ×1.17); verify every tap. Save screenshots under `…/scratchpad/devsweep2/`. The dashboard is "Focus" (Start work / Review task list / Add task / Metrics / Settings).
+>
+> **Context:** there is a pending `session_lapsed` coaching in the queue, so tapping "Quick start" currently routes to a Coach screen instead of the check-in — correct behavior (the app drains coaching at session start). Your first job is to drain it; then the warning-screen test becomes reachable.
+>
+> **TEST D — Drain the pending coaching (confirms coaching-resolution on device):** relaunch clean, confirm dashboard. Review task list → Quick start on any task → land on the Coach screen. Tap the chat input, type a short reply (`adb shell input text "I%sgot%sdistracted%sbut%sready%snow"` — `%s` = space), screenshot to confirm, tap send. The on-device model runs — wait up to ~90 seconds (cold load); poll by screenshotting every ~15s until the coach responds or the screen changes. Read and quote the coach's response; report where the flow lands.
+>
+> **TEST E — The mismatch warning screen (only after D drains the queue):** back to dashboard → Review task list → find "path to IRS appointment" (tags IRS/appointment/government; scroll if needed) → tap its Quick start. If you land on Coach again, the queue wasn't fully drained — note it and STOP. Otherwise the check-in: energy Medium, duration "About 10 minutes", context tap only "home" (a context this task does NOT have), then Start. Watch for a warning screen naming the mismatch, with "Start anyway"/"Back out"; screenshot it. If the warning appears → tap "Back out" (do not start a session). If it goes straight to an episode with no warning → screenshot and tap the top-left back arrow to exit. Report which happened.
+>
+> **Report:** per test (D, E): Observed (what happened + screenshot paths) and any anomaly; quote the coach's text in D; separate confident from uncertain; list any tasks/state you touched; leave the app on the dashboard, clean.
+>
+> **Hard limits:** never `am force-stop`, disk-filling, DB writes/`PRAGMA`, `pm uninstall`/`clear`, file deletion, or `adb reverse --remove`; never stop Metro or kill the app; do not leave the todoai app into Jason's other apps/settings/data; if stuck, ambiguous, or destructive-looking, STOP and report.
+
+*(Note: a third SendMessage to resume the first device agent for these follow-ups could not be delivered — its transcript had been cleaned up — so a fresh subagent was spawned with the D2 prompt above. The failed-resume message carried the same content as D2.)*

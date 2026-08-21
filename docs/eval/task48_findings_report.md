@@ -127,3 +127,23 @@ None. The brief's four constraints (no underscores in rule names, don't break `b
 slot substitution, decide and justify where `firstChar` lives, handle `min: 0` explicitly or fail
 loudly) were followed as given; no instruction was reinterpreted, skipped, or overridden. This
 section is written out explicitly per standing project rule even though it is empty.
+
+---
+
+## Appendix — the coordinator's spawn prompt (added for completeness)
+
+*Added by the coordinator 2026-08-19, recording verbatim the inline prompt sent when spawning this task's subagent (task 48 had no pre-existing brief file — it was numbered from task 37's residue, so this is the durable brief record).*
+
+> You are executing **task 48** on the todoAI project (repo root: `C:\Users\physi\Documents\projects\todoAI`). You are the builder, not the coordinator. Jason is the sole developer and decision-maker. This is a small, well-specified task — expect roughly one file of production change plus tests.
+>
+> **Background:** task 37 closed a separator-token hole in this project's GBNF grammars. The shape `someRule ::= "\"" jchar{1,80} "\""` is satisfied by the single token `","`. Task 37 fixed all four hand-authored `.gbnf` files by making every free-text string open with an alphanumeric (`firstChar ::= [a-zA-Z0-9]`; `title ::= "\"" firstChar jchar{0,79} "\""` — bounds preserved). Read `docs/eval/task37_findings_report.md` and `src/llm/grammar/__tests__/freeTextFirstChar.test.ts`.
+>
+> **Your job:** 🔴 `boundedStringRule` in `src/llm/grammar/primitives.ts` still emits the old vulnerable shape (`${ruleName} ::= "\"" jchar{${min},${max}} "\""`, no `firstChar`). Exported from `src/llm/index.ts`. Not a live bug today (all four `.gbnf` files are hand-authored; nothing generates a grammar from it at runtime), but a fifth grammar authored with it would silently reintroduce the hole, and `freeTextFirstChar.test.ts` only guards the checked-in `.gbnf` files. Fix `boundedStringRule` to emit the hardened shape and add a test that pins it.
+>
+> **Constraints:** No underscores in GBNF rule names (lint-enforced; camelCase). Do not break `buildGrammar`'s dynamic-slot substitution (existing tests may assert the exact emitted string). Think about where `firstChar` is defined — a generated grammar needs it present exactly once without colliding; decide this deliberately and explain your choice (a duplicate rule definition is a parse error in some builds). Preserve the bounds. Consider `min` — work out what `min: 0` should mean (an optional-empty string cannot be forced to start with an alphanumeric) and handle it correctly; if a bound can't be expressed, fail loudly at build time rather than emit a subtly wrong grammar.
+>
+> **Verification:** `npx jest`, `npx tsc --noEmit`, `npx eslint .`. 🔴 Jest count trap: reports ~1588, real is 794 (stale worktree). Current real baseline: 868 tests / 75 suites green (raw 1662/143); tsc clean; eslint 0 errors / 56 warnings. Halve any count; if a test fails, check real tree vs the duplicate.
+>
+> **File scope:** yours is `src/llm/grammar/primitives.ts` and its tests, plus `src/llm/grammar/__tests__/`. Do NOT touch `src/capture/`, `src/services/backup/` (task 14 just landed there), `src/app/`, `src/execution/`, `src/specs/`, `scripts/`, `jest.setup.js`, the Android sources, or the four `.gbnf` files (task 37 fixed those — if you believe one is still wrong, report it, don't edit it).
+>
+> **Deliverable:** a short findings report at `docs/eval/task48_findings_report.md`: what the primitive emitted before/after, where you put the `firstChar` definition and why, how you handled `min: 0`, what test pins it, and whether any existing test had to change (and why that change is correct rather than a weakened assertion). 🔴 A section titled exactly "Deviations from human decisions" — empty is valid and must be written out explicitly. Code comments must cite the document that authorises them. Note your result is believed, not confirmed — no real llama.cpp parse runs headless; if your change affects what a real grammar compiles to, say so and it batches into task 32. Commit at natural breakpoints; do not push. If you think the task is wrong about something, say so plainly with the mechanism.

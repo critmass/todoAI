@@ -55,6 +55,11 @@ export type SessionPhase =
    *  can never drift from the filter it's reporting on. Proceeding is allowed; this is informed
    *  consent, not a block. */
   | { kind: 'quick_start_warning'; taskTitle: string; reasons: string[] }
+  /** Task 14 §13 — the pre-session backup gate refused to let the session start (spec §8.4 blocks
+   *  rather than degrades). Reached from `createSessionRow` BEFORE any `sessions` row is written,
+   *  so nothing durable exists behind it. `no_space` is the primary case; `integrity` defers to the
+   *  launch-time recovery ladder. */
+  | { kind: 'blocked'; reason: 'no_space' | 'integrity'; detail: string }
   | { kind: 'summary'; summary: SessionSummary };
 
 export interface SessionSummary {

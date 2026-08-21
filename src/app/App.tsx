@@ -66,6 +66,9 @@ import RecoveredScreen from './screens/RecoveredScreen';
 import PlanEmptyScreen from './screens/PlanEmptyScreen';
 import SessionSummaryScreen from './screens/SessionSummaryScreen';
 import QuickStartWarningScreen from './screens/QuickStartWarningScreen';
+import SessionBlockedScreen from './screens/SessionBlockedScreen';
+import RecoveryAckScreen from './screens/RecoveryAckScreen';
+import { buildRecoveryAck, type RecoveryAckContent } from './recoveryAck';
 
 type Route =
   | { kind: 'dashboard' }
@@ -152,6 +155,9 @@ function AppRoot() {
   const [route, setRoute] = useState<Route>({ kind: 'dashboard' });
   const [bootError, setBootError] = useState<string | null>(null);
   const [ceiling, setCeiling] = useState<CaptureCeilingState | null>(null);
+  // TASK 14 §13 (surface B) — the launch recovery acknowledgement, non-null only when the ladder
+  // acted. It overlays whatever route boot chose; acknowledging clears it and reveals that route.
+  const [recoveryAck, setRecoveryAck] = useState<RecoveryAckContent | null>(null);
   const started = useRef(false);
 
   // TASK 41 — the `runtime` stream's AppState half, and capture's own health write.
@@ -186,6 +192,9 @@ function AppRoot() {
         catalog: services.repos.tasks,
         sessions: services.repos.sessions,
         recurrence: services.recurrence,
+        // TASK 14 §13 — the pre-session backup gate. Both the planned flow and quick-start pass
+        // through `createSessionRow`, which runs this before writing a session row (spec §8.4).
+        backup: services.backup,
         now,
       });
       const chat = createChatController({
@@ -239,6 +248,12 @@ function AppRoot() {
         setRoute({ kind: 'dashboard' });
       }
 
+      // TASK 14 §13 (surface B) — if the recovery ladder acted at launch, acknowledge it before the
+      // user reaches anything else. The route above is already set underneath; acknowledging clears
+      // this overlay and reveals it. Null on a healthy launch, which is the overwhelmingly common
+      // case, so nothing renders.
+      setRecoveryAck(buildRecoveryAck(services.recovery));
+
       // Asked at launch, never mid-session: a permission dialog on top of a running block is
       // exactly the interruption the alarm exists to avoid causing.
       fire(ensureNotificationPermission());
@@ -255,6 +270,10 @@ function AppRoot() {
 
   if (bootError) return <BootFailed message={bootError} />;
   if (!controllers) return <Booting />;
+  // TASK 14 §13 (surface B) — the launch acknowledgement overlays the chosen route until dismissed.
+  if (recoveryAck) {
+    return <RecoveryAckScreen {...recoveryAck} onAcknowledge={() => setRecoveryAck(null)} />;
+  }
   return (
     <>
       <Router controllers={controllers} route={route} setRoute={setRoute} />
@@ -681,6 +700,17 @@ function SessionFlow({
           reasons={phase.reasons}
           onProceedAnyway={() => fire(session.proceedQuickStart())}
           onBack={() => fire(session.cancelQuickStart())}
+        />
+      );
+
+    // TASK 14 §13 (surface A) — the pre-session gate refused the start. No session row exists behind
+    // this (the gate runs before `sessions.create`), so dismissing just returns to the dashboard.
+    case 'blocked':
+      return (
+        <SessionBlockedScreen
+          reason={phase.reason}
+          detail={phase.detail}
+          onDismiss={leaveSession}
         />
       );
 

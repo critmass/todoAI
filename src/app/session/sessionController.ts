@@ -64,7 +64,14 @@ import {
 import { BREAK_MINUTES } from '../../planning/planner';
 import { urgencyForTrigger } from '../../services/coaching/triggers';
 import { advanceRecurrence, sweepDateFrom, type RecurrenceSweepDeps } from '../../services/recurrence';
+import { ensurePreSessionBackup, type BackupDeps } from '../../services/backup';
 import type { SessionPhase, SessionSummary } from './types';
+
+/** Task 14 §13 — the pre-session backup gate's deps, injected as a bundle like every other repo.
+ *  `now` is supplied by the controller's own injected clock, so it is omitted here. `ops`/`config`
+ *  come from `opSqliteOperations` in `appServices.ts`; the barrel this imports from does NOT touch
+ *  the native module, so a headless test that doesn't wire the gate never loads it either. */
+export type PreSessionBackupDeps = Omit<BackupDeps, 'now'>;
 
 export interface SessionControllerDeps {
   /** Task 13's dependency bundle, including the injected expiry scheduler (constraint #13). */
@@ -80,6 +87,11 @@ export interface SessionControllerDeps {
   sessions: Pick<SessionsRepository, 'create' | 'getById' | 'update'>;
   /** Injected clock — the whole engine below it takes `now` as an argument, and so does this. */
   now: () => number;
+  /** Task 14 §13 — the pre-session backup gate. Optional: when present, `createSessionRow` runs it
+   *  before writing the `sessions` row, so a block (no space / failed integrity) leaves no session
+   *  behind. When absent the controller starts sessions exactly as before — which is how the
+   *  headless tests that don't exercise the gate construct it. */
+  backup?: PreSessionBackupDeps;
   rng?: Rng;
   newSessionId?: () => string;
 }
@@ -275,7 +287,24 @@ export function createSessionController(deps: SessionControllerDeps) {
    * after a crash. `closeSession` overwrites it on a clean end. Task 24 writes this row once, at
    * creation; every write after it is task 13's.
    */
-  async function createSessionRow(origin: SessionOrigin): Promise<{ sessionId: string; startedAtMs: number }> {
+  async function createSessionRow(
+    origin: SessionOrigin,
+  ): Promise<{ sessionId: string; startedAtMs: number } | null> {
+    // ── TASK 14 §13: the pre-session backup GATE ─────────────────────────────────────────────
+    //
+    // This is the one choke point BOTH the planned flow (`startSession`) and quick-start
+    // (`startQuickStartSession`) pass through, so placing the gate here protects both — the device
+    // session confirmed quick-start is a normal session start that should be equally guarded. It
+    // runs BEFORE `deps.sessions.create`: on a block, no `sessions` row is written at all
+    // (constraint #14's born-'abandoned' row never appears), which is exactly why spec §8.4 blocks
+    // here rather than after. The caller sees `null` and stops without starting the engine.
+    if (deps.backup) {
+      const gate = await ensurePreSessionBackup({ ...deps.backup, now: deps.now });
+      if (!gate.allowed) {
+        setPhase({ kind: 'blocked', reason: gate.reason, detail: gate.detail });
+        return null;
+      }
+    }
     const startedAtMs = deps.now();
     const sessionId = nextSessionId();
     await deps.sessions.create(sessionId, {
@@ -297,7 +326,9 @@ export function createSessionController(deps: SessionControllerDeps) {
 
   async function startSession(): Promise<void> {
     await guard(async () => {
-      const { startedAtMs } = await createSessionRow('planned');
+      const created = await createSessionRow('planned');
+      if (!created) return; // the backup gate blocked the start; `createSessionRow` set the screen.
+      const { startedAtMs } = created;
       setPhase({ kind: 'planning' });
       // Tools are assumed present at planning time and CONFIRMED per task (spec §6.2's order:
       // plan first, tools checklist second). Planning with an empty tool set would hard-filter
@@ -397,7 +428,8 @@ export function createSessionController(deps: SessionControllerDeps) {
         await finish();
         return;
       }
-      await createSessionRow('quickstart');
+      const created = await createSessionRow('quickstart');
+      if (!created) return; // the backup gate blocked the start; `createSessionRow` set the screen.
       session.tools = await knownTools();
       const reasons = quickStartReasons(task, checkIn());
       if (reasons.length > 0) {

@@ -9,12 +9,22 @@
 // through every call (design §5.5). Removing the mutation stream is deleting
 // `src/capture/streams/mutationCapture.ts` and unwrapping the five expressions below.
 
-import { getConnection, getCurrentSchemaVersion, getRepositories, runMigrations, type Repositories } from '../db';
+import {
+  getConnection,
+  getCurrentSchemaVersion,
+  getRepositories,
+  runMigrations,
+  setConnection,
+  type Repositories,
+} from '../db';
 import { withMutationCapture } from '../capture';
 import type { EpisodeServiceDeps } from '../execution';
 import type { PlanningRepositories } from '../planning/service';
 import type { RecurrenceSweepDeps } from '../services/recurrence';
 import type { ResolutionDispatchDeps } from '../services/coaching/dispatch';
+import { runRecoveryLadder, type RecoveryOutcome } from '../services/backup';
+import { createOpSqliteOperations, defaultBackupConfig } from '../services/backup/opSqliteOperations';
+import type { PreSessionBackupDeps } from './session/sessionController';
 import { createEpisodeAlarm, type EpisodeAlarm } from './alarm/episodeExpiryScheduler';
 
 export interface AppServices {
@@ -31,6 +41,13 @@ export interface AppServices {
   chatDispatch: ResolutionDispatchDeps;
   editor: Repositories;
   alarm: EpisodeAlarm;
+  /** Task 14 §13 — the live pre-session backup bundle (ops + config + the working connection),
+   *  threaded into the session controller so both the planned and quick-start flows are gated
+   *  before they write a session row. */
+  backup: PreSessionBackupDeps;
+  /** Task 14 §13 — the launch recovery ladder's outcome, produced BEFORE the connection was opened.
+   *  The shell shows the acknowledgement screen when `requiresAcknowledgement` (surface B). */
+  recovery: RecoveryOutcome;
   schemaVersion: string;
 }
 
@@ -65,6 +82,26 @@ export function recurrenceDepsFrom(repos: Repositories): RecurrenceSweepDeps {
  * migrations have applied there is no `active_episode` table to read.
  */
 export async function initAppServices(): Promise<AppServices> {
+  // ── TASK 14 §13: the recovery ladder, BEFORE the shared connection is opened ──────────────────
+  //
+  // Every restore/salvage path REPLACES the working database file, so it must run before
+  // `getConnection()` caches a handle to it (restore.ts header: a restore after that leaves every
+  // repository holding a handle to a deleted inode). `opSqliteOperations` is imported DIRECTLY here
+  // — this is already the one file in `src/app/` that touches the native SQLite entry point — and
+  // never through the barrel, which stays free of the native import so every headless test avoids
+  // it. The §13 recipe wrote `defaultBackupConfig()`; that helper does exist, alongside
+  // `createOpSqliteOperations` in `opSqliteOperations.ts`, so both are imported from there.
+  const backupOps = createOpSqliteOperations();
+  const backupConfig = defaultBackupConfig();
+  const recovery = await runRecoveryLadder({ ops: backupOps, config: backupConfig, now: Date.now });
+  if (recovery.workingDbReplaced) {
+    // At launch there is no cached connection yet, so this is defensive rather than load-bearing:
+    // it guarantees the next `getConnection()` opens the file the ladder just wrote, never a stale
+    // handle. `runRecoveryLadder` reports `workingDbReplaced` precisely so a caller that got here
+    // with a live connection could drop it — this is that call, kept for when the ordering changes.
+    setConnection(null);
+  }
+
   const connection = getConnection();
   await runMigrations(connection);
   const repos = getRepositories();
@@ -107,6 +144,10 @@ export async function initAppServices(): Promise<AppServices> {
     },
     editor: editorRepos,
     alarm,
+    // Task 14 §13 — the working connection is the live one the gate's `VACUUM INTO` runs on, which
+    // is what makes the pre-session snapshot consistent with committed state (BackupDeps.working).
+    backup: { ops: backupOps, config: backupConfig, working: connection },
+    recovery,
     schemaVersion: (await getCurrentSchemaVersion(connection)) ?? 'unknown',
   };
 }

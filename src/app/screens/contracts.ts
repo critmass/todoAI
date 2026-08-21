@@ -173,6 +173,37 @@ export interface QuickStartWarningProps {
   onBack: () => void;
 }
 
+// Task 14 §13 — the session-start gate's refusal screen (surface A). Shown when the pre-session
+// backup could not be taken, so the session must NOT start: spec §8.4 blocks rather than degrades,
+// and the block happens before `sessions.create`, so no session row exists behind this screen.
+// Purely presentational — `reason` is the gate's own discriminant and `detail` its raw message.
+export interface SessionBlockedProps {
+  /** 'no_space' → a backup couldn't be written for lack of space (the primary case); 'integrity'
+   *  → the working database failed its pre-session quick-check and needs the launch-time recovery
+   *  ladder, which only runs on a fresh start (see the wiring report's scope note). */
+  reason: 'no_space' | 'integrity';
+  /** The gate's `detail`: the specific space/SQLite message. Shown small (for support/adb), never
+   *  as the headline. */
+  detail: string;
+  /** Leaves the flow back to the dashboard. Nothing to abandon — no session was created. */
+  onDismiss: () => void;
+}
+
+// Task 14 §13 — the launch recovery-acknowledgement screen (surface B). Shown once at launch when
+// the recovery ladder acted (`requiresAcknowledgement`), before the dashboard. Purely presentational:
+// the controller (`buildRecoveryAck`) turns the `RecoveryOutcome` into these plain-language strings,
+// so this screen imports nothing from `src/services/backup`.
+export interface RecoveryAckProps {
+  title: string;
+  body: string;
+  /** One short line per thing worth telling the user — what was recovered, what was lost, where a
+   *  restore came from. May be empty. */
+  details: string[];
+  /** True on total loss (`unrecoverable`): the tone is graver and the button copy differs. */
+  grave: boolean;
+  onAcknowledge: () => void;
+}
+
 export interface PlanEmptyProps {
   outcome: Exclude<PlanOutcome, 'planned'>;
   /** For `nothing_fits`: the task to offer splitting rather than ending the session. */

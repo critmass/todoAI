@@ -85,7 +85,7 @@
 
 | Branch | Carried | Status |
 |---|---|---|
-| **`main`** | everything below, merged | ✅ **Committed through the task 14 §13 wiring (2026-08-21).** 973 tests / 86 suites green. ⚠ `origin/main` is at `0a6a204`; local `main` is 2 commits ahead (board hygiene + the wiring) — **not yet pushed.** *(First-ever green was `fc59b83` / 794 tests, 2026-08-17; the merged tree ran on the S23 FE 2026-08-19.)* |
+| **`main`** | everything below, merged | ✅ **Pushed; `origin/main` is level (2026-08-21).** 973 tests / 86 suites green; carries the board hygiene, task 14's §13 wiring, and the task 50 brief + orientation refresh. *(First-ever green was `fc59b83` / 794 tests, 2026-08-17; the merged tree ran on the S23 FE 2026-08-19.)* |
 | `claude/interesting-shirley-e10fa1` | the `score.ts` NUL-byte fix | merged (fast-forward). ⚠ Still checked out as a **stale worktree** — see the standing note. |
 | `task-36-recurrence-period-engine` | 35 + 36 + a docs WIP commit | merged. Local ref still ahead 1 (a WIP commit); nothing on it is needed. |
 | `opus/batch-a-headless` | the 37-commit six-model spike | merged |

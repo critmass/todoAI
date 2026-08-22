@@ -107,7 +107,7 @@ The seed fixtures are `"source":"synthetic"` and they read like it. The corpus's
 
 Avoid: items written to be easy, items that are the same shape as a seed fixture with words swapped, and items whose gold you had to reason hard about — if *you* aren't sure of the gold, the item is a bad test, not a hard one. Park those in a `disputed` file; they're interesting, but they can't score a model.
 
-**The `energy` warning.** The spike found `energy` scored 6–14/16 on **every** model including Bonsai — that is an ambiguous *field definition*, not weak models. Do not write 100 golds against an ambiguous definition and bake the ambiguity in. Either (a) pin the definition first, in one paragraph, and write to it, or (b) mark `energy` non-critical for this corpus and let a later task fix it. **Pick one explicitly and record it in the findings report.**
+**`energy` — RESOLVED by task 50 (2026-08-22).** `energy` is defined: **activation cost** (the cost to *start* the task + *get through* it, take the higher), **never null**. Label every gold to the rubric in `docs/design/energy_definition_task50.md` §2b (gym→`high`, trash→`low`) and obey its hard gold constraints — no null, no internal 2/4 (see §0.1). ⚠ The old "6–14/16 on every model" framing is **retired as evidence**: that number came from the 16-fixture bank's *model-generated* answer key (task 50 §6a), not a valid measurement. The reason to write real golds is a **valid oracle**, not just tighter resolution.
 
 ---
 
@@ -151,6 +151,6 @@ Type B must include near-miss distress items because task 38 must prove the LoRA
 
 ## 9. Open questions to bring back, not to answer alone
 
-- **Corpus size vs. Jason's time.** §3 asks for 80–120 Type-A items. That is hours of real work. If it's too much, the *number* is Jason's call; the *consequence* of a smaller number is this brief's to state, and it has.
-- **The `energy` definition.** Pinning it is a product-intent call (§5). Bring the proposed one-paragraph definition; don't adopt one silently.
+- ~~**Corpus size vs. Jason's time**~~ **RULED 2026-08-18: 100+ Type-A items (~50 held out, ≈±11 pts).** The fallback still stands — if that proves unaffordable, build the largest well-stratified set you can and hand task 40 its actual resolution figure (§3), recorded as a decision, not discovered later.
+- ~~**The `energy` definition**~~ **RULED by task 50 (2026-08-22)** — energy = activation cost, never null; label to `docs/design/energy_definition_task50.md` §2b (see §0.1 and §5). Do not re-open it.
 - **Whether 39 gets used.** If the corpus wants a real conversion/eval-harness step between 31 and 38, that's task 39, currently reserved and unused.

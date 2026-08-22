@@ -17,6 +17,18 @@
 
 ---
 
+## 0.1 Energy labeling + gold constraints — RULED by task 50 (2026-08-22)
+
+🔴 **Read `docs/design/energy_definition_task50.md` before labeling any `energy` gold.** Task 50 (the gate this task waited on) is closed, and it hands this task three hard requirements that must not be softened:
+
+- **The `energy` rubric is §2b of that doc** — `energy` = **activation cost** (the cost to *start* the task + *get through* it, **take the higher, never the average** — averaging pushes everything to `med` and the field stops discriminating). Bands: `low` = just do it (trash, a text); `med` = needs a run-up or real effort (errands, an email thread); `high` = psych yourself up / need recovery after (gym, taxes, a hard conversation). Keep the **gym→`high` / trash→`low`** pair as the calibration anchors. Label every `energy` gold against this rubric, not against intuition.
+- **NO null energy golds, NO internal-2/4 golds.** Extraction always emits `low`/`med`/`high` → internal 1/3/5; every gold carries a value. Internal 2 and 4 are app-assigned (learned via §5.4) and are **never** a gold value.
+- 🔴 **Golds are HUMAN-authored. A model may draft input *strings*, but NEVER the answer key** (§6c). This is the exact trap that invalidated the 16-fixture bank: its expected-value column was model-generated, so a "preliminary bake-off" measured two models' arbitrary choices, not capability. Generate 100+ golds that way and the same defect is rebuilt at six times the size — task 40 then measures nothing. **Hard requirement, not a preference.**
+
+⚠ **On the 16 seed fixtures (§0 item 1):** extend their *format*, but do **not** inherit their expected values as ground truth — they were thermal-test scaffolding (task 50 §6a). Re-label, don't inherit.
+
+---
+
 ## 1. Why this task's scope changed
 
 Task 31 was originally "cheapest quality win" — more fixtures so evals stop being thin. The 2026-08-03 six-model spike promoted it to **the critical-path prerequisite for a product decision**: whether todoAI migrates off Ternary-Bonsai-4B to a trainable Gemma 4 E2B.

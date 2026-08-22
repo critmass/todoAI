@@ -48,7 +48,7 @@ export const EXTRACTION_FIELD_GUIDE = [
   '- due: null unless the user gave a deadline; else {"kind":"on_date","date":"YYYY-MM-DD"} | {"kind":"in_days","days":N} | {"kind":"weekday","day":"friday","which":"this"|"next"}. Transcribe what was said; do not do calendar math. No deadline mentioned → null.',
   '- context_tags: where/how THIS task is actually done. Pick only tags that genuinely apply — usually 0–2. Never list every tag; taking out the trash is ["home"], not ["home","office","phone"]. Each element is ONE plain lowercase phrase — never punctuation, fragments, or non-English text. Nothing clearly fits → [].',
   '- tool_requirements: 0–5 real things needed; same element rules. Usually [].',
-  '- energy: "low" | "med" | "high" ONLY if the user described the effort or energy. Otherwise null. Most tasks → null.',
+  '- energy: what it costs to get this done — making yourself START it and getting THROUGH it; take the higher. Higher if: no obvious first step, unpleasant, open-ended, a call or confrontation, hard focus, physically hard. low = just do it (trash, a text). med = needs a run-up or real effort (errands, an email thread). high = you psych yourself up for it, or need recovery after (gym, taxes, a hard conversation). ALWAYS pick one — never null.',
   '- importance_user: 1–10 ONLY if the user stated importance or priority. Otherwise null. Most tasks → null. Never default to 5.',
   '- recurrence: see the tree below.',
   '',

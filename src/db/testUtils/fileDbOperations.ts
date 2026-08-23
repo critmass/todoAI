@@ -20,7 +20,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import type { DbFileRef, DbOperations, ManagedDb } from '../../services/backup/types';
-import { wrapDatabase } from './sqliteTestConnection';
+import { normaliseDriverError, wrapDatabase } from './sqliteTestConnection';
 
 export interface FileDbOperations extends DbOperations {
   /** The temp directory every unqualified ref resolves inside. */
@@ -109,8 +109,11 @@ export function createFileDbOperations(root?: string): FileDbOperations {
         open += 1;
       } catch (err) {
         // A file too damaged to open at all is a real state; model it rather than throwing out of
-        // `open()`, which op-sqlite does not do either.
-        openError = err;
+        // `open()`, which op-sqlite does not do either. Normalised for the same reason every other
+        // driver error is (task 59, see sqliteTestConnection.normaliseDriverError): this is the one
+        // path that hands a RAW better-sqlite3 error to a test, and a raw one is invisible to
+        // `.rejects.toThrow()` in any file that did not load the driver first.
+        openError = normaliseDriverError(err);
       }
 
       const connection = handle ? wrapDatabase(handle) : null;

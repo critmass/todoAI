@@ -3,6 +3,8 @@ import { runMigrations } from '../../migrations';
 import { createTasksRepository } from '../tasks';
 import { createDependenciesRepository, type DependenciesRepository } from '../dependencies';
 import { CircularDependencyError } from '../../errors';
+import { foreignRealmSqliteError } from '../../testUtils/foreignRealmError';
+import type { SqliteConnection } from '../../connection';
 
 describe('dependenciesRepository', () => {
   let conn: TestSqliteConnection;
@@ -102,5 +104,38 @@ describe('dependenciesRepository', () => {
       // eliminate_task path is responsible for REMOVING the edge so this can't strand A forever.
       expect(map.get(taskA)).toEqual([taskB]);
     });
+  });
+});
+
+// Task 59. `add()`'s catch reads `err instanceof Error ? err.message : String(err)` — the SAME
+// realm-sensitive check that made consistency.test.ts fail (housekeeping report Part B). It is
+// correct today because the `String(err)` fallback still yields "SqliteError: <message>" for a
+// driver error whose prototype chain ends in another realm, so the regex matches and the typed
+// error is still raised. That was reasoning; this pins it as a fact, and the same test would
+// catch a future edit that dropped the fallback.
+describe('dependenciesRepository.add — a driver error unrecognisable as an Error (task 59)', () => {
+  it('still maps the trigger ABORT to CircularDependencyError', async () => {
+    const driverError = foreignRealmSqliteError(
+      'Circular dependency detected',
+      'SQLITE_CONSTRAINT_TRIGGER',
+    );
+    expect(driverError instanceof Error).toBe(false); // the precondition this test exists for
+
+    // The graph the repo's own BFS sees is empty, so `wouldCreateCycle` says no and the INSERT
+    // runs — putting the trigger's ABORT on the only path that reaches line 52's catch.
+    const stub = {
+      execute: async (sql: string) => {
+        if (/^\s*INSERT/i.test(sql)) throw driverError;
+        return { rows: [], rowsAffected: 0 };
+      },
+      transaction: async () => {
+        throw new Error('unused');
+      },
+      close: () => undefined,
+    } as unknown as SqliteConnection;
+
+    await expect(createDependenciesRepository(stub).add(1, 2)).rejects.toThrow(
+      CircularDependencyError,
+    );
   });
 });

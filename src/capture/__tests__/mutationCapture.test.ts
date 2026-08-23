@@ -102,6 +102,38 @@ describe('withMutationCapture', () => {
     expect(duration).toMatchObject({ before: 5, after: 15 });
   });
 
+  // Task 17 Phase A. `recordHistoricalCompletion` is a NEW repository write, so it needs its own
+  // wrapper — the `...tasks` spread would otherwise pass it straight through uncaptured, leaving
+  // the mutation stream showing a task's skips but never its completions. Its sibling
+  // `recordSkipEpisode` is captured, so an uncaptured completion counter would be a silent
+  // asymmetry in exactly the pair of columns task 17 is making load-bearing.
+  it('captures the historical-success counters, both halves of the pair (task 17 Phase A)', async () => {
+    const repos = await buildRepos();
+    const wrapped = withMutationCapture(repos, 'user', 'episode_close');
+    const task = await wrapped.tasks.create({ title: 'Mix track', estimatedDuration: 60 });
+
+    rows = [];
+    await wrapped.tasks.recordHistoricalCompletion(task.id);
+    const completion = ofStream('mutation');
+    expect(completion.find((row) => row.field === 'completionCount')).toMatchObject({
+      before: 0,
+      after: 1,
+    });
+    expect(completion.find((row) => row.field === 'successRate')).toMatchObject({
+      before: 0,
+      after: 1,
+    });
+
+    rows = [];
+    await wrapped.tasks.recordSkipEpisode(task.id);
+    const skip = ofStream('mutation');
+    expect(skip.find((row) => row.field === 'skipCount')).toMatchObject({ before: 0, after: 1 });
+    expect(skip.find((row) => row.field === 'successRate')).toMatchObject({
+      before: 1,
+      after: 0.5,
+    });
+  });
+
   it('records nothing for a write that changed nothing', async () => {
     const repos = await buildRepos();
     const wrapped = withMutationCapture(repos, 'user', 'editor');

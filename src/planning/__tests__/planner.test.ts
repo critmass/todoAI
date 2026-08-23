@@ -5,6 +5,8 @@ import type { AgendaTaskItem, SessionPlan } from '../agenda';
 import { firstWorkableWithTools, planRequiredTools } from '../agenda';
 import {
   BREAK_MINUTES,
+  DEEP_FOCUS_MAJOR_MIN_MINUTES,
+  DIFFICULTY_JITTER,
   EASIER_MAX_ITEM_MINUTES,
   planSession,
   replanRemaining,
@@ -235,6 +237,29 @@ describe('deep-focus allocation (§5.3.1 + task 28 step 0)', () => {
     const deep = taskItems(plan).filter((i) => i.deepFocus);
     expect(deep.map((i) => i.task.id)).toEqual([1, 2]);
   });
+
+  // LITERAL PIN (task 55 / W5). `DEEP_FOCUS_MAJOR_MIN_MINUTES` 25 → 20 survived the whole suite:
+  // the fixture above is built AT the threshold, so it stays major under any lower value. This
+  // test straddles the boundary in literal minutes — 24 is not a major task, 25 is — so the
+  // constant cannot move in either direction unnoticed.
+  it('the major-task threshold is 25 planned minutes: 24 cannot anchor a deep-focus block', () => {
+    const below = boundaryOf(
+      withNeglect(makeTask({ id: 1, estimatedDuration: 24, importance: 900 })),
+      withNeglect(makeTask({ id: 2, estimatedDuration: 24, importance: 800 })),
+    );
+    const belowPlan = planSession(below, deepFocusRequest(120), NOW, seededRng(11));
+    // Nothing major to anchor it → the block dissolves into the front section entirely.
+    expect(taskItems(belowPlan).some((i) => i.deepFocus)).toBe(false);
+
+    const at = boundaryOf(
+      withNeglect(makeTask({ id: 1, estimatedDuration: 25, importance: 900 })),
+      withNeglect(makeTask({ id: 2, estimatedDuration: 25, importance: 800 })),
+    );
+    const atPlan = planSession(at, deepFocusRequest(120), NOW, seededRng(11));
+    expect(taskItems(atPlan).filter((i) => i.deepFocus).map((i) => i.task.id)).toEqual([1, 2]);
+
+    expect(DEEP_FOCUS_MAJOR_MIN_MINUTES).toBe(25);
+  });
 });
 
 describe('arrangement (§5.3.2–5.3.4)', () => {
@@ -342,6 +367,10 @@ describe('replanRemaining (§5.3.5, §8.2, task 28 §4.2 — three callers, one 
     expect(items.length).toBeGreaterThan(0);
     for (const item of items) {
       expect(item.plannedMinutes).toBeLessThanOrEqual(EASIER_MAX_ITEM_MINUTES);
+      // LITERAL PIN (task 55 / W5): 25 → 60 survived the suite because this bound was written
+      // against the symbol only. The pool holds a 40-minute and a 60-minute task, so the literal
+      // 25 is what keeps them out of an "easier" replan.
+      expect(item.plannedMinutes).toBeLessThanOrEqual(25);
       expect(item.blockKind).toBe('countdown');
       expect(item.deepFocus).toBe(false);
     }
@@ -357,6 +386,9 @@ describe('replanRemaining (§5.3.5, §8.2, task 28 §4.2 — three callers, one 
       { precededByStretchMinutes: 55 },
     );
     expect(withBreak.items[0]).toEqual({ kind: 'break', plannedMinutes: BREAK_MINUTES });
+    // LITERAL PIN (task 55 / W5): 5 → 7 survived the suite — every break assertion in the repo
+    // was written against the symbol.
+    expect(withBreak.items[0]).toEqual({ kind: 'break', plannedMinutes: 5 });
 
     const withoutBreak = replanRemaining(
       boundaryOf(...pool()),
@@ -489,5 +521,18 @@ describe('tools checklist (§6.2)', () => {
     const workable = firstWorkableWithTools(plan, ['hammer']);
     expect(workable?.task.id).toBe(1);
     expect(workable?.deepFocus).toBe(false);
+  });
+});
+
+// LITERAL PIN (task 55 / W5). `DIFFICULTY_JITTER` 1.5 → 0 survived the whole suite. Unlike the
+// other six constants there is no existing behavioural assertion to hang a literal on: the §5.3.2
+// within-group difficulty gradient is entirely unguarded, which is a SEPARATE audit finding (W6 —
+// "the gradient direction + jitter", a seeded statistical test) and is not task 17 Phase A's to
+// build. This pins the VALUE so it cannot drift while W6 is outstanding; it is deliberately not a
+// substitute for W6's behavioural guard.
+describe('tunable planning constants (literal pins, task 55 / W5)', () => {
+  it('pins the difficulty-gradient jitter amplitude at ±1.5 on the internal 1–5 energy scale', () => {
+    expect(DIFFICULTY_JITTER).toBe(1.5);
+    expect(DIFFICULTY_JITTER).toBeGreaterThan(0); // 0 would collapse the gradient to a fixed order
   });
 });

@@ -23,22 +23,24 @@ task — 22.
 |---|---|---|---|---|---|
 | ~~1~~ | ~~**53** Test-suite integrity audit~~ | Opus 5 | `test_audit_task_53.md` ✅ | 33 mutations, 15 survivors, 12 confirmed weak. Report: `docs/eval/test_audit_task53_findings.md`. | ✅ **DONE 2026-08-22** |
 | ~~2~~ | ~~**54** Ladder salvage-rejection guard *(53 W1)*~~ | Opus 5 | `ladder_salvage_guard_task_54.md` ✅ | Guard added + **proven** to fail against the mutation (`"restored"` vs `"salvaged"`; 400 vs 0 rows). No production change. Report: `docs/eval/task54_findings_report.md`. | ✅ **DONE 2026-08-22** |
-| 1 | **17** Numeric learning loops | Opus | ⬜ *to write* | Six learning loops + hierarchical shrinkage + regression/rollback; **owns the missing `completion_count`/`success_rate` writer** (task 44's seam). ⚠ **Pairs naturally with 55's W2** — both concern the historical-success signal. | 🔴 **NEXT** |
-| 1b | **55** Scoring assertion strength *(53 W2 + W5)* | Opus/Sonnet | ⬜ *to write* | `skipCount` droppable from the R6 denominator (23% weight); 7 constants asserted against themselves. **Consider folding into 17's session** — same files, same signal. | queued |
-| 3 | **49** Widen circular-dep trigger | Opus | ⬜ *to write* | Migration to catch cycles of length ≥3 (today only length-2 is caught; a 3-cycle permanently filters every task in it). Needs the CHECK/trigger rebuild + prior-suite sweep. | queued |
-| 4 | **45** Deviation audit | Opus | `deviation_audit_task_45.md` ✅ | Audit builder decisions that changed a human ruling without sign-off; relabel orientation §5. Audit-only. | queued |
-| 5 | **46** "Every N weeks" recurrence | Sonnet | ⬜ *to write* | Additive `interval` on the `scheduled` recurrence (JSON, no migration) + a UI control + an anchor date + one `period.ts` fn. | queued |
-| 6 | **52** Extraction-guide budget pass | Sonnet | `extraction_guide_budget_task_52.md` ✅ | Reword line 45's stale "ONLY field you may guess" + trim `tool_requirements`/`context_tags` to recover the energy line's ~60 tokens. *(Edit is headless; no-regression confirmation rides on 31's eval.)* | queued |
-| 7 | **47 + 51** `docs/reference/` pass | Sonnet | ⬜ *to write (one brief, both)* | Regenerate the schema snapshot (2 migrations + 007 stale) **and** fold the spec §8.4 backup amendment + `session_ended_early` into the spec — one pass, per the board's "pair" note. | queued |
-| 8 | **56** Planner assertion strength *(53 W3/W4/W6/W7/W9)* | Opus/Sonnet | ⬜ *to write* | Five planner guards that name a spec rule but don't measure it (the "at most two" limit, the 25% buffer, the difficulty gradient, the pre-deep break, the tie-break). | queued |
-| 9 | **57** `capture/retention.ts` coverage *(53 W10)* | Sonnet | ⬜ *to write* | No test file at all; rotation can delete the **newest** day against the module's own rule. | queued |
-| 10 | **58** Test-hygiene sweep *(53 W8/W11/W12)* | Sonnet | ⬜ *to write* | NUL-escape claim untested; `blockKindsAgree` is a `tsc`-only guard that reads as a jest one; the last-migration bump has no downstream fixture. | queued |
+| ~~3~~ | ~~**17** Numeric learning loops — **Phase A**~~ | Opus 5 | `numeric_learning_task_17_phaseA.md` ✅ | Writer built (the live one-sided gap closed); 18 tests red before the code existed. Report: `docs/eval/task17_phaseA_findings_report.md`. | ✅ **PHASE A DONE 2026-08-22** |
+| ~~3b~~ | ~~**55** Scoring assertion strength *(53 W2 + W5)*~~ | Opus 5 | *(folded into 17 Phase A)* | W2 pinned (`0.25` vs `0.35`); W5 **7/7** constants caught. | ✅ **DONE 2026-08-22** |
+| 1 | **49** Widen circular-dep trigger | Opus | ⬜ *to write* | Migration to catch cycles of length ≥3 (today only length-2 is caught; a 3-cycle permanently filters every task in it). Needs the CHECK/trigger rebuild + prior-suite sweep. | 🔴 **NEXT** |
+| 2 | **45** Deviation audit | Opus | `deviation_audit_task_45.md` ✅ | Audit builder decisions that changed a human ruling without sign-off; relabel orientation §5. Audit-only. | queued |
+| 3 | **46** "Every N weeks" recurrence | Sonnet | ⬜ *to write* | Additive `interval` on the `scheduled` recurrence (JSON, no migration) + a UI control + an anchor date + one `period.ts` fn. | queued |
+| 4 | **52** Extraction-guide budget pass | Sonnet | `extraction_guide_budget_task_52.md` ✅ | Reword line 45's stale "ONLY field you may guess" + trim `tool_requirements`/`context_tags` to recover the energy line's ~60 tokens. *(Edit is headless; no-regression confirmation rides on 31's eval.)* | queued |
+| 5 | **47 + 51** `docs/reference/` pass | Sonnet | ⬜ *to write (one brief, both)* | Regenerate the schema snapshot (2 migrations + 007 stale) **and** fold the spec §8.4 backup amendment + `session_ended_early` into the spec — one pass, per the board's "pair" note. | queued |
+| 6 | **17 Phase B** — the six §5.4 loops | Opus | ⬜ *to write* | Shrinkage, regression protection, rollback; consumes task 41's thermal sampler; owns the internal 2/4 band per task 50. **The big one — keep it its own pass.** | queued |
+| 7 | **56** Planner assertion strength *(53 W3/W4/W6/W7/W9)* | Opus/Sonnet | ⬜ *to write* | Five planner guards that name a spec rule but don't measure it (the "at most two" limit, the 25% buffer, the difficulty gradient, the pre-deep break, the tie-break). | queued |
+| 8 | **57** `capture/retention.ts` coverage *(53 W10)* | Sonnet | ⬜ *to write* | No test file at all; rotation can delete the **newest** day against the module's own rule. | queued |
+| 9 | **58** Test-hygiene sweep *(53 W8/W11/W12)* | Sonnet | ⬜ *to write* | NUL-escape claim untested; `blockKindsAgree` is a `tsc`-only guard that reads as a jest one; the last-migration bump has no downstream fixture. | queued |
 
-**Ordering rationale.** 53 heads it (Jason). Then the two Opus items with real teeth — **17** (unblocks
-the historical-success signal that scores every task off n=0) and **49** (a latent bug that can silently
-starve tasks) — while that context is fresh. **45** (audit) next. Then the Sonnet cleanups: **46**, **52**,
-and the combined **47+51** docs pass last. Briefs for the ⬜ rows get written just-in-time, before each
-launch, from the detailed board rows + cited docs.
+**Ordering rationale.** 53 and 54 are done (the audit, then its data-loss finding). 17 Phase A closed
+the live one-sided scoring gap and took 55 with it. Remaining order puts **49** next (a latent bug that
+can permanently starve tasks), then the **45** audit, then the Sonnet cleanups, with **17 Phase B** — the
+six learning loops, the largest item left — kept as its own pass. **Pull Phase B forward on request;**
+it is sequenced after the quick wins only because it is big, not because anything blocks it. Briefs for
+the ⬜ rows are written just-in-time, before each launch, from the board rows + cited docs.
 
 **Board is the source of truth for status;** this file is the running order. Update the Status column as
 each lands, and strike a task when it's committed.

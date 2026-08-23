@@ -224,8 +224,9 @@ export function createTasksRepository(db: SqliteConnection) {
 
   /** The PARK primitive (task 28 §1.3/§7.1): records a progress episode — accumulates `minutes`
    *  toward the current completion, stamps last_worked_at (which re-anchors the neglect clock,
-   *  §5), and marks the task in_progress. It NEVER writes skip_count and NEVER touches success_rate
-   *  — parking is structurally not a skip and not a failure. The task stays status='active'
+   *  §5), and marks the task in_progress. It NEVER writes skip_count, NEVER writes completion_count and
+   *  NEVER touches success_rate — parking is structurally not a skip, not a failure, and (task 17
+   *  Phase A) not an ATTEMPT: it cannot move the historical-success signal in either direction. The task stays status='active'
    *  throughout, so every pool query works unchanged. The accumulated minutes fold into ONE
    *  actual_duration_history entry when the task is finally completed (see completeTask). */
   async function recordProgressEpisode(id: number, minutes: number): Promise<Task> {
@@ -244,12 +245,67 @@ export function createTasksRepository(db: SqliteConnection) {
     return updated;
   }
 
+  /** TASK 17 PHASE A - THE HISTORICAL-SUCCESS INVARIANT, maintained by exactly two primitives:
+   *  this one and `recordSkipEpisode` below. Every other write in this repository leaves both
+   *  columns alone, and that is load-bearing, not incidental.
+   *
+   *      success_rate = completion_count / (completion_count + skip_count)
+   *
+   *  which makes the denominator IDENTICAL to the evidence count `scoreTask` already passes to
+   *  `historicalSuccessFactor` (`task.completionCount + task.skipCount`, src/scoring/score.ts).
+   *  Holding the invariant collapses R6's shrinkage to the Laplace form
+   *
+   *      (rate*n + 0.5*k)/(n + k)  =  (C + 1)/(C + S + 2)      with k = 2
+   *
+   *  - the posterior mean of a Beta(1,1) prior over "did this task get done when it came up". The
+   *  scorer and the writer therefore encode ONE definition of "attempt", not two that happen to
+   *  agree today. (The definition itself - an attempt is a completion or a skip, never a park and
+   *  never a crash-recovered abandonment - is PRODUCT INTENT and provisional until Jason rules on
+   *  it; see docs/eval/task17_phaseA_findings_report.md.)
+   *
+   *  Written as ONE statement on purpose. SQLite evaluates every right-hand side against the
+   *  pre-UPDATE row, so `completion_count + 1` means the same thing in both assignments, and the
+   *  two columns can never be observed disagreeing - which is exactly the half-written state task
+   *  44 rejected (a `completion_count` that moves while `success_rate` stays fictional at 0.0).
+   *  The CAST is not decoration: `1 / 4` on two INTEGER columns is 0 in SQLite, so without it the
+   *  rate would be a step function that reads 0 for every task not completed every single time.
+   *
+   *  No migration is needed to adopt this. Every row predating this writer has
+   *  `completion_count = 0` (there was no writer) and `success_rate` at its 0.0 default, and
+   *  0/(0 + S) = 0 - so the existing data already satisfies the invariant, including rows with
+   *  nonzero `skip_count`. */
+  async function recordHistoricalCompletion(id: number): Promise<Task> {
+    const existing = await getById(id);
+    if (!existing) {
+      throw new NotFoundError('task', id);
+    }
+    await db.execute(
+      `UPDATE tasks
+          SET completion_count = completion_count + 1,
+              success_rate = CAST(completion_count + 1 AS REAL)
+                             / (completion_count + 1 + skip_count)
+        WHERE id = ?`,
+      [id],
+    );
+    const updated = await getById(id);
+    if (!updated) {
+      throw new NotFoundError('task', id);
+    }
+    return updated;
+  }
+
   /** The SKIP primitive (task 13; the counterpart the park primitive above must never be confused
    *  with). The user was served this task and declined it: `skip_count` goes up and the optional
-   *  one-word reason chip (spec §7.2) is appended to `skip_reasons`. Nothing else moves -
-   *  `accumulated_minutes` and `work_state` are untouched, so skipping an in-progress task RETAINS
-   *  its time (task 28 design §1.3's transition table), and `success_rate` is not recomputed here
-   *  (no writer for it exists yet anywhere in the codebase - flagged, not silently invented).
+   *  one-word reason chip (spec §7.2) is appended to `skip_reasons`. `accumulated_minutes` and
+   *  `work_state` are untouched, so skipping an in-progress task RETAINS its time (task 28 design
+   *  §1.3's transition table).
+   *
+   *  TASK 17 PHASE A: `success_rate` IS now recomputed here, from the same invariant
+   *  `recordHistoricalCompletion` maintains - a skip is an attempt that did not succeed, so it
+   *  moves the denominator. (Before task 17 no writer for that column existed anywhere; the
+   *  omission was flagged rather than silently invented, and this is the task that owns it.) The
+   *  recompute is folded into the SAME statement as the increment for the reason given above: the
+   *  two columns must never be observable in disagreement.
    *
    *  This exists as a repository primitive rather than a `tasks.update` call because
    *  TaskWriteInput deliberately omits `skipCount`: counters are incremented, never set. Keeping
@@ -260,12 +316,16 @@ export function createTasksRepository(db: SqliteConnection) {
     if (!existing) {
       throw new NotFoundError('task', id);
     }
+    const rate = `success_rate = CAST(completion_count AS REAL) / (completion_count + skip_count + 1)`;
     if (reason === undefined) {
-      await db.execute('UPDATE tasks SET skip_count = skip_count + 1 WHERE id = ?', [id]);
+      await db.execute(
+        `UPDATE tasks SET skip_count = skip_count + 1, ${rate} WHERE id = ?`,
+        [id],
+      );
     } else {
       const reasons = JSON.stringify([...existing.skipReasons, reason]);
       await db.execute(
-        'UPDATE tasks SET skip_count = skip_count + 1, skip_reasons = ? WHERE id = ?',
+        `UPDATE tasks SET skip_count = skip_count + 1, skip_reasons = ?, ${rate} WHERE id = ?`,
         [reasons, id],
       );
     }
@@ -351,6 +411,7 @@ export function createTasksRepository(db: SqliteConnection) {
     softDelete,
     recordUnscheduledCompletion,
     recordProgressEpisode,
+    recordHistoricalCompletion,
     recordSkipEpisode,
     listActive,
     listActiveByNeglect,

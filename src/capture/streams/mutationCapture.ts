@@ -158,6 +158,17 @@ export function withMutationCapture(
       diffTask(base, before, after);
       return after;
     },
+    // Task 17 Phase A. Enumerated here for the same reason as its sibling above: a new repository
+    // write reaches the database through the `...tasks` spread whether or not it is wrapped, so an
+    // unwrapped one is silently absent from the stream. `completion_count`/`success_rate` are the
+    // pair task 17 makes load-bearing — capturing the skip half and not the completion half would
+    // be worse than capturing neither.
+    async recordHistoricalCompletion(id) {
+      const before = await tasks.getById(id);
+      const after = await tasks.recordHistoricalCompletion(id);
+      diffTask(base, before, after);
+      return after;
+    },
   };
 
   const capturedRecurrence: Repositories['recurrence'] = {

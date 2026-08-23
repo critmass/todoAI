@@ -82,7 +82,15 @@ export interface EpisodeExpiryScheduler {
 export interface EpisodeServiceDeps {
   tasks: Pick<
     TasksRepository,
-    'getById' | 'update' | 'recordUnscheduledCompletion' | 'recordProgressEpisode' | 'recordSkipEpisode'
+    | 'getById'
+    | 'update'
+    | 'recordUnscheduledCompletion'
+    | 'recordProgressEpisode'
+    | 'recordSkipEpisode'
+    // Task 17 Phase A — not called from this module: it is `completeTask`'s write, and this Pick
+    // only has to be wide enough to hand `deps` through to it. The park and recovery paths here
+    // still cannot reach it, which is the point (a park is not an attempt).
+    | 'recordHistoricalCompletion'
   >;
   recurrence: Pick<
     RecurrenceRepository,

@@ -8,6 +8,7 @@ import {
   type Rng,
   type SessionCheckIn,
 } from '../score';
+import { historicalSuccessFactor } from '../factors';
 
 const NOW = Date.UTC(2026, 6, 15);
 
@@ -71,6 +72,28 @@ describe('scoreTask', () => {
     expect(scored.baseScore).toBeCloseTo(1);
     // weeksNeglected 0 → neglectCurve(0) = 1 → finalScore == baseScore (fresh task on merit)
     expect(scored.finalScore).toBeCloseTo(1 * neglectCurve(0));
+  });
+
+  // Task 55 / W2 (test-audit task 53). `scoreTask` passes `completionCount + skipCount` as the
+  // R6 evidence count `n`. Nothing pinned that WIRING: every scoring/planning fixture in the repo
+  // hard-codes `skipCount: 0`, so dropping `+ task.skipCount` from score.ts passed 973/973. This
+  // test is the guard — it is the only fixture in src/scoring or src/planning with a nonzero
+  // skipCount, and it fails on exactly that mutation.
+  it('counts skips as evidence too — n is completionCount + skipCount, not completions alone (task 55 / W2)', () => {
+    // A task attempted ten times: done twice, declined eight times. successRate is the writer's
+    // invariant C/(C+S) = 2/10 (tasks.recordHistoricalCompletion / recordSkipEpisode, task 17).
+    const task = makeTask({ completionCount: 2, skipCount: 8, successRate: 0.2 });
+    const scored = scoreTask(withNeglect(task, 0), CHECK_IN, NOW);
+
+    // n = 10, the full attempt count.
+    expect(scored.factors.historicalSuccess).toBeCloseTo(historicalSuccessFactor(0.2, 10), 10);
+    // Literal pin of the same value, so the assertion cannot move with the formula:
+    // (0.2·10 + 0.5·2)/(10 + 2) = 3/12 = 0.25.
+    expect(scored.factors.historicalSuccess).toBeCloseTo(0.25, 10);
+    // And explicitly NOT the completions-only count the dropped-skipCount mutation produces:
+    // (0.2·2 + 0.5·2)/(2 + 2) = 1.4/4 = 0.35.
+    expect(scored.factors.historicalSuccess).not.toBeCloseTo(historicalSuccessFactor(0.2, 2), 5);
+    expect(historicalSuccessFactor(0.2, 2)).toBeCloseTo(0.35, 10);
   });
 
   it('applies neglect as a floor of 1, never zeroing a fresh task', () => {

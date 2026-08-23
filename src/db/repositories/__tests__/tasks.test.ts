@@ -165,6 +165,138 @@ describe('tasksRepository', () => {
     expect(skipped.lastWorkedAt).toBe(parked.lastWorkedAt); // skip is not attention
   });
 
+  // ── Task 17 Phase A — the historical-success counters (the writer that did not exist) ────────
+  //
+  // The invariant both primitives maintain, and the ONLY definition of "attempt" in the codebase:
+  //     success_rate = completion_count / (completion_count + skip_count)
+  // which is exactly the denominator `scoreTask` already passes to `historicalSuccessFactor`
+  // (`completionCount + skipCount`). Holding it means R6's shrinkage collapses to the Laplace
+  // form (C + 1)/(C + S + 2) — see the module comment on recordHistoricalCompletion.
+  describe('historical-success counters (task 17 Phase A)', () => {
+    /** The invariant, asserted directly. Every test below ends by calling this. */
+    async function expectInvariant(id: number): Promise<void> {
+      const task = await repo.getById(id);
+      expect(task).not.toBeNull();
+      const { completionCount, skipCount, successRate } = task!;
+      const attempts = completionCount + skipCount;
+      expect(successRate).toBeCloseTo(attempts === 0 ? 0 : completionCount / attempts, 10);
+    }
+
+    it('recordHistoricalCompletion increments completion_count and recomputes success_rate', async () => {
+      const created = await repo.create({ title: 'Water the plants', estimatedDuration: 5 });
+      expect(created.completionCount).toBe(0);
+      expect(created.successRate).toBe(0);
+
+      const first = await repo.recordHistoricalCompletion(created.id);
+      expect(first.completionCount).toBe(1);
+      expect(first.skipCount).toBe(0);
+      expect(first.successRate).toBeCloseTo(1, 10); // 1/1
+      await expectInvariant(created.id);
+
+      const second = await repo.recordHistoricalCompletion(created.id);
+      expect(second.completionCount).toBe(2);
+      expect(second.successRate).toBeCloseTo(1, 10); // 2/2
+      await expectInvariant(created.id);
+    });
+
+    it('recordSkipEpisode recomputes success_rate too — a skip is an attempt that failed', async () => {
+      const created = await repo.create({ title: 'Call the dentist', estimatedDuration: 10 });
+
+      const skipped = await repo.recordSkipEpisode(created.id, 'not now');
+      expect(skipped.skipCount).toBe(1);
+      expect(skipped.completionCount).toBe(0);
+      expect(skipped.successRate).toBeCloseTo(0, 10); // 0/1
+      await expectInvariant(created.id);
+
+      const done = await repo.recordHistoricalCompletion(created.id);
+      expect(done.successRate).toBeCloseTo(0.5, 10); // 1/(1+1)
+      await expectInvariant(created.id);
+
+      // The DISCRIMINATING case, and the reason the two assertions above are not enough on their
+      // own: everything so far would also pass if only the completion writer recomputed. A skip
+      // that lands AFTER a completion can only come out right if the SKIP writer recomputes too.
+      const skippedAgain = await repo.recordSkipEpisode(created.id);
+      expect(skippedAgain.successRate).toBeCloseTo(1 / 3, 10); // 1/(1+2), not still 0.5
+      await expectInvariant(created.id);
+    });
+
+    it('holds the invariant across an interleaved history (2 done / 8 skipped → 0.2)', async () => {
+      const created = await repo.create({ title: 'Tidy the garage', estimatedDuration: 45 });
+      const script = ['skip', 'done', 'skip', 'skip', 'skip', 'done', 'skip', 'skip', 'skip', 'skip'];
+      for (const step of script) {
+        if (step === 'done') await repo.recordHistoricalCompletion(created.id);
+        else await repo.recordSkipEpisode(created.id);
+        await expectInvariant(created.id); // holds after EVERY write, not just at the end
+      }
+      const final = await repo.getById(created.id);
+      expect(final?.completionCount).toBe(2);
+      expect(final?.skipCount).toBe(8);
+      expect(final?.successRate).toBeCloseTo(0.2, 10);
+    });
+
+    it('is REAL division, not SQLite integer division (1 completion + 3 skips is 0.25, not 0)', async () => {
+      // SQLite's `/` on two INTEGER columns truncates: `1/4` is 0. The rate would then be a
+      // step function that is 0 everywhere below 1.0 — silently plausible and completely wrong.
+      const created = await repo.create({ title: 'Practice scales', estimatedDuration: 15 });
+      await repo.recordHistoricalCompletion(created.id);
+      await repo.recordSkipEpisode(created.id);
+      await repo.recordSkipEpisode(created.id);
+      const after = await repo.recordSkipEpisode(created.id);
+      expect(after.successRate).toBeCloseTo(0.25, 10);
+      expect(after.successRate).not.toBe(0);
+    });
+
+    it('stays inside the migration-001 CHECK (0.0 ≤ success_rate ≤ 1.0) at both extremes', async () => {
+      const allDone = await repo.create({ title: 'All done', estimatedDuration: 5 });
+      for (let i = 0; i < 5; i += 1) await repo.recordHistoricalCompletion(allDone.id);
+      expect((await repo.getById(allDone.id))?.successRate).toBe(1);
+
+      const allSkipped = await repo.create({ title: 'All skipped', estimatedDuration: 5 });
+      for (let i = 0; i < 5; i += 1) await repo.recordSkipEpisode(allSkipped.id);
+      expect((await repo.getById(allSkipped.id))?.successRate).toBe(0);
+    });
+
+    it('the park primitive still touches neither counter (constraint #11 — a park is not an attempt)', async () => {
+      const created = await repo.create({ title: 'Mix track', estimatedDuration: 60 });
+      await repo.recordHistoricalCompletion(created.id); // give it a real rate to disturb
+      await repo.recordSkipEpisode(created.id);
+      const before = await repo.getById(created.id);
+
+      const parked = await repo.recordProgressEpisode(created.id, 30);
+      expect(parked.completionCount).toBe(before?.completionCount);
+      expect(parked.skipCount).toBe(before?.skipCount);
+      expect(parked.successRate).toBe(before?.successRate);
+    });
+
+    it('recordUnscheduledCompletion alone moves NEITHER counter — the counters are a separate primitive', async () => {
+      // The neglect-clock primitive and the historical-success counters are deliberately not the
+      // same write: `completeTask` calls both, and the split is what keeps a park/recovery from
+      // ever reaching these columns. See services/taskCompletion.ts.
+      const created = await repo.create({ title: 'Ongoing project', estimatedDuration: 60 });
+      const after = await repo.recordUnscheduledCompletion(created.id);
+      expect(after.completionCount).toBe(0);
+      expect(after.skipCount).toBe(0);
+      expect(after.successRate).toBe(0);
+    });
+
+    it('a pre-writer row (skips recorded, completion_count 0) is already on the invariant', async () => {
+      // Every row in Jason's alpha database is in this state: skip_count may be nonzero, but
+      // completion_count is 0 everywhere because no writer ever existed, and success_rate is at
+      // its 0.0 default. 0/(0+S) = 0 — so the invariant holds retroactively and Phase A needs no
+      // migration or backfill to become consistent.
+      const created = await repo.create({ title: 'Legacy row', estimatedDuration: 20 });
+      await conn.execute('UPDATE tasks SET skip_count = 8, success_rate = 0.0 WHERE id = ?', [
+        created.id,
+      ]);
+      await expectInvariant(created.id);
+
+      // And the very first completion moves it onto the curve correctly: 1/(1+8).
+      const done = await repo.recordHistoricalCompletion(created.id);
+      expect(done.successRate).toBeCloseTo(1 / 9, 10);
+      await expectInvariant(created.id);
+    });
+  });
+
   it('listActive only returns active tasks', async () => {
     const a = await repo.create({ title: 'A', estimatedDuration: 10 });
     const b = await repo.create({ title: 'B', estimatedDuration: 10 });

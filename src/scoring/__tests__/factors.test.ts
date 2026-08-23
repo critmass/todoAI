@@ -70,6 +70,10 @@ describe('missedQuotaBoost', () => {
     expect(missedQuotaBoost(missed({ shortfall: 3, quota: 3 }))).toBeCloseTo(MISSED_QUOTA_BOOST_MAX);
     expect(missedQuotaBoost(missed({ shortfall: 1, quota: 3 }))).toBeCloseTo(MISSED_QUOTA_BOOST_MAX / 3);
     expect(missedQuotaBoost(missed({ shortfall: 0, quota: 3 }))).toBe(0);
+    // LITERAL PIN (task 55 / W5). The three symbolic assertions above move with the constant, so
+    // 0.25 → 0.30 survived the whole suite. The literal is what makes the VALUE a decision the
+    // suite defends — same remedy as importanceFactor(null)'s `0.5` below.
+    expect(missedQuotaBoost(missed({ shortfall: 3, quota: 3 }))).toBeCloseTo(0.25, 10);
   });
 
   it('stops once the CURRENT period’s quota is met — there are no remaining occurrences to boost', () => {
@@ -129,16 +133,31 @@ describe('urgencyFactor', () => {
     expect(urgencyFactor(halfHorizon, 1, NOW)).toBeCloseTo(0.5, 5);
   });
 
+  // LITERAL PIN (task 55 / W5). The assertion above computes its fixture FROM the constant, so
+  // both sides move together and 14 → 30 survived the whole suite. These two say the horizon is
+  // fourteen DAYS in numbers the constant cannot move.
+  it('the urgency horizon is 14 days (literal pin, task 55 / W5)', () => {
+    const sevenDaysOut = new Date(NOW + 7 * MS_PER_DAY).toISOString();
+    expect(urgencyFactor(sevenDaysOut, 1, NOW)).toBeCloseTo(0.5, 5); // half of 14 → 0.5
+    const fourteenDaysOut = new Date(NOW + 14 * MS_PER_DAY).toISOString();
+    expect(urgencyFactor(fourteenDaysOut, 1, NOW)).toBeCloseTo(0, 5); // at the horizon → no time urgency
+    expect(URGENCY_HORIZON_DAYS).toBe(14);
+  });
+
   it('falls to the base-sensitivity floor beyond the horizon', () => {
     const farOut = new Date(NOW + (URGENCY_HORIZON_DAYS + 30) * MS_PER_DAY).toISOString();
     expect(urgencyFactor(farOut, 1, NOW)).toBe(0); // level 1 → floor 0
     expect(urgencyFactor(farOut, 5, NOW)).toBeCloseTo(BASE_SENSITIVITY_CEILING); // level 5 → max floor
+    // LITERAL PIN (task 55 / W5): 0.15 → 0.4 survived the suite because every ceiling assertion
+    // was written against the symbol.
+    expect(urgencyFactor(farOut, 5, NOW)).toBeCloseTo(0.15, 10);
   });
 
   it('uses only the base floor when there is no due date', () => {
     expect(urgencyFactor(null, 1, NOW)).toBe(0);
     expect(urgencyFactor(null, 3, NOW)).toBeCloseTo(0.5 * BASE_SENSITIVITY_CEILING);
     expect(urgencyFactor(null, 5, NOW)).toBeCloseTo(BASE_SENSITIVITY_CEILING);
+    expect(urgencyFactor(null, 5, NOW)).toBeCloseTo(0.15, 10); // literal pin (task 55 / W5)
   });
 
   it('accepts a bare YYYY-MM-DD due date', () => {

@@ -33,7 +33,16 @@ import {
 export interface TaskLibraryDeps {
   tasks: Pick<
     TasksRepository,
-    'listActive' | 'getById' | 'create' | 'update' | 'softDelete' | 'recordUnscheduledCompletion'
+    | 'listActive'
+    | 'getById'
+    | 'create'
+    | 'update'
+    | 'softDelete'
+    | 'recordUnscheduledCompletion'
+    // Task 17 Phase A — widened so `selfCompleteTask` can hand `deps` to `completeTask`, which
+    // now counts the completion in `completion_count`/`success_rate`. Nothing in this controller
+    // calls it directly.
+    | 'recordHistoricalCompletion'
   >;
   recurrence: Pick<
     RecurrenceRepository,

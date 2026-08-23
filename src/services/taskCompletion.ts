@@ -29,7 +29,10 @@ import type { InteractionsRepository } from '../db/repositories/interactions';
 import { NotFoundError } from '../db/errors';
 
 export interface TaskCompletionDeps {
-  tasks: Pick<TasksRepository, 'getById' | 'update' | 'recordUnscheduledCompletion'>;
+  tasks: Pick<
+    TasksRepository,
+    'getById' | 'update' | 'recordUnscheduledCompletion' | 'recordHistoricalCompletion'
+  >;
   recurrence: Pick<
     RecurrenceRepository,
     'getByTaskId' | 'incrementCountProgress' | 'incrementPeriodProgress'
@@ -113,6 +116,40 @@ export async function completeTask(
     await deps.tasks.update(taskId, { accumulatedMinutes: 0, workState: 'none' });
   }
 
+  // THE HISTORICAL-SUCCESS WRITE (task 17 Phase A) — the writer that did not exist anywhere until
+  // now, so `historicalSuccessFactor` scored every task in the app off a permanent n = 0 on a 23 %
+  // weight (task 13 report §7; task 44 §3 confirmed the omission rather than half-executing it).
+  //
+  // WHY HERE. It sits at the same single choke point as the duration fold, BEFORE recurrence
+  // dispatch, for the same reason: it must be identical across all six branches and it must fire
+  // exactly once per completion. Every completion in the app arrives through this function —
+  // `completeEpisode`'s Done, `selfCompleteTask`, the R7 breakdown check-off — so counting here
+  // counts each of them once, and the two dispositions that are NOT attempts (a park, and a
+  // crash-recovered `abandoned` close) cannot reach it, because neither calls completeTask at all.
+  // That is structural, exactly like constraint #11's park/skip split: not a policy check some
+  // later refactor can drop.
+  //
+  // Placed before dispatch also means the `task` this function returns is already the post-write
+  // row (every branch below re-reads), so no caller sees stale counters.
+  //
+  // WHAT COUNTS AS AN ATTEMPT — provisional PRODUCT INTENT, awaiting Jason's ruling (see
+  // docs/eval/task17_phaseA_findings_report.md; task 44 §3 deliberately left it open for this
+  // task). An attempt is a served-and-dispositioned encounter with a task: a completion or a skip.
+  //   • completion → here, numerator and denominator.
+  //   • skip       → tasks.recordSkipEpisode, denominator only.
+  //   • park       → neither. The user is still working on it; nothing has been decided.
+  //   • crash-recovered `abandoned` → neither. Constraint #11's spirit: a crash is not user
+  //     failure, and must not drag a task's success rate down. (Task 19 owns the parallel
+  //     friction-incident definition for the skill layer — divergence there is 19's call, not
+  //     this task's.)
+  //   • self-completion → a FULL completion. The task really is done; doing it away from the app
+  //     does not make it a lesser success. `interactions.notes = 'self_completed'` remains the
+  //     hook for DURATION-weighted aggregates, which are the ones with nothing to measure.
+  // The definition is deliberately identical to the one `scoreTask` already encodes by passing
+  // `completionCount + skipCount` as the evidence count — see recordHistoricalCompletion's
+  // comment in the tasks repository for the invariant that keeps them one definition, not two.
+  await deps.tasks.recordHistoricalCompletion(taskId);
+
   const recurrence = await deps.recurrence.getByTaskId(taskId);
 
   // true one-off: no task_recurrence row → close permanently. Dependents unblock implicitly
@@ -173,8 +210,15 @@ export async function completeTask(
  *  column: `interactions` has no boolean "was this a self-completion" flag, and adding one for a
  *  single caller was judged more schema than the feature needs. A plain, greppable string is the
  *  convention task 17 should inherit for finding/excluding these rows — see the task 44 findings
- *  report for the reasoning and for why `tasks.completion_count`/`success_rate` are deliberately
- *  NOT written here. */
+ *  report for the reasoning.
+ *
+ *  TASK 17 PHASE A UPDATE: `tasks.completion_count`/`success_rate` ARE now written, by
+ *  `completeTask`, which `selfCompleteTask` calls — so a self-completion counts as a full
+ *  completion for the historical-success signal. Task 44 left that question open on purpose; the
+ *  answer (and its provisional status) is recorded in `completeTask` above and in
+ *  docs/eval/task17_phaseA_findings_report.md. This marker's job is unchanged and is now the more
+ *  clearly separated one: it excludes these rows from DURATION-weighted aggregates, which have no
+ *  episode to measure — not from the success COUNT, which is a real completion. */
 export const SELF_COMPLETED_MARKER = 'self_completed';
 
 export interface SelfCompleteDeps extends TaskCompletionDeps {
@@ -198,6 +242,10 @@ export interface SelfCompleteDeps extends TaskCompletionDeps {
  *   - It still COUNTS for completion and for the neglect clock, because `completeTask`'s own
  *     primitives (`recordUnscheduledCompletion` / `update({status:'completed'})`) are exactly what
  *     ordinary completion uses — there is no second completion path here, only a second CALLER.
+ *     As of task 17 Phase A that includes the historical-success counters: `completeTask` calls
+ *     `recordHistoricalCompletion`, so a self-completion is one successful attempt, indistinguish-
+ *     able from an in-app one in `completion_count`/`success_rate` and distinguishable only
+ *     through the marker below. Provisional product intent — see the Phase A findings report.
  *   - Recurring tasks still advance (task 36's sweep reads `last_completed_at`, which every
  *     `completeTask` branch writes) — nothing here bypasses that.
  */

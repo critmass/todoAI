@@ -767,6 +767,112 @@ describe('episode lifecycle (task 13)', () => {
     });
   });
 
+  // ── Task 17 Phase A — the historical-success counters, per disposition ──────────────────────
+  //
+  // The attempt definition made real at the level the user experiences it. Of the four episode
+  // dispositions only TWO are attempts: `Done` is a successful one, `Skip` a failed one. `Park`
+  // and the crash-recovered `abandoned` close are neither — constraint #11's "a park is never a
+  // skip", extended to the success signal, plus "a crash is not user failure".
+  describe('historical-success counters per disposition (task 17 Phase A)', () => {
+    async function counters(taskId: number) {
+      const t = await repos.tasks.getById(taskId);
+      return {
+        completionCount: t?.completionCount,
+        skipCount: t?.skipCount,
+        successRate: t?.successRate,
+      };
+    }
+
+    it('Done is a successful attempt: completion_count up, rate 1/1', async () => {
+      const task = await makeTask();
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 });
+      await completeEpisode(deps, T0 + min(20));
+      expect(await counters(task.id)).toEqual({
+        completionCount: 1,
+        skipCount: 0,
+        successRate: 1,
+      });
+    });
+
+    it('Skip is a failed attempt: skip_count up AND the rate recomputed', async () => {
+      const task = await makeTask();
+      // A completion FIRST, deliberately. A skip on a fresh task would assert success_rate 0
+      // against a column that already defaults to 0.0 — vacuous, and blind to a skip writer that
+      // never recomputes. Starting from a real 1.0 makes the recompute the only way to pass.
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 });
+      await completeEpisode(deps, T0 + min(5));
+      expect((await counters(task.id)).successRate).toBe(1);
+
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 + min(6) });
+      await skipEpisode(deps, T0 + min(20), { reason: 'too boring' });
+      expect(await counters(task.id)).toEqual({
+        completionCount: 1,
+        skipCount: 1,
+        successRate: 0.5,
+      });
+      expect((await repos.tasks.getById(task.id))?.skipReasons).toEqual(['too boring']);
+    });
+
+    it('Park is NO attempt at all — it moves neither counter (constraint #11)', async () => {
+      const task = await makeTask({ estimatedDuration: 120 });
+      // Give the task a real rate first, so "unchanged" is a meaningful assertion.
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 });
+      await completeEpisode(deps, T0 + min(5));
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 + min(6) });
+      await skipEpisode(deps, T0 + min(7));
+      const before = await counters(task.id);
+      expect(before).toEqual({ completionCount: 1, skipCount: 1, successRate: 0.5 });
+
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 + min(10) });
+      await parkEpisode(deps, T0 + min(25)); // 15 real minutes of work, past the 60-second gate
+      expect(await counters(task.id)).toEqual(before);
+      expect((await repos.tasks.getById(task.id))?.accumulatedMinutes).toBe(15); // work kept
+    });
+
+    it('a crash-recovered abandoned episode is NO attempt — a crash is not user failure', async () => {
+      const task = await makeTask({ estimatedDuration: 120 });
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 });
+      await completeEpisode(deps, T0 + min(2));
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 + min(3) });
+      await skipEpisode(deps, T0 + min(4));
+      const before = await counters(task.id);
+      expect(before).toEqual({ completionCount: 1, skipCount: 1, successRate: 0.5 });
+
+      // Crash: the runtime row survives an open episode, recovery closes it as 'abandoned'.
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: T0 + min(5) });
+      const result = await recoverOpenEpisode(deps, T0 + min(20));
+      expect(result.recovered).toBe(true);
+
+      // The rate is EXACTLY where it was: an abandoned episode is not a failed attempt, and it is
+      // not a completion either. Task 19 owns the parallel friction-incident definition for the
+      // skill layer; this is the scoring side only.
+      expect(await counters(task.id)).toEqual(before);
+    });
+
+    it('a mixed history converges on the real rate — only Done and Skip move it', async () => {
+      const task = await makeTask({ estimatedDuration: 240 });
+      const at = (m: number) => T0 + min(m);
+
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: at(0) });
+      await completeEpisode(deps, at(5)); // attempt 1: success
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: at(6) });
+      await parkEpisode(deps, at(10)); // not an attempt
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: at(11) });
+      await skipEpisode(deps, at(12)); // attempt 2: failure
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: at(13) });
+      await recoverOpenEpisode(deps, at(18)); // not an attempt
+      await startEpisode(deps, { sessionId: SESSION, item: item(task), now: at(19) });
+      await skipEpisode(deps, at(20)); // attempt 3: failure
+
+      // 1 completion / 3 attempts, NOT 1/5 and not 1/2.
+      expect(await counters(task.id)).toEqual({
+        completionCount: 1,
+        skipCount: 2,
+        successRate: 1 / 3,
+      });
+    });
+  });
+
   // ── Closing the session ──────────────────────────────────────────────────────────────────────
 
   it('closeSession writes the terminal fields and leaves no runtime trace', async () => {

@@ -49,6 +49,38 @@ export async function seedWorking(fixture: Fixture, count = 3): Promise<ManagedD
   return db;
 }
 
+/**
+ * Writes dependency edges that the live `prevent_circular_dependencies` trigger refuses, by
+ * dropping the trigger, inserting, and putting its own DDL back verbatim — the same dance
+ * `salvage.ts` performs around its table copy.
+ *
+ * Since migration 008 (task 49) the trigger rejects a cycle of ANY length at INSERT, so this is
+ * the only way to produce the damaged shape `validateConsistency`'s cycle breaker still exists to
+ * repair: rows that predate the migration, or that a salvage recovered with the trigger dropped.
+ * Tests that want that state must ask for it explicitly rather than relying on a hole in the
+ * schema.
+ */
+export async function seedPreExistingCycle(
+  db: { execute: ManagedDb['execute'] },
+  edges: ReadonlyArray<readonly [number, number]>,
+): Promise<void> {
+  const existing = await db.execute(
+    "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'prevent_circular_dependencies'",
+  );
+  const ddl = existing.rows[0]?.sql == null ? null : String(existing.rows[0].sql);
+  await db.execute('DROP TRIGGER IF EXISTS prevent_circular_dependencies');
+  try {
+    for (const [from, to] of edges) {
+      await db.execute(
+        'INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)',
+        [from, to],
+      );
+    }
+  } finally {
+    if (ddl !== null) await db.execute(ddl);
+  }
+}
+
 export async function countRows(
   db: { execute: ManagedDb['execute'] },
   table: string,

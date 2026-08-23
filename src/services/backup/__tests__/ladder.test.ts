@@ -3,6 +3,7 @@
 import {
   countRows,
   createFixture,
+  seedPreExistingCycle,
   seedWorking,
   WORKING,
   type Fixture,
@@ -42,16 +43,13 @@ describe('runRecoveryLadder', () => {
 
   it('runs the periodic consistency sweep on a healthy database when asked', async () => {
     const working = await seedWorking(fixture, 3);
-    for (const [from, to] of [
+    // Migration 008's trigger refuses to CREATE a cycle of any length, so the damaged shape the
+    // sweep exists to repair has to be seeded around it — see seedPreExistingCycle.
+    await seedPreExistingCycle(working, [
       [1, 2],
       [2, 3],
       [3, 1],
-    ]) {
-      await working.execute(
-        'INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)',
-        [from, to],
-      );
-    }
+    ]);
     working.close();
 
     const outcome = await runRecoveryLadder({

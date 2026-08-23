@@ -61,12 +61,12 @@ describe('migration 007 - sessions.origin (v2.7 -> v2.8)', () => {
     });
     afterEach(() => conn.close());
 
-    it('lands at 2.8.0 and records the migration name', () => {
+    it('lands at 2.9.0 (008 rides along) and records the migration name', () => {
       expect(conn.raw.prepare('SELECT value FROM schema_metadata WHERE key = ?').get('version')).toEqual({
-        value: '2.8.0',
+        value: '2.9.0',
       });
       expect(conn.raw.prepare('SELECT value FROM schema_metadata WHERE key = ?').get('last_migration')).toEqual({
-        value: 'v2_8_session_origin',
+        value: 'v2_9_transitive_cycle_guard',
       });
     });
 
@@ -106,7 +106,7 @@ describe('migration 007 - sessions.origin (v2.7 -> v2.8)', () => {
     it('adds origin as NULL to existing rows without disturbing them', async () => {
       seedSession(conn, 'old');
       await runMigrations(conn);
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.8.0');
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.9.0');
       const row = conn.raw.prepare("SELECT * FROM sessions WHERE id = 'old'").get() as any;
       expect(row.origin).toBeNull();
       expect(row.planned_duration).toBe(10);
@@ -115,7 +115,7 @@ describe('migration 007 - sessions.origin (v2.7 -> v2.8)', () => {
     it('is idempotent: running twice does not reapply 007 or throw', async () => {
       await runMigrations(conn);
       await expect(runMigrations(conn)).resolves.toBeUndefined();
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.8.0');
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.9.0');
       expect(columns(conn.raw, 'sessions')).toContain('origin');
     });
 

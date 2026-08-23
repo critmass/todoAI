@@ -1,7 +1,12 @@
 // Task 14 — spec §8.4's consistency validation: dangling deps, cycles, orphans.
 
 import { findBackEdge, validateConsistency } from '../consistency';
-import { createFixture, seedWorking, type Fixture } from '../../../db/testUtils/backupFixture';
+import {
+  createFixture,
+  seedPreExistingCycle,
+  seedWorking,
+  type Fixture,
+} from '../../../db/testUtils/backupFixture';
 import type { ManagedDb } from '../types';
 
 describe('findBackEdge', () => {
@@ -17,7 +22,11 @@ describe('findBackEdge', () => {
     expect(back).toEqual({ id: 2, from: 2, to: 1 });
   });
 
-  it('finds a cycle of length three, which the schema trigger does NOT catch', () => {
+  // Migration 008 (task 49) taught the schema trigger to reject a cycle of any length at INSERT,
+  // so this length-three case is no longer the trigger's blind spot it was written to document.
+  // It stays because findBackEdge is the repair half: the trigger cannot fix a cycle already on
+  // disk, and this is the pure function that picks the edge to cut.
+  it('finds a cycle of length three', () => {
     const back = findBackEdge([
       { id: 1, from: 1, to: 2 },
       { id: 2, from: 2, to: 3 },
@@ -71,19 +80,31 @@ describe('validateConsistency', () => {
     expect(Number(remaining.rows[0].n)).toBe(0);
   });
 
-  it('breaks a three-task dependency cycle the schema trigger lets through', async () => {
-    // Migration 001's prevent_circular_dependencies only tests the direct reverse pair, so this
-    // inserts cleanly with enforcement and triggers fully ON. That is the point of the assertion.
-    for (const [from, to] of [
+  it('the schema trigger now REJECTS a three-task cycle outright (migration 008, task 49)', async () => {
+    // This used to insert cleanly: migration 001's prevent_circular_dependencies only tested the
+    // direct reverse pair, and this test asserted that hole on purpose. Migration 008 walks the
+    // graph, so the third edge aborts and the cycle never reaches the table at all.
+    await db.execute('INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)', [1, 2]);
+    await db.execute('INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)', [2, 3]);
+    await expect(
+      db.execute('INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)', [3, 1]),
+    ).rejects.toThrow(/Circular dependency detected/);
+
+    const remaining = await db.execute('SELECT COUNT(*) AS n FROM task_dependencies');
+    expect(Number(remaining.rows[0].n)).toBe(2);
+    expect((await validateConsistency(db)).cyclesBroken).toBe(0);
+  });
+
+  it('breaks a PRE-EXISTING three-task cycle — rows the trigger could not have stopped', async () => {
+    // The case validateConsistency still exists for: a cycle written before migration 008 landed,
+    // or recovered by a salvage that had to drop the triggers to copy tables. The trigger guards
+    // new writes; it cannot retro-validate what is already on disk.
+    await seedPreExistingCycle(db, [
       [1, 2],
       [2, 3],
       [3, 1],
-    ]) {
-      await db.execute('INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)', [
-        from,
-        to,
-      ]);
-    }
+    ]);
+    expect(Number((await db.execute('SELECT COUNT(*) AS n FROM task_dependencies')).rows[0].n)).toBe(3);
 
     const report = await validateConsistency(db);
     expect(report.cyclesBroken).toBe(1);

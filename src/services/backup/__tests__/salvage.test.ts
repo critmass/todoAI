@@ -1,7 +1,12 @@
 // Task 14 — step 2 of the ladder: ATTACH + INSERT…SELECT salvage.
 
 import { getCurrentSchemaVersion } from '../../../db/migrations';
-import { createFixture, seedWorking, type Fixture } from '../../../db/testUtils/backupFixture';
+import {
+  createFixture,
+  seedPreExistingCycle,
+  seedWorking,
+  type Fixture,
+} from '../../../db/testUtils/backupFixture';
 import { salvageDatabase, RUNTIME_TABLES } from '../salvage';
 import type { DbFileRef } from '../types';
 
@@ -50,7 +55,7 @@ describe('salvageDatabase', () => {
 
     expect(report.lost).toHaveLength(0);
     expect(report.taskRowsRecovered).toBe(3);
-    expect(await getCurrentSchemaVersion(db)).toBe('2.8.0');
+    expect(await getCurrentSchemaVersion(db)).toBe('2.9.0');
 
     const deps = await db.execute('SELECT COUNT(*) AS n FROM task_dependencies');
     expect(Number(deps.rows[0].n)).toBe(1);
@@ -85,7 +90,7 @@ describe('salvageDatabase', () => {
       destination: DESTINATION,
     });
     expect(report.recovered.map((entry) => entry.table)).not.toContain('schema_metadata');
-    expect(await getCurrentSchemaVersion(db)).toBe('2.8.0');
+    expect(await getCurrentSchemaVersion(db)).toBe('2.9.0');
     db.close();
   });
 
@@ -130,6 +135,33 @@ describe('salvageDatabase', () => {
       "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'prevent_circular_dependencies'",
     );
     expect(triggers.rows).toHaveLength(1);
+    db.close();
+  });
+
+  it('carries a source that already contains a long cycle across, then breaks it', async () => {
+    // Migration 008 (task 49) widened prevent_circular_dependencies from the direct reverse pair
+    // to a full reachability walk, which makes salvage's drop-and-replay dance load-bearing for a
+    // shape it never used to be: without the drop, replaying a 3-cycle through INSERT…SELECT would
+    // RAISE(ABORT) and lose the whole task_dependencies copy. The copy must survive, and
+    // validateConsistency must then break the cycle it carried over.
+    const source = await seedWorking(fixture, 3);
+    await seedPreExistingCycle(source, [
+      [1, 2],
+      [2, 3],
+      [3, 1],
+    ]);
+    source.close();
+
+    const { report, db } = await salvageDatabase({
+      ops: fixture.ops,
+      source: SOURCE,
+      destination: DESTINATION,
+    });
+
+    expect(report.lost).toHaveLength(0);
+    expect(report.consistency.cyclesBroken).toBe(1);
+    const deps = await db.execute('SELECT COUNT(*) AS n FROM task_dependencies');
+    expect(Number(deps.rows[0].n)).toBe(2);
     db.close();
   });
 

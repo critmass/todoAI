@@ -51,12 +51,12 @@ describe('migration 006 - recurrence period columns (v2.6 -> v2.7)', () => {
     });
     afterEach(() => conn.close());
 
-    it('lands at 2.8.0 (007 rides along) and records the migration name', () => {
+    it('lands at 2.9.0 (007-008 ride along) and records the migration name', () => {
       expect(conn.raw.prepare('SELECT value FROM schema_metadata WHERE key = ?').get('version')).toEqual({
-        value: '2.8.0',
+        value: '2.9.0',
       });
       expect(conn.raw.prepare('SELECT value FROM schema_metadata WHERE key = ?').get('last_migration')).toEqual({
-        value: 'v2_8_session_origin',
+        value: 'v2_9_transitive_cycle_guard',
       });
     });
 
@@ -194,7 +194,7 @@ describe('migration 006 - recurrence period columns (v2.6 -> v2.7)', () => {
 
       await runMigrations(conn);
 
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.8.0');
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.9.0');
       expect(conn.raw.prepare('SELECT * FROM task_recurrence ORDER BY id').all()).toEqual([
         expect.objectContaining({
           id: 1,
@@ -256,7 +256,7 @@ describe('migration 006 - recurrence period columns (v2.6 -> v2.7)', () => {
     it('is idempotent: running twice does not reapply 006 or throw', async () => {
       await runMigrations(conn);
       await expect(runMigrations(conn)).resolves.toBeUndefined();
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.8.0');
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.9.0');
       expect(columns(conn.raw, 'task_recurrence')).toContain('last_period_shortfall');
     });
   });

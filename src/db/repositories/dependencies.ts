@@ -3,12 +3,16 @@ import { CircularDependencyError, NotFoundError } from '../errors';
 import { taskDependencyRowToDomain, type TaskDependency } from '../../types/domain';
 import type { TaskDependencyRow } from '../../types/db';
 
-/** The prevent_circular_dependencies DB trigger only catches a direct two-node cycle (A depends
- *  on B, then B depends on A) - it does not walk longer chains (A->B->C->A). Task 10, R2 needs
- *  the transitive-fan-out computation (mapper.ts) to be safe over an acyclic graph, so add()
- *  below walks the existing depends_on graph itself before every insert - a multi-hop cycle is
- *  rejected here, in TS, the same way the trigger rejects a direct one. The trigger stays as a
- *  backstop (defense in depth; also still the only guard for any row written outside add()). */
+/** Task 10, R2 needs the transitive-fan-out computation (mapper.ts) to be safe over an acyclic
+ *  graph, so add() below walks the existing depends_on graph itself before every insert and
+ *  rejects a multi-hop cycle in TS, with a typed CircularDependencyError.
+ *
+ *  This guard was originally load-bearing: the prevent_circular_dependencies DB trigger only
+ *  caught a direct two-node cycle (A depends on B, then B depends on A) and let A->B->C->A
+ *  through. Migration 008 (task 49) widened the trigger to a real reachability walk, so the two
+ *  now agree on every shape. The TS walk is kept deliberately as defence in depth and because it
+ *  is what produces the typed error the coaching dispatch surfaces; the catch below still maps
+ *  the trigger's ABORT for any row that reaches the table another way. */
 export function createDependenciesRepository(db: SqliteConnection) {
   /** Tasks that `taskId` depends on. */
   async function listForTask(taskId: number): Promise<TaskDependency[]> {

@@ -16,10 +16,13 @@
 // function hands back, not by it never having been relaxed.
 //
 // TRIGGERS ARE DROPPED FOR THE DURATION AND PUT BACK. `INSERT … SELECT` fires triggers, and the
-// destination is a freshly migrated schema, so migration 001's `prevent_circular_dependencies`
-// would `RAISE(ABORT)` on a damaged dependency graph and take the whole `task_dependencies` copy
-// down with it. Their DDL is read out of `sqlite_master` and replayed verbatim afterwards, so
-// nothing is reconstructed by hand.
+// destination is a freshly migrated schema, so `prevent_circular_dependencies` would
+// `RAISE(ABORT)` on a damaged dependency graph and take the whole `task_dependencies` copy down
+// with it. That matters MORE since migration 008 (task 49) widened it from the direct reverse
+// pair to a full reachability walk: any cycle in the source, of any length, would now abort the
+// copy. Their DDL is read out of `sqlite_master` and replayed verbatim afterwards, so nothing is
+// reconstructed by hand — and `validateConsistency` runs after the replay to break whatever
+// cycles came across.
 
 import type { SqliteConnection } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';

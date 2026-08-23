@@ -2,13 +2,18 @@
 // orphans". Runs after a salvage (where foreign keys were necessarily off) and periodically against
 // the live database.
 //
-// ⚠ ONE THING THE SCHEMA DOES NOT DO THAT THE NAME SUGGESTS IT DOES. Migration 001's
-// `prevent_circular_dependencies` trigger fires `BEFORE INSERT ON task_dependencies` and its WHEN
-// clause tests exactly one shape: an existing row that is the direct reverse of the new one. It
-// catches A→B/B→A and nothing longer. A→B→C→A inserts cleanly today. So the cycle breaker below is
-// not merely a corruption-recovery nicety — it is the only thing in the tree that sees a cycle of
-// length three or more. (Stated, not fixed: widening the trigger is a schema change, and migration
-// 007 is claimed by task 44.)
+// WHAT THE SCHEMA DOES AND WHERE THIS STILL CARRIES THE WEIGHT. Migration 001's
+// `prevent_circular_dependencies` trigger used to test exactly one shape — an existing row that is
+// the direct reverse of the new one — so it caught A→B/B→A and nothing longer, and A→B→C→A landed
+// cleanly. Migration 008 (task 49) replaced its WHEN clause with a recursive walk, so a cycle of
+// any length is now rejected at INSERT.
+//
+// ⚠ That does NOT retire the cycle breaker below. The trigger is `BEFORE INSERT`, so it guards new
+// writes only: it never re-validates rows already on disk, and salvage necessarily DROPs every
+// trigger to copy tables across. So this remains the only thing in the tree that can SEE — and the
+// only thing that can repair — a cycle that is already there: rows written before 008 landed, rows
+// an UPDATE produced (no trigger fires on UPDATE — recorded in 008's header), and rows a salvage
+// carried over from a damaged source.
 //
 // FOREIGN KEYS: this function does not touch `PRAGMA foreign_keys` (constraint #9 — every
 // connection sets it ON and nothing here may quietly drop it). It is safe either way: the orphan

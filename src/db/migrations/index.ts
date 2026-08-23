@@ -12,6 +12,7 @@ import { MIGRATION_004_SQL } from './004_algorithm_weights_reconciliation';
 import { MIGRATION_005_SQL } from './005_session_runtime';
 import { MIGRATION_006_SQL } from './006_recurrence_period';
 import { MIGRATION_007_SQL } from './007_session_origin';
+import { MIGRATION_008_SQL } from './008_transitive_cycle_guard';
 import { splitSqlStatements } from './statementSplitter';
 
 interface Migration {
@@ -41,6 +42,12 @@ const MIGRATIONS: Migration[] = [
   // build; see 007_session_origin.sql's header). No existing CHECK is altered, so no rebuild dance
   // - matching 003's/005's ADD-COLUMN discipline, not 002's/004's/006's rebuild one - task 44.
   { version: '2.8.0', sql: MIGRATION_007_SQL },
+  // 008 replaces the prevent_circular_dependencies TRIGGER (DROP + CREATE) so it detects a real
+  // path, not just the direct reverse pair. A trigger is not a column: nothing is rebuilt, no data
+  // moves, and constraint #12's DROP+RENAME discipline - which exists because SQLite cannot ALTER
+  // a CHECK on an EXISTING column - does not apply. `rebuildsTables` therefore stays UNSET, like
+  // 003/005/007 - task 49.
+  { version: '2.9.0', sql: MIGRATION_008_SQL },
 ];
 
 export async function getCurrentSchemaVersion(db: SqliteConnection): Promise<string | null> {

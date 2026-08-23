@@ -193,7 +193,7 @@ describe('listBackupCandidates', () => {
       DEFAULT_SLOT_NAMES[0],
     ]);
     expect(candidates[0].usable).toBe(true);
-    expect(candidates[0].schemaVersion).toBe('2.8.0');
+    expect(candidates[0].schemaVersion).toBe('2.9.0');
   });
 
   it('never leaks an open handle', async () => {

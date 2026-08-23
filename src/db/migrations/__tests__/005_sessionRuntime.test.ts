@@ -57,15 +57,15 @@ describe('migration 005 - session runtime tables (v2.5 -> v2.6)', () => {
 
     it('applies 005 and records the newest migration', () => {
       // A fresh install walks the whole list, so both metadata rows describe the LATEST migration
-      // (006, 007 ride along), not 005's own 2.6.0 / v2_6_session_runtime. 005's effects — the three
+      // (006-008 ride along), not 005's own 2.6.0 / v2_6_session_runtime. 005's effects — the three
       // tables and their constraints — are what the rest of this suite asserts. The old test name
       // ("lands at 2.6.0") encoded the trap task 34 §4 warns about; renamed for the same reason
       // task 13 renamed 004's.
       expect(conn.raw.prepare('SELECT value FROM schema_metadata WHERE key = ?').get('version')).toEqual({
-        value: '2.8.0',
+        value: '2.9.0',
       });
       expect(conn.raw.prepare('SELECT value FROM schema_metadata WHERE key = ?').get('last_migration')).toEqual({
-        value: 'v2_8_session_origin',
+        value: 'v2_9_transitive_cycle_guard',
       });
     });
 
@@ -214,7 +214,7 @@ describe('migration 005 - session runtime tables (v2.5 -> v2.6)', () => {
 
       await runMigrations(conn);
 
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.8.0'); // 006, 007 ride along
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.9.0'); // 006-008 ride along
       expect(conn.raw.prepare('SELECT title FROM tasks WHERE id = 7').get()).toEqual({ title: 'Old task' });
       expect(conn.raw.prepare("SELECT planned_duration FROM sessions WHERE id = 'old'").get()).toEqual({
         planned_duration: 10,
@@ -231,7 +231,7 @@ describe('migration 005 - session runtime tables (v2.5 -> v2.6)', () => {
     it('is idempotent: running twice does not reapply 005 or throw', async () => {
       await runMigrations(conn);
       await expect(runMigrations(conn)).resolves.toBeUndefined();
-      expect(await getCurrentSchemaVersion(conn)).toBe('2.8.0');
+      expect(await getCurrentSchemaVersion(conn)).toBe('2.9.0');
       expect(names(conn.raw, 'table')).toEqual(
         expect.arrayContaining(['active_episode', 'session_runtime', 'session_task_extension']),
       );

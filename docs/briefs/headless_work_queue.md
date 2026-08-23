@@ -30,19 +30,19 @@ task — 22.
 | ~~5~~ | ~~**52** Extraction-guide budget pass~~ | Sonnet | `extraction_guide_budget_task_52.md` ✅ | Enumeration fixed; trim ≈−11 tokens not ~60 (disclosed — the protected example is the real cost). | ✅ **DONE 2026-08-22** |
 | ~~6~~ | ~~**57** `capture/retention.ts` coverage~~ | Sonnet | `capture_retention_coverage_task_57.md` ✅ | 10 tests; both mutations proven red. Avoided the `sizeOnDisk: () => 0` fake trap. | ✅ **DONE 2026-08-22** |
 | ~~0~~ | ~~**Housekeeping** *(unnumbered)* — worktree cleanup + flake hunt~~ | Opus 5 | `housekeeping_worktrees_and_flake.md` ✅ | All 4 worktrees removed after a file-by-file containment proof — **raw jest is now the true 1026/88** (was 4842/416). **The flake REPRODUCED and was diagnosed** (order-dependent cross-realm `instanceof`) → **task 59**. `gc` blocked on a dropped stash of Jason's → Open rulings. Report: `docs/eval/housekeeping_2026-08-22_report.md`. | ✅ **DONE 2026-08-22** |
+| ~~8~~ | ~~**56** Planner assertion strength~~ | Opus 5 | `planner_assertion_strength_task_56.md` ✅ | Five mutations now proven detectors; `planner.ts` untouched, no behaviour bugs found. Caught an impossible remedy in task 53's own recommendation. | ✅ **DONE 2026-08-22** |
+| ~~9~~ | ~~**58** Test-hygiene sweep~~ | Sonnet | `test_hygiene_sweep_task_58.md` ✅ | W8 asserted + proven red; W11/W12 carve-outs stated. No behaviour change. | ✅ **DONE 2026-08-22** |
+| ~~7~~ | ~~**59** Fix the realm-fragile assertion~~ | Opus 5 | `realm_error_assertion_task_59.md` ✅ | Boundary fix in `wrapDatabase`; `consistency.test.ts` never edited. **4/4 green under the consistency-LAST ordering that was 6/6 FAIL.** | ✅ **DONE 2026-08-22** |
 | 1 | **46** "Every N weeks" recurrence | Sonnet | ⬜ *to write* | Additive `interval` on the `scheduled` recurrence (JSON, no migration) + a UI control + an anchor date + one `period.ts` fn. | queued |
-| 2 | **56** Planner assertion strength *(53 W3/W4/W6/W7/W9)* | Opus/Sonnet | ⬜ *to write* | Five planner guards that name a spec rule but don't measure it (the "at most two" limit, the 25% buffer, the difficulty gradient, the pre-deep break, the tie-break). | queued |
-| 3 | **58** Test-hygiene sweep *(53 W8/W11/W12)* | Sonnet | ⬜ *to write* | NUL-escape claim untested; `blockKindsAgree` is a `tsc`-only guard that reads as a jest one; the last-migration bump has no downstream fixture. | queued |
-| 3.5 | **59** Fix the realm-fragile assertion *(the reproduced flake)* | Opus/Sonnet | ⬜ *to write* | Order-dependent `instanceof Error` across Jest realms; reproduce with the sequencer first, then fix narrow (assert the value) or better (normalise in `wrapDatabase`). | queued |
-| 4 | **47 + 51** `docs/reference/` pass | Sonnet | ⬜ *to write (one brief, both)* | Regenerate the schema snapshot (2 migrations + 007 stale) **and** fold the spec §8.4 backup amendment + `session_ended_early` into the spec — one pass, per the board's "pair" note. | queued |
-| 5 | **17 Phase B** — the six §5.4 loops | Opus | ⬜ *to write* | Shrinkage, regression protection, rollback; consumes task 41's thermal sampler; owns the internal 2/4 band per task 50. **The big one — keep it its own pass.** | queued |
-| 6 | **45** Deviation audit | Opus | `deviation_audit_task_45.md` ✅ | Audit builder decisions that changed a human ruling without sign-off; relabel orientation §5. Audit-only. | queued |
+| 2 | **47 + 51** `docs/reference/` pass | Sonnet | ⬜ *to write (one brief, both)* | Regenerate the schema snapshot (2 migrations + 007 stale) **and** fold the spec §8.4 backup amendment + `session_ended_early` into the spec — one pass, per the board's "pair" note. | queued |
+| 3 | **17 Phase B** — the six §5.4 loops | Opus | ⬜ *to write* | Shrinkage, regression protection, rollback; consumes task 41's thermal sampler; owns the internal 2/4 band per task 50. **The big one — keep it its own pass.** | queued |
+| 4 | **45** Deviation audit | Opus | `deviation_audit_task_45.md` ✅ | Audit builder decisions that changed a human ruling without sign-off; relabel orientation §5. Audit-only. | queued |
 
-**Ordering rationale.** **Wave 1 (49, 52, 57) is DONE** — run in parallel in isolated worktrees, merged
-one at a time with the suite re-run between. Parallelism worked: the three were genuinely file-disjoint
-and the patch applied clean. **Wave 2 is 46 / 56 / 58 / 47+51** (also mutually disjoint). **17 Phase B**
-runs alone — it overlaps 58 in `src/scoring`. **45 sits at the tail by Jason (2026-08-22).** Briefs are
-written just-in-time before launch.
+**Ordering rationale.** **Waves 1 and 2 are done** — six tasks (49, 52, 57, 58, 56, 59) run three at a
+time in isolated worktrees, each merged separately with the suite re-run between. Parallelism held up:
+no collisions, every patch applied clean. **Four left.** **46 is next but needs a UI control**, so it
+gets Jason's eye before it is briefed. **17 Phase B** is the largest remaining item and runs alone.
+**45 sits at the tail by Jason (2026-08-22).** Briefs are written just-in-time before launch.
 
 **Board is the source of truth for status;** this file is the running order. Update the Status column as
 each lands, and strike a task when it's committed.

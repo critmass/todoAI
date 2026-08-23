@@ -19,6 +19,15 @@ import {
 // The planner produces the block kind, the runtime table stores it, and types/ may not import
 // from planning/ — so the two unions are declared separately. This is the compile-time proof
 // that they have not drifted apart: if either gains a member, `blockKindsAgree` stops typing.
+//
+// Task 58 / W11 (test-audit task 53): the guard here is the TYPE ANNOTATION on the line below,
+// not the `expect` in the `it()` beneath it. If `BlockKindsAgree` resolves to `false`, assigning
+// it to `const blockKindsAgree: BlockKindsAgree = true` is a TYPE ERROR — `tsc --noEmit` fails.
+// jest runs this file through babel-jest (`@react-native/jest-preset`, `babel.config.js`), which
+// strips types and never checks them, so `expect(blockKindsAgree).toBe(true)` is a tautology
+// (a constant compared to the literal it was just set to) that `npx jest` can never fail on this
+// drift. Only `npx tsc --noEmit` enforces it. RISK: a CI path that runs jest but not tsc would
+// silently lose this guard entirely while its test keeps reporting green.
 type Extends<A, B> = A extends B ? true : false;
 type BlockKindsAgree = Extends<EpisodeBlockKind, BlockKind> & Extends<BlockKind, EpisodeBlockKind>;
 const blockKindsAgree: BlockKindsAgree = true;
@@ -77,7 +86,12 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 }
 
 describe('the block-kind vocabulary', () => {
-  it("keeps the planner's BlockKind and the stored EpisodeBlockKind identical", () => {
+  // NOT a runtime check — see the comment on `BlockKindsAgree` above. This `expect` is a
+  // tautology (`blockKindsAgree` compared to the literal it was just assigned); the real
+  // enforcement is `tsc --noEmit` failing to compile if the two unions diverge. This test exists
+  // so the type-level guard is discoverable from the test file and counted in the suite, not to
+  // detect drift itself — `npx jest` alone cannot.
+  it("records that BlockKind and EpisodeBlockKind are kept identical by tsc, not by this assertion", () => {
     expect(blockKindsAgree).toBe(true);
   });
 });

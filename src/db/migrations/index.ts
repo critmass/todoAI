@@ -3,7 +3,11 @@
 // currently recorded, in order - so a fresh (empty) DB walks the whole list and an
 // already-migrated DB only picks up what's new. No down-migrations. To add 003_*.sql: create
 // 003_whatever.ts the same way as 001's/002's (see those files' headers) and append it to
-// MIGRATIONS below with its target version.
+// MIGRATIONS below with its target version. Test-authoring note (task 58 / W12): give the new
+// migration its own createLegacyVxxxConnection() fixture the way every migration test since 002
+// does - that fixture is what guards the PREVIOUS migration's version bump, so writing it also
+// closes the gap left by whichever migration was last in the list before yours. See the comment
+// on MIGRATIONS below for the mechanism.
 import type { SqliteConnection } from '../connection';
 import { MIGRATION_001_SQL } from './001_initial_schema';
 import { MIGRATION_002_SQL } from './002_skill_layer_schema';
@@ -49,6 +53,14 @@ const MIGRATIONS: Migration[] = [
   // 003/005/007 - task 49.
   { version: '2.9.0', sql: MIGRATION_008_SQL },
 ];
+
+// Task 58 / W12 (test-audit task 53): each migration's version bump is guarded by the NEXT
+// migration's legacy fixture (that fixture's beforeEach sanity-checks the version it expects to
+// find already applied) — confirmed by mutation across 002-007. That means the LAST entry in
+// MIGRATIONS always has no downstream fixture and its version bump is unguarded until a
+// successor lands. Today (008, schema 2.9.0) is that unguarded entry. Whoever adds 009 both
+// gains a guard on 008 (via 009's own legacy fixture) and inherits this same gap for 009 in turn
+// — record it again here, or wherever this comment has moved to, when you do.
 
 export async function getCurrentSchemaVersion(db: SqliteConnection): Promise<string | null> {
   const tableCheck = await db.execute(

@@ -1,6 +1,7 @@
 import type { Task } from '../../types/domain';
 import type { TaskWithNeglect } from '../../db/repositories/tasks';
 import {
+  contextGroupKey,
   neglectCurve,
   rankWithContextNovelty,
   scoreTask,
@@ -119,6 +120,19 @@ describe('scoreTask', () => {
     // Linear, not squared: doubling weeks roughly doubles the curve value at scale, never
     // collapsing to a knee — the pathology R1 fixed (worst-vs-best crossover at ~2 weeks).
     expect(neglectCurve(20) - neglectCurve(10)).toBeCloseTo(neglectCurve(10) - neglectCurve(0));
+  });
+});
+
+// Task 58 / W8 (test-audit task 53). score.ts's comment on contextGroupKey claims a task tagged
+// literally "flexible" never merges into the no-tags group — the no-tags group is keyed behind a
+// '\x00' the extraction grammar cannot emit. Nothing pinned that claim: the mutation
+// `return '\x00flexible';` → `return 'flexible';` passed the full suite. This is the guard —
+// see docs/eval/task58_findings_report.md for the mutation-failure output.
+describe('contextGroupKey (task 58 / W8 — the NUL-sentinel invariant)', () => {
+  it('keys a task tagged literally "flexible" differently from an untagged task', () => {
+    const untagged = makeTask({ id: 1, contextTags: [] });
+    const literallyFlexible = makeTask({ id: 2, contextTags: ['flexible'] });
+    expect(contextGroupKey(untagged)).not.toBe(contextGroupKey(literallyFlexible));
   });
 });
 

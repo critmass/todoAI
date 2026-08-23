@@ -122,16 +122,57 @@ describe('deep-focus allocation (§5.3.1 + task 28 step 0)', () => {
   it('reserves an end-of-session block with the 25% overrun buffer applied to countdown sizing', () => {
     // 90-minute session → 60-minute block → 45 plannable work minutes.
     const major = withNeglect(makeTask({ id: 1, estimatedDuration: 40, importance: 900 }));
-    const plan = planSession(boundaryOf(major), deepFocusRequest(90), NOW, seededRng(3));
+    // W4 (task 53 audit → task 56). A 40-minute task fits in 45 work minutes AND in the unbuffered
+    // 60, so on its own it cannot see the buffer at all — deleting the buffer outright survived the
+    // whole suite. This 50-minute task is the pool's TOP-ranked candidate and is passed over for
+    // one reason only: 50 > 45 buffered work minutes. Remove the buffer and it takes the block.
+    const tooBigForTheBuffer = withNeglect(
+      makeTask({ id: 2, estimatedDuration: 50, importance: 950 }),
+    );
+    const plan = planSession(
+      boundaryOf(major, tooBigForTheBuffer),
+      deepFocusRequest(90),
+      NOW,
+      seededRng(3),
+    );
     const deep = taskItems(plan).filter((i) => i.deepFocus);
     expect(deep).toHaveLength(1);
     expect(deep[0].task.id).toBe(1);
     expect(deep[0].blockKind).toBe('countdown');
     expect(deep[0].plannedMinutes).toBe(40); // ≤ 45 work minutes — fits WITH the buffer
+    // The stronger 50-minute task is nowhere in the plan (it does not fit the 30-minute front
+    // section either) — the buffer, not the ranking, is what kept it out of the block.
+    expect(taskItems(plan).map((i) => i.task.id)).not.toContain(2);
     // The deep-focus block sits at the END of the agenda.
     const last = plan.items[plan.items.length - 1];
     expect(last.kind).toBe('task');
     expect((last as AgendaTaskItem).deepFocus).toBe(true);
+  });
+
+  // W4, the boundary itself (task 53 audit → task 56). The buffer is load-bearing only where a
+  // task straddles gross vs. work minutes, so put a fixture on each side of the line.
+  it('a 60-minute block plans 45 work minutes, not 60: a 45 anchors it, a 46 cannot', () => {
+    const fits = planSession(
+      boundaryOf(withNeglect(makeTask({ id: 1, estimatedDuration: 45, importance: 900 }))),
+      deepFocusRequest(90),
+      NOW,
+      seededRng(3),
+    );
+    const fitsDeep = taskItems(fits).filter((i) => i.deepFocus);
+    expect(fitsDeep.map((i) => i.task.id)).toEqual([1]);
+    expect(fitsDeep[0].plannedMinutes).toBe(45); // exactly the buffered capacity
+
+    const over = planSession(
+      boundaryOf(withNeglect(makeTask({ id: 1, estimatedDuration: 46, importance: 900 }))),
+      deepFocusRequest(90),
+      NOW,
+      seededRng(3),
+    );
+    // One minute past the buffered capacity → nothing major anchors the block, so it dissolves
+    // and the task is planned in the front section instead. Without the buffer 46 ≤ 60 and this
+    // is a deep-focus item.
+    expect(taskItems(over).some((i) => i.deepFocus)).toBe(false);
+    expect(taskItems(over).map((i) => i.task.id)).toEqual([1]);
   });
 
   it('a floor task takes the whole block as an openBlock and is placed only when block ≥ floor', () => {
@@ -227,15 +268,26 @@ describe('deep-focus allocation (§5.3.1 + task 28 step 0)', () => {
     const big = withNeglect(makeTask({ id: 1, estimatedDuration: 25, importance: 900 }));
     const second = withNeglect(makeTask({ id: 2, estimatedDuration: 25, importance: 800 }));
     const third = withNeglect(makeTask({ id: 3, estimatedDuration: 25, importance: 700 }));
-    // 120-minute session → 80-minute block → 60 work minutes: room for two 25s, never three.
+    // W3 (task 53 audit → task 56). The fixture is sized so that ONLY §5.3.1's "1–2 major tasks"
+    // limit can stop the third: 150-minute session → 100-minute block → 75 work minutes, and the
+    // two placed 25s leave exactly 25 — enough for a third that is both major (25 ≥
+    // DEEP_FOCUS_MAJOR_MIN_MINUTES) and placeable. At the previous 120-minute size the third was
+    // rejected by `isPlaceableInBlock` for want of capacity, so the rule this test is named after
+    // was never measured and `deepItems.length >= 2` → `>= 3` survived the whole suite.
     const plan = planSession(
       boundaryOf(big, second, third),
-      deepFocusRequest(120),
+      deepFocusRequest(150),
       NOW,
       seededRng(11),
     );
     const deep = taskItems(plan).filter((i) => i.deepFocus);
     expect(deep.map((i) => i.task.id)).toEqual([1, 2]);
+    // The headroom is real: the block still had room for the third when the LIMIT stopped it.
+    const deepPlanned = deep.reduce((sum, i) => sum + i.plannedMinutes, 0);
+    expect(deepPlanned).toBe(50);
+    expect(deepPlanned + 25).toBeLessThanOrEqual(75); // 75 = floor(100 × (1 − 25 % buffer))
+    // …and the displaced third is planned into the FRONT section rather than dropped.
+    expect(taskItems(plan).filter((i) => !i.deepFocus).map((i) => i.task.id)).toEqual([3]);
   });
 
   // LITERAL PIN (task 55 / W5). `DEEP_FOCUS_MAJOR_MIN_MINUTES` 25 → 20 survived the whole suite:
@@ -312,6 +364,151 @@ describe('arrangement (§5.3.2–5.3.4)', () => {
     const items = taskItems(plan);
     const officeIndex = items.findIndex((i) => i.task.id === 4);
     expect(officeIndex).toBe(items.length - 1); // highest-energy group rides last, toward deep work
+  });
+
+  // W6 (task 53 audit → task 56). The §5.3.2 within-group difficulty gradient was entirely
+  // unguarded: reversing the sort (easy→hard becomes hard→easy) AND setting DIFFICULTY_JITTER to 0
+  // each survived the whole suite. Both claims — a DIRECTION and a real randomness — are
+  // distributional, and no single seeded draw can measure either: one roll is one sample, and a
+  // fixed seed that happens to come out ordered is exactly the vacuous test this task remediates.
+  // So roll the same single-context agenda under many seeds and assert the distribution.
+  // Task 55's literal pin of DIFFICULTY_JITTER = 1.5 pins the VALUE and deliberately does not
+  // stand in for this; this is the behavioural guard it was waiting on.
+  it('runs an easier→harder difficulty gradient within a group, with real jitter (§5.3.2)', () => {
+    const ROLLS = 200;
+    // Deliberately ADJACENT difficulties (2 / 3 / 4): DIFFICULTY_JITTER's own doc comment claims
+    // these "genuinely swap run-to-run", which is precisely what part 2 below measures.
+    const oneGroup = () => [
+      withNeglect(
+        makeTask({ id: 1, contextTags: ['home'], energyRequirement: 2, estimatedDuration: 10 }),
+      ),
+      withNeglect(
+        makeTask({ id: 2, contextTags: ['home'], energyRequirement: 3, estimatedDuration: 10 }),
+      ),
+      withNeglect(
+        makeTask({ id: 3, contextTags: ['home'], energyRequirement: 4, estimatedDuration: 10 }),
+      ),
+    ];
+    const positionSum = new Map<number, number>([
+      [1, 0],
+      [2, 0],
+      [3, 0],
+    ]);
+    let midBeforeEasy = 0; // energy 3 landed ahead of energy 2
+    let hardBeforeMid = 0; // energy 4 landed ahead of energy 3
+    for (let seed = 1; seed <= ROLLS; seed++) {
+      const plan = planSession(
+        boundaryOf(...oneGroup()),
+        { sessionType: 'moderate', sessionMinutes: 40, checkIn: CHECK_IN },
+        NOW,
+        seededRng(seed),
+      );
+      const order = taskItems(plan).map((i) => i.task.id);
+      // All three always fit (3 × 10 ≤ 40, one context group, no breaks) — every roll measures
+      // ORDER only, never selection.
+      expect(order).toHaveLength(3);
+      order.forEach((id, index) => positionSum.set(id, (positionSum.get(id) ?? 0) + index));
+      if (order.indexOf(2) < order.indexOf(1)) midBeforeEasy++;
+      if (order.indexOf(3) < order.indexOf(2)) hardBeforeMid++;
+    }
+    const meanIndex = (id: number): number => (positionSum.get(id) ?? 0) / ROLLS;
+
+    // 1. DIRECTION — mean position rises with difficulty, by a margin far wider than the jitter's
+    //    noise. False under the reversed sort.
+    expect(meanIndex(1)).toBeLessThan(meanIndex(2));
+    expect(meanIndex(2)).toBeLessThan(meanIndex(3));
+    expect(meanIndex(3) - meanIndex(1)).toBeGreaterThan(1);
+
+    // 2. THE JITTER IS REAL — adjacent difficulties do swap run to run. False with the jitter at
+    //    0, where every roll returns the same fixed permutation and both counts are exactly zero.
+    expect(midBeforeEasy).toBeGreaterThan(0);
+    expect(hardBeforeMid).toBeGreaterThan(0);
+    // …and they stay swaps rather than a coin flip: the gradient still governs the typical order.
+    expect(midBeforeEasy).toBeLessThan(ROLLS / 2);
+    expect(hardBeforeMid).toBeLessThan(ROLLS / 2);
+  });
+
+  // W7 (task 53 audit → task 56). `preDeepBreak` → 0 survived the whole suite: the front section
+  // could overrun the session by the break's 5 minutes and nothing noticed.
+  it('counts the pre-deep-block break against front capacity (the front never overruns)', () => {
+    const anchor = withNeglect(
+      makeTask({ id: 1, estimatedDuration: 40, importance: 950, contextTags: ['home'] }),
+    );
+    // One context group, so no switch breaks: the ONLY break the front must pay for is the §5.3.4
+    // boundary break before the deep block. 25 + 5 = 30 fits the 30-minute front section exactly
+    // — but only if that break is free. With it counted, exactly one of the two can be planned,
+    // whichever order the novelty shuffle offers them in.
+    const front25 = withNeglect(
+      makeTask({ id: 2, estimatedDuration: 25, importance: 400, contextTags: ['home'] }),
+    );
+    const front5 = withNeglect(
+      makeTask({ id: 3, estimatedDuration: 5, importance: 300, contextTags: ['home'] }),
+    );
+    for (const seed of [1, 2, 19, 23]) {
+      const plan = planSession(
+        boundaryOf(anchor, front25, front5),
+        deepFocusRequest(90),
+        NOW,
+        seededRng(seed),
+      );
+      const blockStart = plan.items.findIndex((item) => item.kind === 'task' && item.deepFocus);
+      expect(blockStart).toBeGreaterThan(0); // the block was reserved and something precedes it
+      const beforeTheBlock = plan.items.slice(0, blockStart);
+      // Everything before the block — front tasks AND the boundary break — must fit the gross
+      // minutes the block leaves behind: 90 − round(90 × 2/3) = 30.
+      const frontMinutes = beforeTheBlock.reduce((sum, item) => sum + item.plannedMinutes, 0);
+      expect(frontMinutes).toBeLessThanOrEqual(30);
+      expect(beforeTheBlock.filter((item) => item.kind === 'task')).toHaveLength(1);
+    }
+  });
+
+  // W9 (task 53 audit → task 56). Dropping `|| maxScore(b) - maxScore(a)` survived the whole
+  // suite, because in every existing fixture the groups' insertion order (which
+  // rankWithContextNovelty already sorts by max score) happened to agree with the tie-break.
+  it('breaks an equal-mean-energy tie between groups by score, not insertion order (§5.3.3)', () => {
+    // The home group LEADS rankWithContextNovelty — its 60-minute member is the pool's strongest
+    // task — but that member does not fit a 40-minute session, so the group reaches arrangement
+    // represented only by its weakest task. Insertion order therefore says home-then-computer and
+    // the score tie-break says the opposite; the ramp cannot decide, both means being 3.
+    const homeStrongButUnplaceable = withNeglect(
+      makeTask({
+        id: 1,
+        contextTags: ['home'],
+        importance: 950,
+        estimatedDuration: 60,
+        energyRequirement: 3,
+      }),
+    );
+    const homeWeak = withNeglect(
+      makeTask({
+        id: 2,
+        contextTags: ['home'],
+        importance: 300,
+        estimatedDuration: 10,
+        energyRequirement: 3,
+      }),
+    );
+    const computerStronger = withNeglect(
+      makeTask({
+        id: 3,
+        contextTags: ['computer'],
+        importance: 600,
+        estimatedDuration: 10,
+        energyRequirement: 3,
+      }),
+    );
+    const plan = planSession(
+      boundaryOf(homeStrongButUnplaceable, homeWeak, computerStronger),
+      { sessionType: 'moderate', sessionMinutes: 40, checkIn: CHECK_IN },
+      NOW,
+      seededRng(13),
+    );
+    const items = taskItems(plan);
+    expect(items.map((i) => i.task.id)).not.toContain(1); // 60 minutes never fits 40
+    // The tie is real by construction: every surviving group has mean energy 3.
+    expect([...new Set(items.map((i) => i.task.energyRequirement))]).toEqual([3]);
+    // …so the stronger group leads. Without the tie-break this is [2, 3] — insertion order.
+    expect(items.map((i) => i.task.id)).toEqual([3, 2]);
   });
 
   it('never places a break inside the deep-focus block (the block is the contiguous tail)', () => {

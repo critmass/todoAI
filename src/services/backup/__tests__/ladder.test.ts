@@ -94,7 +94,7 @@ describe('runRecoveryLadder', () => {
     expect(fixture.ops.exists(resolveConfig(fixture.config).salvage)).toBe(false);
   });
 
-  it('falls through to restore when the salvage recovers nothing worth keeping', async () => {
+  it('falls through to restore when the file cannot be salvaged at all', async () => {
     const working = await seedWorking(fixture, 2);
     await createBackup({ ops: fixture.ops, config: fixture.config, working, now: fixture.now });
     working.close();
@@ -118,6 +118,58 @@ describe('runRecoveryLadder', () => {
     const restored = fixture.ops.open(WORKING);
     expect(await countRows(restored, 'tasks')).toBe(2);
     restored.close();
+  });
+
+  it('rejects a salvage that rebuilds the tasks table EMPTY and restores the backup instead', async () => {
+    // The rejecting branch of `defaultAcceptSalvage` — the guard that keeps a successful-but-empty
+    // salvage from being promoted over the top of a good backup (task 53 finding W1). The
+    // discriminating shape is a salvage that SUCCEEDS with `tasks` in `recovered` and ZERO rows in
+    // it: `tasksRecovered === true` AND `taskRowsRecovered === 0`. The test above damages the file
+    // badly enough that `salvageDatabase` throws, so it leaves via the `catch` and never reaches
+    // the policy at all; only this shape separates `taskRowsRecovered > 0` from a policy that
+    // accepts any salvage that produced a `tasks` table.
+    //
+    // How it is produced: 'lastPage' makes `integrity_check` genuinely fail (so the ladder reaches
+    // step 2), and the query fault makes every read of the SOURCE's task rows fail the way an
+    // unreadable page does. The rowid scan is deliberately left working, so `copyTable` degrades to
+    // the row-at-a-time path, skips all 400 rows, and still reports the table as recovered. That is
+    // the real data-loss shape: the working database's tasks are gone, the backup still holds all
+    // 400, and accepting this salvage would call `promoteToWorking` and return before step 3 ever
+    // runs.
+    const working = await seedWorking(fixture, 400);
+    await createBackup({ ops: fixture.ops, config: fixture.config, working, now: fixture.now });
+    working.close();
+    corruptDatabaseFile(fixture.ops.pathFor(WORKING), 'lastPage');
+    fixture.ops.setQueryFault((sql) => /salvagesrc\."tasks"/.test(sql) && !/rowid AS rid/.test(sql));
+
+    const outcome = await runRecoveryLadder({
+      ops: fixture.ops,
+      config: fixture.config,
+      now: fixture.now,
+    });
+    fixture.ops.setQueryFault(null);
+
+    // The DEFAULT policy ran and rejected — this is the accept/reject branch, not the exception
+    // path. `tasks` did come back, so `taskRowsRecovered > 0` is the only thing standing between
+    // the user and a promoted empty database.
+    expect(outcome.salvage?.recovered.some((entry) => entry.table === 'tasks')).toBe(true);
+    expect(outcome.salvage?.taskRowsRecovered).toBe(0);
+
+    expect(outcome.status).toBe('restored');
+    expect(outcome.attempts.map((entry) => entry.step)).toEqual([
+      'integrity_check',
+      'salvage',
+      'restore',
+    ]);
+    expect(outcome.attempts.find((entry) => entry.step === 'salvage')?.detail).toMatch(
+      /^salvage rejected:/,
+    );
+    expect(outcome.workingDbReplaced).toBe(true);
+
+    // All 400 rows are back, and they came from the backup — not from the empty salvage.
+    const rebuilt = fixture.ops.open(WORKING);
+    expect(await countRows(rebuilt, 'tasks')).toBe(400);
+    rebuilt.close();
   });
 
   it('honours an injected salvage policy that rejects a lossy rebuild', async () => {

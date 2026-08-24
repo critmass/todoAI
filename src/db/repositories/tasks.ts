@@ -61,9 +61,11 @@ function scheduledCycle(
       // Every scheduled weekday still fires, but only in one week out of `weeks`.
       return { cycleDays: NEGLECT_PERIOD_DAYS.week * Math.max(1, mode.weeks), occurrences: weekdays };
     case 'ordinal':
+      // One ticked cell is one occurrence, so the count is simply how many are ticked — no product
+      // with the weekdays, which this mode does not use at all (they must be empty here).
       return {
         cycleDays: NEGLECT_PERIOD_DAYS.month * Math.max(1, mode.months ?? 1),
-        occurrences: Math.max(1, mode.ordinals.length) * weekdays,
+        occurrences: Math.max(1, mode.cells.length),
       };
     case 'dayOfMonth':
       // Weekdays play no part here — the occurrences are the named dates.

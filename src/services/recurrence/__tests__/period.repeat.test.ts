@@ -5,8 +5,11 @@
 // FIXTURE CALENDAR (all real, all checked):
 //   2026-08-03 Mon.  Wednesdays: Aug 5/12/19/26 (FOUR), Sep 2/9/16/23/30 (FIVE),
 //   Oct 7/14/21/28, Nov 4/11/18/25, Dec 2/9/16/23/30 (FIVE), 2027 Jan 6/13/20/27.
-//   The four- vs five-Wednesday pair (Aug vs Sep 2026) is what makes 'last' testable.
+//   Mondays: Aug 3/10/17/24/31 (FIVE), Sep 7/14/21/28 (FOUR), Oct 5/12/19/26.
+//   The four- vs five-Wednesday pair (Aug vs Sep 2026) is what makes 'last' — and the literal
+//   5th, which is NOT the same thing — testable.
 
+import type { Ordinal, OrdinalCell, Weekday } from '../../../types/domain';
 import {
   nextScheduledAfter,
   nextScheduledOnOrAfter,
@@ -133,12 +136,23 @@ describe("interval — 'every other Wednesday'", () => {
   });
 });
 
-describe("ordinal — '1st & 3rd Wednesday'", () => {
-  const firstAndThirdWed: ScheduleSpec = {
-    scheduledDays: ['wednesday'],
-    repeat: { mode: 'ordinal', ordinals: [1, 3] },
+describe('ordinal — the editor’s 6×7 grid, as (ordinal, weekday) CELLS', () => {
+  // The control is a grid: columns Sunday–Saturday, rows 1st/2nd/3rd/4th/5th/Last, and EACH
+  // TICKED CELL IS ONE OCCURRENCE. The weekday therefore lives inside the cell; `scheduledDays`
+  // plays no part in this mode at all and is required empty on write. The mixed-cell test below is
+  // the case the amendment exists for — a cross product of ordinals × weekdays cannot express it.
+  const cell = (ordinal: Ordinal, weekday: Weekday): OrdinalCell => ({ ordinal, weekday });
+  const grid = (cells: OrdinalCell[], months?: number): ScheduleSpec => ({
+    scheduledDays: [],
+    repeat: months === undefined ? { mode: 'ordinal', cells } : { mode: 'ordinal', cells, months },
     anchor: MONDAY,
-  };
+  });
+  /** Every occurrence inside one 'YYYY-MM' month — the direct way to say "exactly these and no
+   *  others", which is what a grid of ticked boxes promises. */
+  const inMonth = (spec: ScheduleSpec, month: string): string[] =>
+    sequence(`${month}-01`, spec, 12).filter(date => date.startsWith(month));
+
+  const firstAndThirdWed = grid([cell(1, 'wednesday'), cell(3, 'wednesday')]);
 
   it('resets every month: the 1st and 3rd Wednesday of each one', () => {
     expect(sequence(MONDAY, firstAndThirdWed, 8)).toEqual([
@@ -153,36 +167,99 @@ describe("ordinal — '1st & 3rd Wednesday'", () => {
     ]);
   });
 
+  it('🔴 mixes cells freely: 1st Monday + 3rd Wednesday is TWO occurrences a month, not four', () => {
+    // THE CASE THIS AMENDMENT EXISTS FOR. Phase 1's cross product (`[1,3] × [Mon,Wed]`) had to
+    // fabricate the 1st Wednesday and the 3rd Monday — two cells the user never ticked. Asserting
+    // the WHOLE month, rather than one next-occurrence, is what makes the absent two absent.
+    const spec = grid([cell(1, 'monday'), cell(3, 'wednesday')]);
+    expect(inMonth(spec, '2026-08')).toEqual(['2026-08-03', '2026-08-19']);
+    expect(inMonth(spec, '2026-09')).toEqual(['2026-09-07', '2026-09-16']);
+    expect(inMonth(spec, '2026-10')).toEqual(['2026-10-05', '2026-10-21']);
+    // Named explicitly, because these are exactly the dates the old shape invented:
+    expect(inMonth(spec, '2026-08')).not.toContain('2026-08-05'); // 1st Wednesday
+    expect(inMonth(spec, '2026-08')).not.toContain('2026-08-17'); // 3rd Monday
+  });
+
+  it("🔴 a literal 5th and 'last' are DIFFERENT ordinals, across both shapes of month", () => {
+    // Aug 2026 has FOUR Wednesdays (5, 12, 19, 26); Sep 2026 has FIVE (2, 9, 16, 23, 30). Both
+    // ordinals are wanted, and this is the assertion that stops a later "simplification" folding
+    // one into the other.
+    const fifth = grid([cell(5, 'wednesday')]);
+    const last = grid([cell('last', 'wednesday')]);
+
+    // In a FIVE-Wednesday month they resolve to the same date — which is precisely why they look
+    // interchangeable.
+    expect(nextScheduledOnOrAfter('2026-09-01', fifth)).toBe('2026-09-30');
+    expect(nextScheduledOnOrAfter('2026-09-01', last)).toBe('2026-09-30');
+
+    // In a FOUR-Wednesday month they do not. 'last' lands on the 4th Wednesday; the literal 5th
+    // does not fire AT ALL that month and waits for one that has a fifth.
+    expect(inMonth(last, '2026-08')).toEqual(['2026-08-26']);
+    expect(inMonth(fifth, '2026-08')).toEqual([]);
+    expect(nextScheduledOnOrAfter('2026-08-01', fifth)).toBe('2026-09-30');
+
+    // So they are not the same schedule over any stretch: 'last' fires every month, the 5th only
+    // in the months that have one.
+    expect(sequence('2026-08-01', last, 6)).toEqual([
+      '2026-08-26',
+      '2026-09-30',
+      '2026-10-28',
+      '2026-11-25',
+      '2026-12-30',
+      '2027-01-27',
+    ]);
+    expect(sequence('2026-08-01', fifth, 4)).toEqual([
+      '2026-09-30',
+      '2026-12-30',
+      '2027-03-31',
+      '2027-06-30',
+    ]);
+  });
+
+  it('a literal 5th on a month stride waits as long as it has to, rather than giving up', () => {
+    // On-months every 3rd from Aug 2026: Aug/Nov 26, Feb/May/Aug/Nov 27, Feb/May 28 — and the
+    // first of those with a fifth Wednesday is May 2028. A scan that tried only the next couple of
+    // on-months would answer "never" here, which is why the horizon is generous.
+    const quarterlyFifthWed = grid([cell(5, 'wednesday')], 3);
+    expect(nextScheduledOnOrAfter(MONDAY, quarterlyFifthWed)).toBe('2028-05-31');
+  });
+
   it("'last' equals the 4th in a four-Wednesday month", () => {
-    const spec = (ordinals: (1 | 2 | 3 | 4 | 'last')[]): ScheduleSpec => ({
-      scheduledDays: ['wednesday'],
-      repeat: { mode: 'ordinal', ordinals },
-      anchor: MONDAY,
-    });
-    // August 2026 has exactly four Wednesdays: 5, 12, 19, 26.
-    expect(nextScheduledOnOrAfter('2026-08-20', spec(['last']))).toBe('2026-08-26');
-    expect(nextScheduledOnOrAfter('2026-08-20', spec([4]))).toBe('2026-08-26');
+    // August 2026: 5, 12, 19, 26.
+    expect(nextScheduledOnOrAfter('2026-08-20', grid([cell('last', 'wednesday')]))).toBe(
+      '2026-08-26',
+    );
+    expect(nextScheduledOnOrAfter('2026-08-20', grid([cell(4, 'wednesday')]))).toBe('2026-08-26');
   });
 
   it("'last' equals the FIFTH in a five-Wednesday month, where the 4th does not", () => {
-    const spec = (ordinals: (1 | 2 | 3 | 4 | 'last')[]): ScheduleSpec => ({
-      scheduledDays: ['wednesday'],
-      repeat: { mode: 'ordinal', ordinals },
-      anchor: MONDAY,
-    });
-    // September 2026 has five Wednesdays: 2, 9, 16, 23, 30.
-    expect(nextScheduledOnOrAfter('2026-09-17', spec(['last']))).toBe('2026-09-30');
-    expect(nextScheduledOnOrAfter('2026-09-17', spec([4]))).toBe('2026-09-23');
+    // September 2026: 2, 9, 16, 23, 30.
+    expect(nextScheduledOnOrAfter('2026-09-17', grid([cell('last', 'wednesday')]))).toBe(
+      '2026-09-30',
+    );
+    expect(nextScheduledOnOrAfter('2026-09-17', grid([cell(4, 'wednesday')]))).toBe('2026-09-23');
   });
 
-  it('sorts a multi-weekday, multi-ordinal month into date order', () => {
-    const spec: ScheduleSpec = {
-      scheduledDays: ['monday', 'friday'],
-      repeat: { mode: 'ordinal', ordinals: [1, 'last'] },
-      anchor: MONDAY,
-    };
+  it('collapses two cells that name the same date instead of firing twice', () => {
+    // 4th and last ARE the same Wednesday in a four-Wednesday month; 5th and last are the same one
+    // in a five-Wednesday month. Either way the day comes round once.
+    expect(inMonth(grid([cell(4, 'wednesday'), cell('last', 'wednesday')]), '2026-08')).toEqual([
+      '2026-08-26',
+    ]);
+    expect(inMonth(grid([cell(5, 'wednesday'), cell('last', 'wednesday')]), '2026-09')).toEqual([
+      '2026-09-30',
+    ]);
+  });
+
+  it('sorts a month’s ticked cells into date order, whatever order they were ticked in', () => {
     // Aug 2026 Mondays: 3, 10, 17, 24, 31 (last = 31). Fridays: 7, 14, 21, 28 (last = 28).
-    expect(sequence(MONDAY, spec, 4)).toEqual([
+    const spec = grid([
+      cell('last', 'monday'),
+      cell(1, 'friday'),
+      cell('last', 'friday'),
+      cell(1, 'monday'),
+    ]);
+    expect(inMonth(spec, '2026-08')).toEqual([
       '2026-08-03', // 1st Monday
       '2026-08-07', // 1st Friday
       '2026-08-28', // last Friday
@@ -192,8 +269,7 @@ describe("ordinal — '1st & 3rd Wednesday'", () => {
 
   it('strides whole months, crossing a year boundary', () => {
     const everyOtherMonth: ScheduleSpec = {
-      scheduledDays: ['wednesday'],
-      repeat: { mode: 'ordinal', ordinals: [1], months: 2 },
+      ...grid([cell(1, 'wednesday')], 2),
       anchor: '2026-11-02', // created in November: on-months are Nov, Jan, Mar…
     };
     expect(sequence('2026-11-02', everyOtherMonth, 3)).toEqual([
@@ -203,21 +279,17 @@ describe("ordinal — '1st & 3rd Wednesday'", () => {
     ]);
   });
 
-  it('names no occurrence without days or without ordinals', () => {
-    expect(
-      nextScheduledOnOrAfter(MONDAY, {
-        scheduledDays: [],
-        repeat: { mode: 'ordinal', ordinals: [1] },
-        anchor: MONDAY,
-      }),
-    ).toBeNull();
-    expect(
-      nextScheduledOnOrAfter(MONDAY, {
-        scheduledDays: ['wednesday'],
-        repeat: { mode: 'ordinal', ordinals: [], months: 1 },
-        anchor: MONDAY,
-      }),
-    ).toBeNull();
+  it('takes its weekday from the CELL, never from scheduledDays', () => {
+    // scheduledDays is used by everyWeek and interval only and must be empty here (both writers
+    // refuse it, and a hand-edited row carrying one degrades to weekly on read). This pins the
+    // arithmetic itself: even handed a stray list, the mode reads nothing but its cells.
+    const stray: ScheduleSpec = { ...firstAndThirdWed, scheduledDays: ['friday'] };
+    expect(sequence(MONDAY, stray, 6)).toEqual(sequence(MONDAY, firstAndThirdWed, 6));
+  });
+
+  it('names no occurrence when no cell is ticked', () => {
+    expect(nextScheduledOnOrAfter(MONDAY, grid([]))).toBeNull();
+    expect(nextScheduledOnOrAfter(MONDAY, { ...grid([]), scheduledDays: ['wednesday'] })).toBeNull();
   });
 });
 
@@ -320,8 +392,15 @@ describe('“every other Wednesday” is NOT “1st & 3rd Wednesday”', () => {
     anchor,
   };
   const firstAndThird: ScheduleSpec = {
-    scheduledDays: ['wednesday'],
-    repeat: { mode: 'ordinal', ordinals: [1, 3] },
+    // Two ticked cells — the same schedule the cross product used to spell `[1,3] × [Wednesday]`.
+    scheduledDays: [],
+    repeat: {
+      mode: 'ordinal',
+      cells: [
+        { ordinal: 1, weekday: 'wednesday' },
+        { ordinal: 3, weekday: 'wednesday' },
+      ],
+    },
     anchor,
   };
 
@@ -401,16 +480,25 @@ describe('DST transitions, in every mode', () => {
 
   it('ordinal picks the same Sunday whether or not the clocks changed that day', () => {
     const spec: ScheduleSpec = {
-      scheduledDays: ['sunday'],
-      repeat: { mode: 'ordinal', ordinals: [2, 'last'] },
+      scheduledDays: [],
+      repeat: {
+        mode: 'ordinal',
+        cells: [
+          { ordinal: 2, weekday: 'sunday' },
+          { ordinal: 'last', weekday: 'sunday' },
+        ],
+      },
       anchor: '2027-03-01',
     };
     // March 2027 Sundays: 7, 14, 21, 28 — the 2nd IS the US transition, the last IS the EU one.
     expect(sequence('2027-03-01', spec, 2)).toEqual(['2027-03-14', '2027-03-28']);
     // November 2027 Sundays: 7, 14, 21, 28 — the 1st is the US fall-back.
-    expect(nextScheduledOnOrAfter('2027-11-01', { ...spec, repeat: { mode: 'ordinal', ordinals: [1] } })).toBe(
-      '2027-11-07',
-    );
+    expect(
+      nextScheduledOnOrAfter('2027-11-01', {
+        ...spec,
+        repeat: { mode: 'ordinal', cells: [{ ordinal: 1, weekday: 'sunday' }] },
+      }),
+    ).toBe('2027-11-07');
   });
 
   it('dayOfMonth is unaffected: a calendar date has no hours to lose', () => {

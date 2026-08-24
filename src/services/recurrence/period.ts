@@ -19,7 +19,7 @@
 // extraction time by `resolveDue`). Nothing here reads or writes a DueSpec, and nothing here
 // resolves the word "next" — see the task 36 findings report §5.
 
-import type { Ordinal, Period, ScheduledRepeat, Weekday } from '../../types/domain';
+import type { OrdinalCell, Period, ScheduledRepeat, Weekday } from '../../types/domain';
 
 /** A calendar date, 'YYYY-MM-DD'. A DATE — not an instant, not a timezone-bearing timestamp. */
 export type CalendarDate = string;
@@ -135,6 +135,9 @@ export function nextOccurrenceAfter(from: CalendarDate, days: readonly Weekday[]
  * fifth mode added to the union later fails to compile here rather than silently behaving weekly.
  */
 export interface ScheduleSpec {
+  /** Used by `everyWeek` and `interval` ONLY. `ordinal` takes its weekday from each cell and
+   *  `dayOfMonth` has none, and both require this empty on write — so nothing below reads it in
+   *  those two modes, whatever a hand-edited row happens to carry. */
   scheduledDays: readonly Weekday[];
   /** Absent === `{ mode: 'everyWeek' }` — the pre-task-46 behaviour, unchanged. */
   repeat?: ScheduledRepeat;
@@ -189,23 +192,24 @@ function weekdayDatesInMonth(index: number, days: readonly Weekday[]): CalendarD
 /**
  * The dates an `ordinal` schedule names inside one month, sorted and de-duplicated.
  *
- * `'last'` is resolved per weekday, which is the whole point of having it: in a month with four
- * Wednesdays it lands on the same date as the 4th, and in a month with five it lands a week later.
- * Ordinals 1–4 always exist — every month contains at least four of every weekday.
+ * ONE TICKED CELL, ONE OCCURRENCE. The weekday comes from the cell, never from `scheduledDays`, so
+ * "1st Monday + 3rd Wednesday" is two dates a month; a cross product of ordinals × weekdays would
+ * have had to invent the 1st Wednesday and the 3rd Monday alongside them.
+ *
+ * A LITERAL 5 AND `'last'` ARE DIFFERENT ROWS OF THE GRID, and this is where that lives: `'last'`
+ * takes the final occurrence — the 4th in a four-weekday month, the 5th in a five-weekday one —
+ * while `5` indexes the fifth and finds nothing at all in a month that has four. Ordinals 1–4
+ * always resolve, because every month contains at least four of every weekday.
+ *
+ * De-duplication matters for the same reason it does in `dayOfMonth`: in a four-Wednesday month
+ * the 4th and the last Wednesday ARE one date, and the day comes round once.
  */
-function ordinalDatesInMonth(
-  index: number,
-  days: readonly Weekday[],
-  ordinals: readonly Ordinal[],
-): CalendarDate[] {
+function ordinalDatesInMonth(index: number, cells: readonly OrdinalCell[]): CalendarDate[] {
   const dates = new Set<CalendarDate>();
-  for (const day of days) {
-    const occurrences = weekdayDatesInMonth(index, [day]);
-    if (occurrences.length === 0) continue;
-    for (const ordinal of ordinals) {
-      const date = ordinal === 'last' ? occurrences[occurrences.length - 1] : occurrences[ordinal - 1];
-      if (date !== undefined) dates.add(date);
-    }
+  for (const { ordinal, weekday } of cells) {
+    const occurrences = weekdayDatesInMonth(index, [weekday]);
+    const date = ordinal === 'last' ? occurrences[occurrences.length - 1] : occurrences[ordinal - 1];
+    if (date !== undefined) dates.add(date); // a literal 5th in a four-weekday month names nothing
   }
   return [...dates].sort(compareDates);
 }
@@ -224,8 +228,21 @@ function dayOfMonthDatesInMonth(index: number, days: readonly number[]): Calenda
   return [...dates].sort(compareDates);
 }
 
-/** Walks on-months from `from` forward, returning the first named date on or after it. Two on-month
- *  attempts always suffice (the first may be spent), and the third is belt-and-braces. */
+/**
+ * The scan horizon for the month-driven modes, counted in ON-MONTHS rather than calendar months.
+ *
+ * `dayOfMonth` names a date in every on-month, and so does any ordinal cell of 1–4 or `'last'`, so
+ * both answer on the first or second attempt and never come near this. A LITERAL 5 CAN: a month
+ * holds a fifth Wednesday only sometimes, so on-months can pass naming nothing — up to four in a
+ * row at a monthly stride, and far longer once a month stride is involved ("the 5th Sunday of
+ * February, every 12 months" has a real worst case of forty years). Counting attempts rather than
+ * months is what makes the horizon scale with the stride: 50 years monthly, 600 yearly, while the
+ * work stays bounded at 600 cheap month walks. Past it the answer is null — the same "this
+ * schedule names no occurrence" the empty cases give, never a fabricated date.
+ */
+const MAX_ON_MONTH_SCANS = 600;
+
+/** Walks on-months from `from` forward, returning the first named date on or after it. */
 function nextMonthlyOccurrence(
   from: CalendarDate,
   anchor: CalendarDate,
@@ -233,7 +250,7 @@ function nextMonthlyOccurrence(
   datesIn: (index: number) => CalendarDate[],
 ): CalendarDate | null {
   let index = alignToStride(monthIndex(from), monthIndex(anchor), stride);
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < MAX_ON_MONTH_SCANS; attempt++) {
     const candidate = datesIn(index).find((date) => compareDates(date, from) >= 0);
     if (candidate !== undefined) return candidate;
     index += stride;
@@ -243,7 +260,7 @@ function nextMonthlyOccurrence(
 
 /**
  * THE ONE ENTRY POINT: the first day on or after `from` that this schedule actually lands on, or
- * null when it names none (an empty weekday list, an empty ordinal list — nothing is invented).
+ * null when it names none (an empty weekday list, an empty cell grid — nothing is invented).
  *
  * The two week-driven modes and the two month-driven ones differ in exactly the way users get
  * wrong: `interval` counts fortnights straight through month ends, while `ordinal` restarts its
@@ -282,10 +299,12 @@ export function nextScheduledOnOrAfter(from: CalendarDate, spec: ScheduleSpec): 
     }
 
     case 'ordinal': {
-      if (scheduledDays.length === 0 || repeat.ordinals.length === 0) return null;
+      // scheduledDays is unused here by construction — each cell carries its own weekday — and is
+      // required empty on write, so a stray list changes nothing about the dates below.
+      if (repeat.cells.length === 0) return null;
       const stride = Math.max(1, Math.trunc(repeat.months ?? 1));
       return nextMonthlyOccurrence(from, anchor, stride, (index) =>
-        ordinalDatesInMonth(index, scheduledDays, repeat.ordinals),
+        ordinalDatesInMonth(index, repeat.cells),
       );
     }
 

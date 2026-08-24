@@ -151,7 +151,17 @@ describe('recurrenceRepository with scheduled repeat modes (task 46)', () => {
   const legal: Recurrence[] = [
     { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'everyWeek' } },
     { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'interval', weeks: 2 } },
-    { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'ordinal', ordinals: [1, 3] } },
+    {
+      type: 'scheduled',
+      scheduledDays: [],
+      repeat: {
+        mode: 'ordinal',
+        cells: [
+          { ordinal: 1, weekday: 'monday' },
+          { ordinal: 3, weekday: 'wednesday' }, // mixed cells: two occurrences a month, not four
+        ],
+      },
+    },
     { type: 'scheduled', scheduledDays: [], repeat: { mode: 'dayOfMonth', days: [1, 15], months: 2 } },
   ];
 
@@ -181,6 +191,21 @@ describe('recurrenceRepository with scheduled repeat modes (task 46)', () => {
     expect(await repo.getByTaskId(taskId)).toBeUndefined(); // nothing was written
   });
 
+  it('🔴 refuses an ordinal recurrence that still carries weekdays, on create AND on update', async () => {
+    // The same one rule, at both writers: scheduledDays is used by everyWeek and interval only.
+    const withStrayDays: Recurrence = {
+      type: 'scheduled',
+      scheduledDays: ['monday'],
+      repeat: { mode: 'ordinal', cells: [{ ordinal: 1, weekday: 'monday' }] },
+    };
+    await expect(repo.create(taskId, withStrayDays)).rejects.toThrow(RecurrenceValidationError);
+    expect(await repo.getByTaskId(taskId)).toBeUndefined();
+
+    await repo.create(taskId, { type: 'scheduled', scheduledDays: ['monday'] });
+    await expect(repo.update(taskId, withStrayDays)).rejects.toThrow(RecurrenceValidationError);
+    expect(await repo.getByTaskId(taskId)).toEqual({ type: 'scheduled', scheduledDays: ['monday'] });
+  });
+
   it('refuses an illegal stride or ordinal list, on create and on update alike', async () => {
     await expect(
       repo.create(taskId, {
@@ -194,8 +219,8 @@ describe('recurrenceRepository with scheduled repeat modes (task 46)', () => {
     await expect(
       repo.update(taskId, {
         type: 'scheduled',
-        scheduledDays: ['monday'],
-        repeat: { mode: 'ordinal', ordinals: [] },
+        scheduledDays: [],
+        repeat: { mode: 'ordinal', cells: [] },
       }),
     ).rejects.toThrow(RecurrenceValidationError);
     // The stored row is untouched by the rejected update.

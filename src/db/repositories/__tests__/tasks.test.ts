@@ -73,21 +73,50 @@ describe('neglectAccrualGapDays with task 46 repeat modes (R8 still reads the DE
   });
 
   it('ordinal is a MONTHLY cycle: 1st & 3rd Wednesday is 30 / (1 + 2) ≈ 10 d (brief §4)', () => {
+    // With cells, the occurrences per month are simply the number of ticked boxes — no product.
     expect(
       neglectAccrualGapDays({
         type: 'scheduled',
-        scheduledDays: ['wednesday'],
-        repeat: { mode: 'ordinal', ordinals: [1, 3] },
+        scheduledDays: [],
+        repeat: {
+          mode: 'ordinal',
+          cells: [
+            { ordinal: 1, weekday: 'wednesday' },
+            { ordinal: 3, weekday: 'wednesday' },
+          ],
+        },
       }),
     ).toBeCloseTo(10, 6);
-    // Two weekdays x one ordinal, every other month: 60 / (1 + 2) = 20 d
+    // Two ticked cells, every other month: 60 / (1 + 2) = 20 d
     expect(
       neglectAccrualGapDays({
         type: 'scheduled',
-        scheduledDays: ['monday', 'friday'],
-        repeat: { mode: 'ordinal', ordinals: ['last'], months: 2 },
+        scheduledDays: [],
+        repeat: {
+          mode: 'ordinal',
+          cells: [
+            { ordinal: 'last', weekday: 'monday' },
+            { ordinal: 'last', weekday: 'friday' },
+          ],
+          months: 2,
+        },
       }),
     ).toBeCloseTo(20, 6);
+    // And a mixed grid the cross product could not express: 1st Monday + 3rd Wednesday is TWO
+    // occurrences a month (the old shape would have counted four): 30 / (1 + 2) = 10 d
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled',
+        scheduledDays: [],
+        repeat: {
+          mode: 'ordinal',
+          cells: [
+            { ordinal: 1, weekday: 'monday' },
+            { ordinal: 3, weekday: 'wednesday' },
+          ],
+        },
+      }),
+    ).toBeCloseTo(10, 6);
   });
 
   it('dayOfMonth counts dates, not weekdays: the 15th is 30 / (1 + 1) = 15 d', () => {

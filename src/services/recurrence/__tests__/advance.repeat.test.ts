@@ -129,8 +129,14 @@ describe('advanceRecurrence with scheduled repeat modes (task 46)', () => {
   describe('ordinal', () => {
     const firstAndThirdWed: Recurrence = {
       type: 'scheduled',
-      scheduledDays: ['wednesday'],
-      repeat: { mode: 'ordinal', ordinals: [1, 3] },
+      scheduledDays: [], // the weekday rides inside each ticked cell
+      repeat: {
+        mode: 'ordinal',
+        cells: [
+          { ordinal: 1, weekday: 'wednesday' },
+          { ordinal: 3, weekday: 'wednesday' },
+        ],
+      },
     };
 
     it('is due on the 1st Wednesday, then the 3rd', async () => {
@@ -152,11 +158,32 @@ describe('advanceRecurrence with scheduled repeat modes (task 46)', () => {
       expect(await dueOf(id)).toBe('2026-09-02');
     });
 
+    it('a mixed grid sweeps to exactly the ticked cells: 1st Monday, then 3rd Wednesday', async () => {
+      const mixed: Recurrence = {
+        type: 'scheduled',
+        scheduledDays: [],
+        repeat: {
+          mode: 'ordinal',
+          cells: [
+            { ordinal: 1, weekday: 'monday' },
+            { ordinal: 3, weekday: 'wednesday' },
+          ],
+        },
+      };
+      const id = await makeTask('Sort the recycling', mixed);
+      await advanceRecurrence(deps, MONDAY);
+      expect(await dueOf(id)).toBe('2026-08-03'); // 1st Monday IS today
+
+      conn.raw.prepare('UPDATE tasks SET last_completed_at = ? WHERE id = ?').run('2026-08-03 19:00:00', id);
+      await advanceRecurrence(deps, MONDAY);
+      expect(await dueOf(id)).toBe('2026-08-19'); // 3rd Wednesday — NOT the 3rd Monday (Aug 17)
+    });
+
     it("'last' follows the month, not a fixed week number", async () => {
       const lastWed: Recurrence = {
         type: 'scheduled',
-        scheduledDays: ['wednesday'],
-        repeat: { mode: 'ordinal', ordinals: ['last'] },
+        scheduledDays: [],
+        repeat: { mode: 'ordinal', cells: [{ ordinal: 'last', weekday: 'wednesday' }] },
       };
       const id = await makeTask('Meter reading', lastWed);
       await advanceRecurrence(deps, MONDAY);
@@ -203,7 +230,17 @@ describe('advanceRecurrence with scheduled repeat modes (task 46)', () => {
       ],
       [
         'ordinal',
-        { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'ordinal', ordinals: [1, 3] } },
+        {
+          type: 'scheduled',
+          scheduledDays: [],
+          repeat: {
+            mode: 'ordinal',
+            cells: [
+              { ordinal: 1, weekday: 'wednesday' },
+              { ordinal: 3, weekday: 'wednesday' },
+            ],
+          },
+        },
       ],
       ['dayOfMonth', { type: 'scheduled', scheduledDays: [], repeat: { mode: 'dayOfMonth', days: [15] } }],
     ];

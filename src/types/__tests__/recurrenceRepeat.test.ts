@@ -9,7 +9,9 @@ import {
   recurrenceRepeatIssue,
   recurrenceToRow,
   taskRecurrenceRowToDomain,
+  type OrdinalCell,
   type Recurrence,
+  type Weekday,
 } from '../domain';
 import type { TaskRecurrenceRow } from '../db';
 
@@ -82,11 +84,31 @@ describe('backward compatibility — a pre-task-46 row (the alpha DB)', () => {
 describe('round trip through the pattern JSON', () => {
   const cases: Recurrence[] = [
     { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'interval', weeks: 2 } },
-    { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'ordinal', ordinals: [1, 3] } },
     {
       type: 'scheduled',
-      scheduledDays: ['monday', 'friday'],
-      repeat: { mode: 'ordinal', ordinals: ['last'], months: 2 },
+      scheduledDays: [],
+      repeat: {
+        mode: 'ordinal',
+        cells: [
+          { ordinal: 1, weekday: 'wednesday' },
+          { ordinal: 3, weekday: 'wednesday' },
+        ],
+      },
+    },
+    {
+      // A grid whose ticked cells share no ordinal and no weekday — unrepresentable before the
+      // amendment, and the reason `cells` exists.
+      type: 'scheduled',
+      scheduledDays: [],
+      repeat: {
+        mode: 'ordinal',
+        cells: [
+          { ordinal: 1, weekday: 'monday' },
+          { ordinal: 5, weekday: 'wednesday' },
+          { ordinal: 'last', weekday: 'friday' },
+        ],
+        months: 2,
+      },
     },
     { type: 'scheduled', scheduledDays: [], repeat: { mode: 'dayOfMonth', days: [1, 15] } },
     { type: 'scheduled', scheduledDays: [], repeat: { mode: 'dayOfMonth', days: [31], months: 3 } },
@@ -113,7 +135,12 @@ describe('round trip through the pattern JSON', () => {
       '{"scheduledDays":["monday"],"repeat":{"mode":"fortnightly"}}', // a mode we do not know
       '{"scheduledDays":["monday"],"repeat":{"mode":"interval","weeks":0}}', // illegal stride
       '{"scheduledDays":["monday"],"repeat":"every other week"}', // not an object
-      '{"scheduledDays":["monday"],"repeat":{"mode":"ordinal","ordinals":[5]}}', // no 5th — that is 'last'
+      '{"scheduledDays":["monday"],"repeat":{"mode":"ordinal","ordinals":[1,3]}}', // no cells at all
+      '{"scheduledDays":["monday"],"repeat":{"mode":"ordinal","cells":[{"ordinal":6,"weekday":"monday"}]}}',
+      '{"scheduledDays":["monday"],"repeat":{"mode":"ordinal","cells":[{"ordinal":1,"weekday":"someday"}]}}',
+      // Legal cells, but weekdays left behind on a mode switch: scheduledDays belongs to everyWeek
+      // and interval ONLY, so this row is refused on read exactly as it is refused on write.
+      '{"scheduledDays":["monday"],"repeat":{"mode":"ordinal","cells":[{"ordinal":1,"weekday":"monday"}]}}',
     ];
     for (const pattern of junk) {
       const back = taskRecurrenceRowToDomain(row({ recurrence_pattern: pattern })).recurrence;
@@ -130,7 +157,18 @@ describe('recurrenceRepeatIssue — what the data layer refuses to store', () =>
     ok({ type: 'scheduled', scheduledDays: ['monday'] });
     ok({ type: 'scheduled', scheduledDays: ['monday'], repeat: { mode: 'everyWeek' } });
     ok({ type: 'scheduled', scheduledDays: ['monday'], repeat: { mode: 'interval', weeks: 1 } });
-    ok({ type: 'scheduled', scheduledDays: ['monday'], repeat: { mode: 'ordinal', ordinals: [1, 4, 'last'] } });
+    ok({
+      type: 'scheduled',
+      scheduledDays: [],
+      repeat: {
+        mode: 'ordinal',
+        cells: [
+          { ordinal: 1, weekday: 'monday' },
+          { ordinal: 5, weekday: 'wednesday' }, // a literal 5th is legal, and is NOT 'last'
+          { ordinal: 'last', weekday: 'friday' },
+        ],
+      },
+    });
     ok({ type: 'scheduled', scheduledDays: [], repeat: { mode: 'dayOfMonth', days: [1, 31], months: 2 } });
     ok({ type: 'quota', quota: 3, period: 'week' });
     ok({ type: 'unscheduled' });
@@ -143,17 +181,32 @@ describe('recurrenceRepeatIssue — what the data layer refuses to store', () =>
     bad({ type: 'scheduled', scheduledDays: ['monday'], repeat: { mode: 'interval', weeks: 1.5 } });
   });
 
-  it('rejects an empty or out-of-range ordinal list — there is no 5th, that is what last is for', () => {
-    bad({ type: 'scheduled', scheduledDays: ['monday'], repeat: { mode: 'ordinal', ordinals: [] } });
+  it('rejects an empty cell grid, or a cell that is not a real (ordinal, weekday) pair', () => {
+    bad({ type: 'scheduled', scheduledDays: [], repeat: { mode: 'ordinal', cells: [] } });
     bad({
       type: 'scheduled',
-      scheduledDays: ['monday'],
-      repeat: { mode: 'ordinal', ordinals: [5 as 4] },
+      scheduledDays: [],
+      repeat: { mode: 'ordinal', cells: [{ ordinal: 6 as 5, weekday: 'monday' }] }, // no 6th row
     });
     bad({
       type: 'scheduled',
-      scheduledDays: ['monday'],
-      repeat: { mode: 'ordinal', ordinals: [1], months: 0 },
+      scheduledDays: [],
+      repeat: { mode: 'ordinal', cells: [{ ordinal: 0 as 1, weekday: 'monday' }] },
+    });
+    bad({
+      type: 'scheduled',
+      scheduledDays: [],
+      repeat: { mode: 'ordinal', cells: [{ ordinal: 1, weekday: 'someday' as Weekday }] },
+    });
+    bad({
+      type: 'scheduled',
+      scheduledDays: [],
+      repeat: { mode: 'ordinal', cells: [null as unknown as OrdinalCell] },
+    });
+    bad({
+      type: 'scheduled',
+      scheduledDays: [],
+      repeat: { mode: 'ordinal', cells: [{ ordinal: 1, weekday: 'monday' }], months: 0 },
     });
   });
 
@@ -164,14 +217,25 @@ describe('recurrenceRepeatIssue — what the data layer refuses to store', () =>
     bad({ type: 'scheduled', scheduledDays: [], repeat: { mode: 'dayOfMonth', days: [15.5] } });
   });
 
-  it('🔴 rejects dayOfMonth carrying weekdays — the one dead field this design must not leave', () => {
-    // dayOfMonth does not use scheduledDays at all. Requiring it empty is what stops a mode switch
-    // in the editor from leaving stale weekdays behind, invisible and unused, on disk.
-    const issue = recurrenceRepeatIssue({
+  it('🔴 ONE RULE: scheduledDays belongs to everyWeek and interval, and must be empty in the two month modes', () => {
+    // `ordinal` carries its weekday inside each ticked cell and `dayOfMonth` has no weekday at all,
+    // so a non-empty list in either is stale data from a mode switch — dead, invisible, and waiting
+    // for a later reader to trust it. Enforced at both writers, not merely documented.
+    const dayOfMonth = recurrenceRepeatIssue({
       type: 'scheduled',
       scheduledDays: ['monday'],
       repeat: { mode: 'dayOfMonth', days: [15] },
     });
-    expect(issue).toEqual(expect.stringContaining('scheduledDays'));
+    const ordinal = recurrenceRepeatIssue({
+      type: 'scheduled',
+      scheduledDays: ['monday'],
+      repeat: { mode: 'ordinal', cells: [{ ordinal: 1, weekday: 'monday' }] },
+    });
+    expect(dayOfMonth).toEqual(expect.stringContaining('scheduledDays'));
+    expect(ordinal).toEqual(expect.stringContaining('scheduledDays'));
+
+    // …and the two modes that DO use it are untouched by the rule.
+    ok({ type: 'scheduled', scheduledDays: ['monday'], repeat: { mode: 'everyWeek' } });
+    ok({ type: 'scheduled', scheduledDays: ['monday'], repeat: { mode: 'interval', weeks: 2 } });
   });
 });

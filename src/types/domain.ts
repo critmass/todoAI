@@ -101,10 +101,20 @@ export type Weekday =
   | 'saturday'
   | 'sunday';
 
-/** Which occurrence of a weekday within a month. There is no 5th — a month has four or five of
- *  any weekday, so the fifth is `'last'` and only sometimes exists as a distinct date. In a
- *  four-weekday month `'last'` IS the 4th; in a five-weekday month it is the 5th. */
-export type Ordinal = 1 | 2 | 3 | 4 | 'last';
+/**
+ * Which occurrence of a weekday within a month — one ROW of the editor's 6×7 grid (1st, 2nd, 3rd,
+ * 4th, 5th, Last).
+ *
+ * A LITERAL `5` AND `'last'` ARE DIFFERENT, and both are wanted. A month holds four or five of any
+ * weekday: where it holds five they name the same date, but where it holds four, `5` does not fire
+ * at all that month while `'last'` lands on the 4th. "The last Friday of the month" and "the fifth
+ * Friday, when there is one" are both ordinary requests, and neither can stand in for the other.
+ */
+export type Ordinal = 1 | 2 | 3 | 4 | 5 | 'last';
+
+/** One ticked box in that grid: a column (weekday) and a row (ordinal). EACH CELL IS ONE
+ *  OCCURRENCE — the ticked set IS the schedule, never a product of two lists. */
+export type OrdinalCell = { ordinal: Ordinal; weekday: Weekday };
 
 /**
  * Task 46 — how often a `scheduled` recurrence's weekdays actually come round.
@@ -123,26 +133,63 @@ export type Ordinal = 1 | 2 | 3 | 4 | 'last';
  * All strides (`weeks`, `months`) are counted from the TASK'S CREATION DATE. That is a ruling, not
  * an implementation detail: it gives a fixed cadence with no drift and, decisively, requires no
  * date-picker — the app has none and this deliberately does not introduce one.
+ *
+ * WHY `ordinal` CARRIES CELLS RATHER THAN A CROSS PRODUCT of ordinals × `scheduledDays`. The
+ * editor's control is a 6×7 grid of checkboxes and each ticked cell is one occurrence, so a
+ * product cannot represent it: "1st Monday + 3rd Wednesday" is two ticks, but `[1,3] × [Mon,Wed]`
+ * is four occurrences — the grid would have to fill in two cells the user never checked. Cells are
+ * a strict superset (everything a product could say, it can still say) and they make the count
+ * plain everywhere downstream: occurrences per month is `cells.length`.
+ *
+ * WHICH LEAVES ONE RULE ABOUT `scheduledDays`: it is used by `everyWeek` and `interval` ONLY, and
+ * must be EMPTY in `ordinal` (the weekday rides inside each cell) and `dayOfMonth` (there is no
+ * weekday at all). Enforced by `recurrenceRepeatIssue` at both writers, not merely documented.
  */
 export type ScheduledRepeat =
   | { mode: 'everyWeek' } // identical to the field being absent
   | { mode: 'interval'; weeks: number } // every N weeks, on scheduledDays; N ≥ 1
-  | { mode: 'ordinal'; ordinals: Ordinal[]; months?: number } // 1st & 3rd Wed; every N months
+  | { mode: 'ordinal'; cells: OrdinalCell[]; months?: number } // 1st Mon + 3rd Wed; every N months
   | { mode: 'dayOfMonth'; days: number[]; months?: number }; // the 1st & 15th; every N months
 
 export type Recurrence =
   | { type: 'scheduled_quota'; quota: number; period: Period; scheduledDays: Weekday[] }
   | { type: 'quota'; quota: number; period: Period }
-  /** `repeat` absent === `{ mode: 'everyWeek' }`. In `dayOfMonth` mode `scheduledDays` is unused
-   *  and MUST be empty — see `recurrenceRepeatIssue`, which the repository enforces on write. */
+  /** `repeat` absent === `{ mode: 'everyWeek' }`. `scheduledDays` is used by `everyWeek` and
+   *  `interval` only, and MUST be empty in `ordinal` and `dayOfMonth` — see
+   *  `recurrenceRepeatIssue`, which the repository enforces on create and update alike. */
   | { type: 'scheduled'; scheduledDays: Weekday[]; repeat?: ScheduledRepeat }
   | { type: 'unscheduled' } // reopens on completion; neglect-only; never a fake period/quota
   | { type: 'count'; target: number; progress: number }; // done only when progress reaches target
 
-const ORDINALS: readonly unknown[] = [1, 2, 3, 4, 'last'];
+const ORDINALS: readonly unknown[] = [1, 2, 3, 4, 5, 'last'];
+
+const WEEKDAYS: readonly unknown[] = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
 
 function isPositiveInt(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+}
+
+/**
+ * THE ONE RULE ABOUT `scheduledDays`, enforced rather than commented: it belongs to `everyWeek`
+ * and `interval`, and must be empty in the two month-driven modes. `ordinal` carries its weekday
+ * inside each cell and `dayOfMonth` has no weekday at all, so a non-empty list in either is stale
+ * data left by a mode switch — dead, invisible, and waiting for a later reader to trust it.
+ */
+function monthModeScheduledDaysIssue(
+  mode: 'ordinal' | 'dayOfMonth',
+  scheduledDays: Weekday[],
+): string | null {
+  return scheduledDays.length === 0
+    ? null
+    : `${mode} repeat does not use scheduledDays — it must be empty (scheduledDays is for everyWeek and interval only)`;
 }
 
 /**
@@ -166,16 +213,27 @@ export function recurrenceRepeatIssue(recurrence: Recurrence): string | null {
         ? null
         : `interval repeat needs a whole number of weeks ≥ 1, got ${String(repeat.weeks)}`;
     case 'ordinal': {
-      if (!Array.isArray(repeat.ordinals) || repeat.ordinals.length === 0) {
-        return 'ordinal repeat needs at least one ordinal (1–4 or "last")';
+      if (!Array.isArray(repeat.cells) || repeat.cells.length === 0) {
+        return 'ordinal repeat needs at least one (ordinal, weekday) cell — one per ticked box';
       }
-      const bad = repeat.ordinals.find((ordinal) => !ORDINALS.includes(ordinal));
-      if (bad !== undefined) {
-        return `ordinal repeat accepts 1, 2, 3, 4 or "last" — there is no 5th; got ${String(bad)}`;
+      // findIndex, not find: a cell that is literally `undefined` is exactly the kind of junk this
+      // has to catch, and `find` would hand it back indistinguishable from "nothing wrong".
+      const badIndex = repeat.cells.findIndex(
+        (cell) =>
+          typeof cell !== 'object' ||
+          cell === null ||
+          !ORDINALS.includes(cell.ordinal) ||
+          !WEEKDAYS.includes(cell.weekday),
+      );
+      if (badIndex !== -1) {
+        return `ordinal repeat cells are { ordinal: 1–5 or "last", weekday }; cell ${badIndex} is ${JSON.stringify(
+          repeat.cells[badIndex],
+        )}`;
       }
-      return repeat.months === undefined || isPositiveInt(repeat.months)
-        ? null
-        : `ordinal repeat's month stride must be a whole number ≥ 1, got ${String(repeat.months)}`;
+      if (repeat.months !== undefined && !isPositiveInt(repeat.months)) {
+        return `ordinal repeat's month stride must be a whole number ≥ 1, got ${String(repeat.months)}`;
+      }
+      return monthModeScheduledDaysIssue('ordinal', scheduledDays);
     }
     case 'dayOfMonth': {
       if (!Array.isArray(repeat.days) || repeat.days.length === 0) {
@@ -188,12 +246,7 @@ export function recurrenceRepeatIssue(recurrence: Recurrence): string | null {
       if (repeat.months !== undefined && !isPositiveInt(repeat.months)) {
         return `dayOfMonth repeat's month stride must be a whole number ≥ 1, got ${String(repeat.months)}`;
       }
-      // THE ONE MODELLING COMPROMISE, ENFORCED RATHER THAN COMMENTED. dayOfMonth does not use
-      // scheduledDays at all; requiring it empty is what stops a mode switch in the editor from
-      // leaving stale weekdays on disk, unused and invisible, for a later reader to trust.
-      return scheduledDays.length === 0
-        ? null
-        : 'dayOfMonth repeat does not use scheduledDays — it must be empty';
+      return monthModeScheduledDaysIssue('dayOfMonth', scheduledDays);
     }
   }
 }

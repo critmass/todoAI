@@ -34,17 +34,16 @@ task — 22.
 | ~~9~~ | ~~**58** Test-hygiene sweep~~ | Sonnet | `test_hygiene_sweep_task_58.md` ✅ | W8 asserted + proven red; W11/W12 carve-outs stated. No behaviour change. | ✅ **DONE 2026-08-22** |
 | ~~7~~ | ~~**59** Fix the realm-fragile assertion~~ | Opus 5 | `realm_error_assertion_task_59.md` ✅ | Boundary fix in `wrapDatabase`; `consistency.test.ts` never edited. **4/4 green under the consistency-LAST ordering that was 6/6 FAIL.** | ✅ **DONE 2026-08-22** |
 | ~~10~~ | ~~**46** Recurrence modes — **Phase 1 (engine)**~~ | Opus 5 | `recurrence_modes_task_46.md` ✅ | Four modes, no migration; the drift test proves fortnightly ≠ 1st&3rd. **1121/92.** Report: `docs/eval/task46_phase1_findings_report.md`. | ✅ **PHASE 1 DONE 2026-08-24** |
-| 1 | **46 Phase 2** — the recurrence editor | Sonnet | ⬜ *to write* | Mode selector + interval stepper + ordinal chips (1st/2nd/3rd/4th/Last) + day-of-month multi-select + month-stride stepper, all on the existing `SelectChip`. 🔴 **Until this lands the four modes are unreachable — the task-14 state.** | queued |
-| 2 | **17 Phase B** — the six §5.4 loops | Opus | ⬜ *to write* | Shrinkage, regression protection, rollback; consumes task 41's thermal sampler; owns the internal 2/4 band per task 50. **The big one — keep it its own pass.** | queued |
-| 3 | **47 + 51** `docs/reference/` pass | Sonnet | ⬜ *to write (one brief, both)* | Regenerate the schema snapshot (2 migrations + 007 stale) **and** fold the spec §8.4 backup amendment + `session_ended_early` into the spec — one pass, per the board's "pair" note. | queued |
-| 4 | **45** Deviation audit | Opus | `deviation_audit_task_45.md` ✅ | Audit builder decisions that changed a human ruling without sign-off; relabel orientation §5. Audit-only. | queued |
+| ~~11~~ | ~~**46 Phase 2** — the recurrence editor~~ | Opus 5 | `recurrence_editor_task_46_phase2.md` ✅ | Dropdown + 6×7 grid + 31-cell grid; **all four modes reachable end-to-end**, round-trip pinned byte-for-byte. **1199/93.** | ✅ **DONE 2026-08-24** |
+| 1 | **17 Phase B** — the six §5.4 loops | Opus | ⬜ *to write* | Shrinkage, regression protection, rollback; consumes task 41's thermal sampler; owns the internal 2/4 band per task 50. **The big one — keep it its own pass.** | queued |
+| 2 | **47 + 51** `docs/reference/` pass | Sonnet | ⬜ *to write (one brief, both)* | Regenerate the schema snapshot (2 migrations + 007 stale) **and** fold the spec §8.4 backup amendment + `session_ended_early` into the spec — one pass, per the board's "pair" note. | queued |
+| 3 | **45** Deviation audit | Opus | `deviation_audit_task_45.md` ✅ | Audit builder decisions that changed a human ruling without sign-off; relabel orientation §5. Audit-only. | queued |
 
-**Ordering rationale.** Waves 1 and 2 are done (49, 52, 57, 58, 56, 59), plus 17 Phase A and 46
-Phase 1. **Four left, all headless.** 🔴 **46 Phase 2 should go next** — until it lands the four new
-recurrence modes are unreachable by a user, which is exactly the state task 14 sat in and which this
-session spent effort undoing; leaving a second one open would be a choice, not an oversight.
-**17 Phase B** is the largest remaining item and runs alone. **45 sits at the tail by Jason.**
-Briefs are written just-in-time before launch.
+**Ordering rationale.** Two parallel waves (49, 52, 57, 58, 56, 59), the unnumbered housekeeping pass,
+17 Phase A, and task 46 end to end (engine → amendment → editor) are all done. **Three left, all
+headless and none blocked.** **17 Phase B** is the largest remaining item and runs alone — it overlaps
+`src/scoring`. **47 + 51** is one `docs/reference/` pass. **45 sits at the tail by Jason.** Briefs are
+written just-in-time before launch.
 
 **Board is the source of truth for status;** this file is the running order. Update the Status column as
 each lands, and strike a task when it's committed.

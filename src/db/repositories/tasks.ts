@@ -6,6 +6,7 @@ import {
   taskRowToDomain,
   type Period,
   type Recurrence,
+  type ScheduledRepeat,
   type Task,
   type TaskRecurrenceEntity,
   type TaskWriteInput,
@@ -39,6 +40,40 @@ const NEGLECT_PERIOD_DAYS: Record<Period, number> = { day: 1, week: 7, month: 30
  * nothing here saturates. Do not let a refactor turn this into a ceiling. Task 13's period
  * rollover composes with this rather than re-deriving it (brief §4).
  */
+/**
+ * Task 46 — how long one turn of a `scheduled` schedule takes, and how many occurrences it holds.
+ * Both halves of R8's `cycle / (1 + occurrences)` fraction, for one repeat mode.
+ *
+ * `month` stays the same conventional 30-day approximation the rest of this gate uses: it is a
+ * fail-safe start condition, not a scheduling calculation, and the real dates come from
+ * `src/services/recurrence/period.ts`. The worked example from the brief falls out — 1st & 3rd
+ * Wednesday is 30 / (1 + 2) = 10 days.
+ */
+function scheduledCycle(
+  repeat: ScheduledRepeat | undefined,
+  weekdays: number,
+): { cycleDays: number; occurrences: number } {
+  const mode = repeat ?? { mode: 'everyWeek' as const };
+  switch (mode.mode) {
+    case 'everyWeek':
+      return { cycleDays: NEGLECT_PERIOD_DAYS.week, occurrences: weekdays };
+    case 'interval':
+      // Every scheduled weekday still fires, but only in one week out of `weeks`.
+      return { cycleDays: NEGLECT_PERIOD_DAYS.week * Math.max(1, mode.weeks), occurrences: weekdays };
+    case 'ordinal':
+      return {
+        cycleDays: NEGLECT_PERIOD_DAYS.month * Math.max(1, mode.months ?? 1),
+        occurrences: Math.max(1, mode.ordinals.length) * weekdays,
+      };
+    case 'dayOfMonth':
+      // Weekdays play no part here — the occurrences are the named dates.
+      return {
+        cycleDays: NEGLECT_PERIOD_DAYS.month * Math.max(1, mode.months ?? 1),
+        occurrences: Math.max(1, mode.days.length),
+      };
+  }
+}
+
 export function neglectAccrualGapDays(recurrence: Recurrence | undefined): number {
   if (recurrence === undefined) return 0; // one-off: accrue from created_at, as today
   switch (recurrence.type) {
@@ -52,8 +87,12 @@ export function neglectAccrualGapDays(recurrence: Recurrence | undefined): numbe
       // scheduledDays are weekdays → a weekly cycle. More scheduled days = more occurrences =
       // a shorter gap (surfaces sooner), which is both faithful to "half the distance between
       // occurrences" and the safe direction for a fail-safe. Empty list defaults to one/week.
-      const occurrencesPerWeek = Math.max(1, recurrence.scheduledDays.length);
-      return NEGLECT_PERIOD_DAYS.week / (1 + occurrencesPerWeek);
+      const weekdays = Math.max(1, recurrence.scheduledDays.length);
+      // Task 46: a repeat mode changes the CYCLE and the OCCURRENCES PER CYCLE, and nothing else —
+      // the formula, and the fact that this is a start condition rather than a cap (constraint #5),
+      // are untouched. An absent repeat is `everyWeek` and lands on the identical pre-task-46 value.
+      const { cycleDays, occurrences } = scheduledCycle(recurrence.repeat, weekdays);
+      return cycleDays / (1 + occurrences);
     }
   }
 }

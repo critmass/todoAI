@@ -39,6 +39,87 @@ describe('neglectAccrualGapDays (task 25 R8 — the accrual gate, pure)', () => 
   });
 });
 
+describe('neglectAccrualGapDays with task 46 repeat modes (R8 still reads the DEFINITION)', () => {
+  // The gate is `cycle / (1 + occurrences per cycle)`. A repeat mode changes both halves of that
+  // fraction and nothing else: it is still a START condition, never a cap (constraint #5).
+
+  it('an absent or explicit everyWeek is the pre-task-46 answer, unchanged', () => {
+    expect(neglectAccrualGapDays({ type: 'scheduled', scheduledDays: ['monday'] })).toBeCloseTo(3.5, 6);
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled',
+        scheduledDays: ['monday'],
+        repeat: { mode: 'everyWeek' },
+      }),
+    ).toBeCloseTo(3.5, 6);
+  });
+
+  it('interval stretches the cycle: every other Wednesday is 14 / (1 + 1) = 7 d', () => {
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled',
+        scheduledDays: ['wednesday'],
+        repeat: { mode: 'interval', weeks: 2 },
+      }),
+    ).toBeCloseTo(7, 6);
+    // Three-week stride, two days per on-week: 21 / (1 + 2) = 7 d
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled',
+        scheduledDays: ['tuesday', 'thursday'],
+        repeat: { mode: 'interval', weeks: 3 },
+      }),
+    ).toBeCloseTo(7, 6);
+  });
+
+  it('ordinal is a MONTHLY cycle: 1st & 3rd Wednesday is 30 / (1 + 2) ≈ 10 d (brief §4)', () => {
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled',
+        scheduledDays: ['wednesday'],
+        repeat: { mode: 'ordinal', ordinals: [1, 3] },
+      }),
+    ).toBeCloseTo(10, 6);
+    // Two weekdays x one ordinal, every other month: 60 / (1 + 2) = 20 d
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled',
+        scheduledDays: ['monday', 'friday'],
+        repeat: { mode: 'ordinal', ordinals: ['last'], months: 2 },
+      }),
+    ).toBeCloseTo(20, 6);
+  });
+
+  it('dayOfMonth counts dates, not weekdays: the 15th is 30 / (1 + 1) = 15 d', () => {
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled',
+        scheduledDays: [],
+        repeat: { mode: 'dayOfMonth', days: [15] },
+      }),
+    ).toBeCloseTo(15, 6);
+    // 1st & 15th, quarterly: 90 / (1 + 2) = 30 d
+    expect(
+      neglectAccrualGapDays({
+        type: 'scheduled',
+        scheduledDays: [],
+        repeat: { mode: 'dayOfMonth', days: [1, 15], months: 3 },
+      }),
+    ).toBeCloseTo(30, 6);
+  });
+
+  it('never returns a gap that would gate accrual forever, however sparse the schedule', () => {
+    // A yearly reminder still starts accruing — the fail-safe is uncapped and must remain reachable.
+    const gap = neglectAccrualGapDays({
+      type: 'scheduled',
+      scheduledDays: [],
+      repeat: { mode: 'dayOfMonth', days: [1], months: 12 },
+    });
+    expect(gap).toBeCloseTo(180, 6);
+    expect(Number.isFinite(gap)).toBe(true);
+  });
+});
+
 describe('tasksRepository', () => {
   let conn: TestSqliteConnection;
   let repo: TasksRepository;

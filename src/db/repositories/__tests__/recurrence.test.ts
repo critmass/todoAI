@@ -129,3 +129,76 @@ describe('recurrenceRepository', () => {
     ).toThrow(/CHECK constraint failed/);
   });
 });
+
+// ── Task 46 — the repeat field at the data boundary ──────────────────────────────────────────
+
+describe('recurrenceRepository with scheduled repeat modes (task 46)', () => {
+  let conn: TestSqliteConnection;
+  let repo: RecurrenceRepository;
+  let taskId: number;
+
+  beforeEach(async () => {
+    conn = createTestConnection();
+    await runMigrations(conn);
+    repo = createRecurrenceRepository(conn);
+    const tasks = createTasksRepository(conn);
+    const task = await tasks.create({ title: 'Recurring task', estimatedDuration: 10 });
+    taskId = task.id;
+  });
+
+  afterEach(() => conn.close());
+
+  const legal: Recurrence[] = [
+    { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'everyWeek' } },
+    { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'interval', weeks: 2 } },
+    { type: 'scheduled', scheduledDays: ['wednesday'], repeat: { mode: 'ordinal', ordinals: [1, 3] } },
+    { type: 'scheduled', scheduledDays: [], repeat: { mode: 'dayOfMonth', days: [1, 15], months: 2 } },
+  ];
+
+  it.each(legal)('stores and reads back %j without a new recurrence_type', async (recurrence) => {
+    await repo.create(taskId, recurrence);
+    const stored = conn.raw
+      .prepare('SELECT recurrence_type FROM task_recurrence WHERE task_id = ?')
+      .get(taskId) as { recurrence_type: string };
+    expect(stored.recurrence_type).toBe('scheduled'); // no CHECK rebuild anywhere in this task
+
+    // everyWeek normalises to the pre-task-46 shape (absent); the rest round-trip verbatim.
+    const expected =
+      recurrence.type === 'scheduled' && recurrence.repeat?.mode === 'everyWeek'
+        ? { type: 'scheduled', scheduledDays: recurrence.scheduledDays }
+        : recurrence;
+    expect(await repo.getByTaskId(taskId)).toEqual(expected);
+  });
+
+  it('🔴 refuses to store a dayOfMonth recurrence that still carries weekdays', async () => {
+    await expect(
+      repo.create(taskId, {
+        type: 'scheduled',
+        scheduledDays: ['monday'],
+        repeat: { mode: 'dayOfMonth', days: [15] },
+      }),
+    ).rejects.toThrow(RecurrenceValidationError);
+    expect(await repo.getByTaskId(taskId)).toBeUndefined(); // nothing was written
+  });
+
+  it('refuses an illegal stride or ordinal list, on create and on update alike', async () => {
+    await expect(
+      repo.create(taskId, {
+        type: 'scheduled',
+        scheduledDays: ['monday'],
+        repeat: { mode: 'interval', weeks: 0 },
+      }),
+    ).rejects.toThrow(RecurrenceValidationError);
+
+    await repo.create(taskId, { type: 'scheduled', scheduledDays: ['monday'] });
+    await expect(
+      repo.update(taskId, {
+        type: 'scheduled',
+        scheduledDays: ['monday'],
+        repeat: { mode: 'ordinal', ordinals: [] },
+      }),
+    ).rejects.toThrow(RecurrenceValidationError);
+    // The stored row is untouched by the rejected update.
+    expect(await repo.getByTaskId(taskId)).toEqual({ type: 'scheduled', scheduledDays: ['monday'] });
+  });
+});

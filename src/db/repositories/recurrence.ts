@@ -1,6 +1,7 @@
 import type { SqliteConnection } from '../connection';
 import { NotFoundError, RecurrenceValidationError } from '../errors';
 import {
+  recurrenceRepeatIssue,
   recurrenceToRow,
   taskRecurrenceRowToDomain,
   type Recurrence,
@@ -27,6 +28,22 @@ function translateConstraintError(err: unknown, recurrence: Recurrence): Error {
   return err instanceof Error ? err : new Error(message);
 }
 
+/**
+ * Task 46 — the write-side gate on `scheduled.repeat`.
+ *
+ * `recurrence_pattern` is free-form JSON (`CHECK (json_valid(...))` and nothing more), which is
+ * exactly why the four repeat modes needed no migration — and equally why the schema cannot say
+ * anything about their legality. This is the one place that can, and it runs on BOTH writers, so
+ * the rule "dayOfMonth carries no weekdays" is structural rather than a convention the next editor
+ * screen is trusted to remember.
+ */
+function requireValidRepeat(recurrence: Recurrence): void {
+  const issue = recurrenceRepeatIssue(recurrence);
+  if (issue !== null) {
+    throw new RecurrenceValidationError(`Invalid recurrence for type '${recurrence.type}': ${issue}`);
+  }
+}
+
 export function createRecurrenceRepository(db: SqliteConnection) {
   async function getEntityByTaskId(taskId: number): Promise<TaskRecurrenceEntity | undefined> {
     const result = await db.execute('SELECT * FROM task_recurrence WHERE task_id = ?', [taskId]);
@@ -42,6 +59,7 @@ export function createRecurrenceRepository(db: SqliteConnection) {
   }
 
   async function create(taskId: number, recurrence: Recurrence): Promise<TaskRecurrenceEntity> {
+    requireValidRepeat(recurrence);
     const row = recurrenceToRow(recurrence);
     try {
       await db.execute(
@@ -73,6 +91,7 @@ export function createRecurrenceRepository(db: SqliteConnection) {
    *  type has a period (§4.2) and because migration 006's CHECK now refuses one; leaving the old
    *  boundary behind would turn an ordinary edit into a constraint failure. */
   async function update(taskId: number, recurrence: Recurrence): Promise<TaskRecurrenceEntity> {
+    requireValidRepeat(recurrence);
     const row = recurrenceToRow(recurrence);
     const keepsPeriod = recurrence.type !== 'unscheduled' && recurrence.type !== 'count';
     try {

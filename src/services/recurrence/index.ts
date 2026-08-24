@@ -19,7 +19,10 @@ export {
   localCalendarDate,
   nextOccurrenceAfter,
   nextOccurrenceOnOrAfter,
+  nextScheduledAfter,
+  nextScheduledOnOrAfter,
   rollBoundaryPast,
   weekdayOf,
   type CalendarDate,
+  type ScheduleSpec,
 } from './period';

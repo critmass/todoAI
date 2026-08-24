@@ -19,7 +19,7 @@
 // extraction time by `resolveDue`). Nothing here reads or writes a DueSpec, and nothing here
 // resolves the word "next" — see the task 36 findings report §5.
 
-import type { Period, Weekday } from '../../types/domain';
+import type { Ordinal, Period, ScheduledRepeat, Weekday } from '../../types/domain';
 
 /** A calendar date, 'YYYY-MM-DD'. A DATE — not an instant, not a timezone-bearing timestamp. */
 export type CalendarDate = string;
@@ -122,6 +122,187 @@ export function nextOccurrenceOnOrAfter(from: CalendarDate, days: readonly Weekd
 /** The next occurrence STRICTLY after `from` — used when the occurrence on `from` is already done. */
 export function nextOccurrenceAfter(from: CalendarDate, days: readonly Weekday[]): CalendarDate | null {
   return nextOccurrenceOnOrAfter(addDays(from, 1), days);
+}
+
+// =====================================================================
+// Task 46 — the four repeat modes. Still pure local-calendar arithmetic: every step below is
+// day/month counting on 'YYYY-MM-DD', so a 23- or 25-hour day is invisible to all of it.
+// =====================================================================
+
+/**
+ * A weekday schedule, its repeat rule, and the date the strides are counted from. ONE entry point
+ * (`nextScheduledOnOrAfter`) resolves every mode, switching exhaustively on `repeat.mode`, so a
+ * fifth mode added to the union later fails to compile here rather than silently behaving weekly.
+ */
+export interface ScheduleSpec {
+  scheduledDays: readonly Weekday[];
+  /** Absent === `{ mode: 'everyWeek' }` — the pre-task-46 behaviour, unchanged. */
+  repeat?: ScheduledRepeat;
+  /** The stride anchor: the TASK'S CREATION DATE (ruled — a fixed cadence with no drift, and no
+   *  date-picker, which the app does not have). Ignored by `everyWeek`. */
+  anchor: CalendarDate;
+}
+
+function floorDiv(numerator: number, denominator: number): number {
+  return Math.floor(numerator / denominator);
+}
+
+/** Whole days from `a` to `b`, signed. Exact: both sides are UTC-midnight calendar cursors. */
+function daysBetween(a: CalendarDate, b: CalendarDate): number {
+  return Math.round((toCursor(b).getTime() - toCursor(a).getTime()) / MS_PER_DAY);
+}
+
+/** Months since year 0, so a stride can be counted without month/year bookkeeping at each step. */
+function monthIndex(date: CalendarDate): number {
+  const cursor = toCursor(date);
+  return cursor.getUTCFullYear() * 12 + cursor.getUTCMonth();
+}
+
+function daysInMonth(index: number): number {
+  return new Date(Date.UTC(Math.floor(index / 12), (index % 12) + 1, 0)).getUTCDate();
+}
+
+function dateInMonth(index: number, day: number): CalendarDate {
+  return fromCursor(new Date(Date.UTC(Math.floor(index / 12), index % 12, day)));
+}
+
+/** The first index ≥ `index` that is a whole number of `stride`s from `anchorIndex`. Handles
+ *  `index` before the anchor too (a negative offset floors correctly). */
+function alignToStride(index: number, anchorIndex: number, stride: number): number {
+  const offset = index - anchorIndex;
+  const remainder = ((offset % stride) + stride) % stride;
+  return remainder === 0 ? index : index + (stride - remainder);
+}
+
+/** Every date in the given month that is one of `days`, in date order. */
+function weekdayDatesInMonth(index: number, days: readonly Weekday[]): CalendarDate[] {
+  const wanted = new Set(days);
+  const dates: CalendarDate[] = [];
+  const total = daysInMonth(index);
+  for (let day = 1; day <= total; day++) {
+    const date = dateInMonth(index, day);
+    if (wanted.has(weekdayOf(date))) dates.push(date);
+  }
+  return dates;
+}
+
+/**
+ * The dates an `ordinal` schedule names inside one month, sorted and de-duplicated.
+ *
+ * `'last'` is resolved per weekday, which is the whole point of having it: in a month with four
+ * Wednesdays it lands on the same date as the 4th, and in a month with five it lands a week later.
+ * Ordinals 1–4 always exist — every month contains at least four of every weekday.
+ */
+function ordinalDatesInMonth(
+  index: number,
+  days: readonly Weekday[],
+  ordinals: readonly Ordinal[],
+): CalendarDate[] {
+  const dates = new Set<CalendarDate>();
+  for (const day of days) {
+    const occurrences = weekdayDatesInMonth(index, [day]);
+    if (occurrences.length === 0) continue;
+    for (const ordinal of ordinals) {
+      const date = ordinal === 'last' ? occurrences[occurrences.length - 1] : occurrences[ordinal - 1];
+      if (date !== undefined) dates.add(date);
+    }
+  }
+  return [...dates].sort(compareDates);
+}
+
+/**
+ * The dates a `dayOfMonth` schedule names inside one month, sorted and de-duplicated.
+ *
+ * SHORT MONTHS CLAMP, THEY DO NOT SKIP (a product-visible choice, brief §3): "the 31st" fires on
+ * 28 February — or the 29th in a leap year — because a rent reminder that silently misses a month
+ * is the worse failure by a distance. The de-duplication is what stops "the 30th and the 31st"
+ * from firing twice on 28 February.
+ */
+function dayOfMonthDatesInMonth(index: number, days: readonly number[]): CalendarDate[] {
+  const total = daysInMonth(index);
+  const dates = new Set<CalendarDate>(days.map((day) => dateInMonth(index, Math.min(day, total))));
+  return [...dates].sort(compareDates);
+}
+
+/** Walks on-months from `from` forward, returning the first named date on or after it. Two on-month
+ *  attempts always suffice (the first may be spent), and the third is belt-and-braces. */
+function nextMonthlyOccurrence(
+  from: CalendarDate,
+  anchor: CalendarDate,
+  stride: number,
+  datesIn: (index: number) => CalendarDate[],
+): CalendarDate | null {
+  let index = alignToStride(monthIndex(from), monthIndex(anchor), stride);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const candidate = datesIn(index).find((date) => compareDates(date, from) >= 0);
+    if (candidate !== undefined) return candidate;
+    index += stride;
+  }
+  return null;
+}
+
+/**
+ * THE ONE ENTRY POINT: the first day on or after `from` that this schedule actually lands on, or
+ * null when it names none (an empty weekday list, an empty ordinal list — nothing is invented).
+ *
+ * The two week-driven modes and the two month-driven ones differ in exactly the way users get
+ * wrong: `interval` counts fortnights straight through month ends, while `ordinal` restarts its
+ * count every month, so the two drift apart permanently the first time a month holds five of the
+ * chosen weekday. Both are implemented here, side by side, so that difference is visible rather
+ * than folded into a shared helper.
+ */
+export function nextScheduledOnOrAfter(from: CalendarDate, spec: ScheduleSpec): CalendarDate | null {
+  const { scheduledDays, anchor } = spec;
+  const repeat: ScheduledRepeat = spec.repeat ?? { mode: 'everyWeek' };
+
+  switch (repeat.mode) {
+    case 'everyWeek':
+      return nextOccurrenceOnOrAfter(from, scheduledDays);
+
+    case 'interval': {
+      if (scheduledDays.length === 0) return null;
+      const stride = Math.max(1, Math.trunc(repeat.weeks));
+      const wanted = new Set(scheduledDays);
+      // Weeks are seven-day blocks measured from the anchor itself, NOT calendar (Mon–Sun) weeks:
+      // "every other Wednesday" set up on a Saturday should fire on the Wednesday four days later,
+      // not wait eleven days because the anchor happened to land late in an ISO week.
+      let block = floorDiv(daysBetween(anchor, from), 7);
+      const remainder = ((block % stride) + stride) % stride;
+      if (remainder !== 0) block += stride - remainder;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const start = addDays(anchor, block * 7);
+        const searchFrom = compareDates(start, from) > 0 ? start : from;
+        for (let ahead = daysBetween(start, searchFrom); ahead < 7; ahead++) {
+          const candidate = addDays(start, ahead);
+          if (wanted.has(weekdayOf(candidate))) return candidate;
+        }
+        block += stride; // the rest of this on-block is spent; the next on-block covers all 7 days
+      }
+      return null; // unreachable: a whole on-block contains every weekday
+    }
+
+    case 'ordinal': {
+      if (scheduledDays.length === 0 || repeat.ordinals.length === 0) return null;
+      const stride = Math.max(1, Math.trunc(repeat.months ?? 1));
+      return nextMonthlyOccurrence(from, anchor, stride, (index) =>
+        ordinalDatesInMonth(index, scheduledDays, repeat.ordinals),
+      );
+    }
+
+    case 'dayOfMonth': {
+      // scheduledDays is unused here by construction and is required empty on write.
+      if (repeat.days.length === 0) return null;
+      const stride = Math.max(1, Math.trunc(repeat.months ?? 1));
+      return nextMonthlyOccurrence(from, anchor, stride, (index) =>
+        dayOfMonthDatesInMonth(index, repeat.days),
+      );
+    }
+  }
+}
+
+/** The next occurrence STRICTLY after `from` — the "today's one is already done" case. */
+export function nextScheduledAfter(from: CalendarDate, spec: ScheduleSpec): CalendarDate | null {
+  return nextScheduledOnOrAfter(addDays(from, 1), spec);
 }
 
 /**

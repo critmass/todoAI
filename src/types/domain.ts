@@ -101,12 +101,113 @@ export type Weekday =
   | 'saturday'
   | 'sunday';
 
+/** Which occurrence of a weekday within a month. There is no 5th — a month has four or five of
+ *  any weekday, so the fifth is `'last'` and only sometimes exists as a distinct date. In a
+ *  four-weekday month `'last'` IS the 4th; in a five-weekday month it is the 5th. */
+export type Ordinal = 1 | 2 | 3 | 4 | 'last';
+
+/**
+ * Task 46 — how often a `scheduled` recurrence's weekdays actually come round.
+ *
+ * WHY A TAGGED `mode` RATHER THAN INFERRING FROM WHICH FIELD IS PRESENT. Distinguishing states by
+ * absence is the exact shape that already cost this project real pain (`null` vs `unscheduled` —
+ * constraint #7, two absent-ish states with opposite semantics). The tag also gives every switch
+ * over this union compile-time exhaustiveness, so a fifth mode later cannot silently fall through
+ * to "weekly".
+ *
+ * `undefined` (the field absent altogether) is DEFINED to mean `everyWeek`, byte for byte the
+ * pre-task-46 behaviour: the live alpha rows have no `repeat` key and must keep meaning what they
+ * have always meant. `recurrenceToPattern` normalises an explicit `everyWeek` back to absent for
+ * the same reason — one canonical on-disk shape for "weekly", not two.
+ *
+ * All strides (`weeks`, `months`) are counted from the TASK'S CREATION DATE. That is a ruling, not
+ * an implementation detail: it gives a fixed cadence with no drift and, decisively, requires no
+ * date-picker — the app has none and this deliberately does not introduce one.
+ */
+export type ScheduledRepeat =
+  | { mode: 'everyWeek' } // identical to the field being absent
+  | { mode: 'interval'; weeks: number } // every N weeks, on scheduledDays; N ≥ 1
+  | { mode: 'ordinal'; ordinals: Ordinal[]; months?: number } // 1st & 3rd Wed; every N months
+  | { mode: 'dayOfMonth'; days: number[]; months?: number }; // the 1st & 15th; every N months
+
 export type Recurrence =
   | { type: 'scheduled_quota'; quota: number; period: Period; scheduledDays: Weekday[] }
   | { type: 'quota'; quota: number; period: Period }
-  | { type: 'scheduled'; scheduledDays: Weekday[] }
+  /** `repeat` absent === `{ mode: 'everyWeek' }`. In `dayOfMonth` mode `scheduledDays` is unused
+   *  and MUST be empty — see `recurrenceRepeatIssue`, which the repository enforces on write. */
+  | { type: 'scheduled'; scheduledDays: Weekday[]; repeat?: ScheduledRepeat }
   | { type: 'unscheduled' } // reopens on completion; neglect-only; never a fake period/quota
   | { type: 'count'; target: number; progress: number }; // done only when progress reaches target
+
+const ORDINALS: readonly unknown[] = [1, 2, 3, 4, 'last'];
+
+function isPositiveInt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+}
+
+/**
+ * The legality rules for `repeat`, as a message or null — ONE predicate, used in both directions:
+ * the repository refuses to WRITE anything this rejects, and `recurrencePatternToRecurrence`
+ * refuses to LOAD it (degrading to weekly). What cannot be stored therefore cannot be read back
+ * either, whoever hand-edited the database in between.
+ *
+ * Note what is deliberately NOT rejected: an empty `scheduledDays` on a weekday-driven mode. That
+ * has always been legal for `scheduled` (the sweep answers "no occurrence" rather than inventing
+ * one — task 36), and task 46 does not tighten it.
+ */
+export function recurrenceRepeatIssue(recurrence: Recurrence): string | null {
+  if (recurrence.type !== 'scheduled' || recurrence.repeat === undefined) return null;
+  const { repeat, scheduledDays } = recurrence;
+  switch (repeat.mode) {
+    case 'everyWeek':
+      return null;
+    case 'interval':
+      return isPositiveInt(repeat.weeks)
+        ? null
+        : `interval repeat needs a whole number of weeks ≥ 1, got ${String(repeat.weeks)}`;
+    case 'ordinal': {
+      if (!Array.isArray(repeat.ordinals) || repeat.ordinals.length === 0) {
+        return 'ordinal repeat needs at least one ordinal (1–4 or "last")';
+      }
+      const bad = repeat.ordinals.find((ordinal) => !ORDINALS.includes(ordinal));
+      if (bad !== undefined) {
+        return `ordinal repeat accepts 1, 2, 3, 4 or "last" — there is no 5th; got ${String(bad)}`;
+      }
+      return repeat.months === undefined || isPositiveInt(repeat.months)
+        ? null
+        : `ordinal repeat's month stride must be a whole number ≥ 1, got ${String(repeat.months)}`;
+    }
+    case 'dayOfMonth': {
+      if (!Array.isArray(repeat.days) || repeat.days.length === 0) {
+        return 'dayOfMonth repeat needs at least one day of the month';
+      }
+      const bad = repeat.days.find((day) => !isPositiveInt(day) || day > 31);
+      if (bad !== undefined) {
+        return `dayOfMonth repeat accepts whole days 1–31, got ${String(bad)}`;
+      }
+      if (repeat.months !== undefined && !isPositiveInt(repeat.months)) {
+        return `dayOfMonth repeat's month stride must be a whole number ≥ 1, got ${String(repeat.months)}`;
+      }
+      // THE ONE MODELLING COMPROMISE, ENFORCED RATHER THAN COMMENTED. dayOfMonth does not use
+      // scheduledDays at all; requiring it empty is what stops a mode switch in the editor from
+      // leaving stale weekdays on disk, unused and invisible, for a later reader to trust.
+      return scheduledDays.length === 0
+        ? null
+        : 'dayOfMonth repeat does not use scheduledDays — it must be empty';
+    }
+  }
+}
+
+/** Reads a stored `repeat` value, or undefined for absent/unreadable. Anything illegal degrades to
+ *  weekly rather than throwing: refusing to open a user's own database over a malformed field is
+ *  the worse failure, and weekly is the behaviour every such row had before task 46 anyway. */
+function parseScheduledRepeat(value: unknown, scheduledDays: Weekday[]): ScheduledRepeat | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const repeat = value as ScheduledRepeat;
+  if (!['everyWeek', 'interval', 'ordinal', 'dayOfMonth'].includes(repeat.mode)) return undefined;
+  if (recurrenceRepeatIssue({ type: 'scheduled', scheduledDays, repeat }) !== null) return undefined;
+  return repeat.mode === 'everyWeek' ? undefined : repeat;
+}
 
 /**
  * A task's relationship to recurrence is intentionally NOT a field on `Task` — tasks.ts and
@@ -154,8 +255,13 @@ function recurrencePatternToRecurrence(
       };
     case 'quota':
       return { type, quota: pattern.quota as number, period: pattern.period as Period };
-    case 'scheduled':
-      return { type, scheduledDays: (pattern.scheduledDays as Weekday[]) ?? [] };
+    case 'scheduled': {
+      const scheduledDays = (pattern.scheduledDays as Weekday[]) ?? [];
+      const repeat = parseScheduledRepeat(pattern.repeat, scheduledDays);
+      // Absent, not `{mode:'everyWeek'}`: nothing downstream may start telling a pre-task-46 row
+      // apart from a new weekly one, because there is no difference.
+      return repeat === undefined ? { type, scheduledDays } : { type, scheduledDays, repeat };
+    }
     case 'unscheduled':
       return { type };
     case 'count':
@@ -177,7 +283,12 @@ function recurrenceToPattern(recurrence: Recurrence): Record<string, unknown> {
     case 'quota':
       return { quota: recurrence.quota, period: recurrence.period };
     case 'scheduled':
-      return { scheduledDays: recurrence.scheduledDays };
+      // `everyWeek` is normalised away, so a weekly schedule is written in EXACTLY the shape it
+      // had before task 46 — `{"scheduledDays":[…]}`. Saving an untouched weekly task from the
+      // Phase 2 editor must not rewrite live rows into a new shape.
+      return recurrence.repeat === undefined || recurrence.repeat.mode === 'everyWeek'
+        ? { scheduledDays: recurrence.scheduledDays }
+        : { scheduledDays: recurrence.scheduledDays, repeat: recurrence.repeat };
     case 'unscheduled':
       return {};
     case 'count':

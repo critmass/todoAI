@@ -28,7 +28,7 @@
 // NOT pause, cap, or delay accrual "while a task is between occurrences" — that convenience would
 // be a saturation bug against constraint #5.
 
-import type { Period, Weekday } from '../../types/domain';
+import type { Period, TaskRecurrenceEntity } from '../../types/domain';
 import type { RecurrenceRepository, SweepableRecurrence } from '../../db/repositories/recurrence';
 import type { TasksRepository } from '../../db/repositories/tasks';
 import {
@@ -37,10 +37,11 @@ import {
   compareDates,
   isCalendarDate,
   localCalendarDate,
-  nextOccurrenceAfter,
-  nextOccurrenceOnOrAfter,
+  nextScheduledAfter,
+  nextScheduledOnOrAfter,
   rollBoundaryPast,
   type CalendarDate,
+  type ScheduleSpec,
 } from './period';
 
 export interface RecurrenceSweepDeps {
@@ -97,7 +98,12 @@ export function sweepDateFrom(nowMs: number): CalendarDate {
  *   count and no progress column in play for it, so a rollover would have nothing to reset. Its
  *   period IS its schedule, and `next_due_at` is where that lives. (The spec's §4.2 table marks
  *   `scheduled` "Period? Yes"; in the built data model that period is not separately represented —
- *   see the findings report §2.)
+ *   see the findings report §2.) TASK 46 DOES NOT CHANGE THIS, and the reason is worth stating:
+ *   `ordinal` and `dayOfMonth` have an obvious monthly period, but NOTHING ever increments
+ *   `current_period_progress` for a `scheduled` task (`incrementPeriodProgress` refuses the type by
+ *   design), so rolling one would record `quota − 0` every month — a fabricated permanent miss
+ *   against a task the user may be doing faithfully. What the new modes do feed is R8's accrual
+ *   gate, which reads the DEFINITION rather than any period state (`neglectAccrualGapDays`).
  * - **`quota`** — the period rolls; `next_due_at` is left alone. "15/week, whenever" has no day it
  *   is due on, and manufacturing one would put a false deadline on the least deadline-shaped
  *   recurrence in the model.
@@ -128,6 +134,28 @@ export async function advanceRecurrence(
   return { today, scanned: rows.length, advanced };
 }
 
+/** A fixed Monday, long before any row exists — the stride anchor for a recurrence row whose
+ *  `created_at` is missing or unreadable. It has to be a CONSTANT: anything derived from the sweep
+ *  (today, say) would re-phase the schedule on every run and destroy idempotency. */
+const STRIDE_ANCHOR_FALLBACK: CalendarDate = '1970-01-05';
+
+/**
+ * Where task 46's `interval` / `months` strides count from: the task's creation date, which on disk
+ * is `task_recurrence.created_at` (written once, at creation, and left alone by every later edit —
+ * so redefining a schedule does not silently re-phase it).
+ *
+ * Ruled rather than derived: the alternative is a user-chosen start date, and the app has no
+ * date-picker. This deliberately does not introduce one.
+ *
+ * The stored value is SQLite's UTC `CURRENT_TIMESTAMP` while these dates are device-local, so for a
+ * user far from UTC the anchor can be a day out — the same bounded, self-correcting caveat
+ * `calendarDateOfTimestamp` documents. On a stride it costs at most a one-day phase shift, fixed
+ * for the life of the task, and never a wrong weekday: the weekday still comes from `scheduledDays`.
+ */
+function strideAnchor(entity: TaskRecurrenceEntity): CalendarDate {
+  return calendarDateOfTimestamp(entity.createdAt) ?? STRIDE_ANCHOR_FALLBACK;
+}
+
 async function advanceOne(
   deps: RecurrenceSweepDeps,
   row: SweepableRecurrence,
@@ -138,7 +166,17 @@ async function advanceOne(
   const change: RecurrenceAdvancement = { taskId: entity.taskId };
 
   if (recurrence.type === 'scheduled' || recurrence.type === 'scheduled_quota') {
-    const due = nextDueFor(recurrence.scheduledDays, row, today);
+    const due = nextDueFor(
+      {
+        scheduledDays: recurrence.scheduledDays,
+        // Only `scheduled` carries a repeat rule. `scheduled_quota` keeps weekdays and its own
+        // quota/period, exactly as before — task 46 adds nothing to it.
+        repeat: recurrence.type === 'scheduled' ? recurrence.repeat : undefined,
+        anchor: strideAnchor(entity),
+      },
+      row,
+      today,
+    );
     if (due !== null && due !== row.nextDueAt) {
       await deps.tasks.update(entity.taskId, { nextDueAt: due });
       change.dueAdvancedTo = due;
@@ -173,18 +211,18 @@ async function advanceOne(
  * neglect clock (§5.2), which is deliberately not this engine's business.
  */
 function nextDueFor(
-  scheduledDays: readonly Weekday[],
+  spec: ScheduleSpec,
   row: SweepableRecurrence,
   today: CalendarDate,
 ): CalendarDate | null {
   const current = isCalendarDate(row.nextDueAt?.slice(0, 10) ?? null) ? row.nextDueAt!.slice(0, 10) : null;
-  const occurrence = nextOccurrenceOnOrAfter(today, scheduledDays);
+  const occurrence = nextScheduledOnOrAfter(today, spec);
   if (occurrence === null) return null; // no days named: nothing to schedule, nothing to fabricate
 
   if (occurrence === today) {
     const completedOn = calendarDateOfTimestamp(row.lastCompletedAt);
     if (completedOn !== null && compareDates(completedOn, today) >= 0) {
-      return nextOccurrenceAfter(today, scheduledDays);
+      return nextScheduledAfter(today, spec);
     }
     return today;
   }

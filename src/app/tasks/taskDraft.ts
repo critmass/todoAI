@@ -1,40 +1,73 @@
-// Task 24 — the task editor's data model, and the only place the six user-facing recurrence kinds
+// Task 24 — the task editor's data model, and the only place the user-facing recurrence kinds
 // meet the `Recurrence` discriminated union.
 //
-// THE SIX KINDS ARE THE UNION, RENAMED FOR HUMANS. That is the whole design: the editor cannot
+// THE KINDS ARE THE UNION, RENAMED FOR HUMANS. That is the whole design: the editor cannot
 // express a state the data model rejects, because each kind maps onto exactly one union member (or,
 // for a one-off, onto the ABSENCE of a `task_recurrence` row).
 //
-//   One-time     → no recurrence at all (undefined)            + an optional due date
-//   Schedule     → { type: 'scheduled' }                        weekdays
-//   Quota        → { type: 'quota' }                            N times per day/week/month
-//   Quota + days → { type: 'scheduled_quota' }                  N per period, on these weekdays
-//   Ongoing      → { type: 'unscheduled' }                      resurfaces by neglect alone
-//   N times      → { type: 'count' }                            target, then done
+//   One-time           → no recurrence at all (undefined)      + an optional due date
+//   Weekly             → { type: 'scheduled' }                  weekdays, no `repeat` key at all
+//   Every N weeks      → { type: 'scheduled', repeat: interval }    weekdays, every N weeks
+//   Weeks of the month → { type: 'scheduled', repeat: ordinal }     the 6×7 grid's ticked cells
+//   Dates              → { type: 'scheduled', repeat: dayOfMonth }  the 31-cell grid's ticked days
+//   Quota              → { type: 'quota' }                      N times per day/week/month
+//   Quota + days       → { type: 'scheduled_quota' }            N per period, on these weekdays
+//   Ongoing            → { type: 'unscheduled' }                resurfaces by neglect alone
+//   N times            → { type: 'count' }                      target, then done
 //
 // CONSTRAINT #7 LIVES HERE. "One-time" is `undefined`, NOT `{type:'unscheduled'}`. They look alike
 // in a picker and have opposite completion semantics: completing a one-off closes it, completing an
 // unscheduled task resets its neglect clock and leaves it active forever. The editor keeps them two
 // visibly different choices ("One-time" vs "Ongoing") for exactly that reason.
 //
-// WHAT THE PROTOTYPE HAD THAT THIS DOES NOT: an "every N weeks" interval on the schedule kind. The
-// `scheduled` union member carries weekdays and nothing else, so an interval would be a control
-// that silently discards its own value. Dropped rather than faked — see the findings report.
+// TASK 46 PHASE 2 — the four scheduled repeat modes reach the user. Phase 1 shipped a complete,
+// tested engine that nothing in the app could construct a `repeat` for; the three kinds added here
+// (`schedule_interval`, `schedule_ordinal`, `schedule_dates`) are what make it reachable. Two rules
+// this file exists to keep, both learned the hard way:
+//
+//   1. WEEKLY EMITS NO `repeat` KEY. Not `{mode:'everyWeek'}` — the live alpha rows have no such
+//      key, `recurrenceToPattern` normalises an explicit one back to absent, and a save that added
+//      one to every existing row would be a silent data migration nobody asked for.
+//   2. THE TWO MONTH-DRIVEN MODES CARRY NO `scheduledDays`. `recurrenceRepeatIssue` enforces that
+//      at both writers, so stale weekdays left behind by a mode switch would make the repository
+//      throw in the user's face on save. Cleared on the way in (`recurrenceKindPatch`) AND ignored
+//      on the way out (`recurrenceFromDraft`) — a UI slip cannot get past both.
+//
+// WHAT THE PROTOTYPE HAD THAT THIS DID NOT, until now: an "every N weeks" interval. Task 24 dropped
+// it rather than faking it, because the union carried nowhere to put it. Task 46 gave the union
+// somewhere, so it is here.
 
-import type { Period, Recurrence, Task, TaskWriteInput, Weekday } from '../../types/domain';
+import type {
+  Ordinal,
+  OrdinalCell,
+  Period,
+  Recurrence,
+  ScheduledRepeat,
+  Task,
+  TaskWriteInput,
+  Weekday,
+} from '../../types/domain';
 import { internalToUserEnergy, userToInternalEnergy, type UserEnergy } from '../../types/scales';
 
 export type RecurrenceKind =
   | 'once'
   | 'schedule'
+  | 'schedule_interval'
+  | 'schedule_ordinal'
+  | 'schedule_dates'
   | 'quota'
   | 'quota_schedule'
   | 'ongoing'
   | 'count';
 
+/** The dropdown's list, flat and in this order (ruled by Jason, 2026-08-24). One line at the top
+ *  of the editor however many options exist, with the region beneath re-shaping to the choice. */
 export const RECURRENCE_KINDS: ReadonlyArray<{ kind: RecurrenceKind; label: string }> = [
   { kind: 'once', label: 'One-time' },
-  { kind: 'schedule', label: 'Schedule' },
+  { kind: 'schedule', label: 'Weekly' },
+  { kind: 'schedule_interval', label: 'Every N weeks' },
+  { kind: 'schedule_ordinal', label: 'Weeks of the month' },
+  { kind: 'schedule_dates', label: 'Dates' },
   { kind: 'quota', label: 'Quota' },
   { kind: 'quota_schedule', label: 'Quota + days' },
   { kind: 'ongoing', label: 'Ongoing' },
@@ -55,12 +88,42 @@ export const WEEKDAYS: ReadonlyArray<{ day: Weekday; short: string }> = [
   { day: 'sunday', short: 'Su' },
 ];
 
+/** The COLUMNS of the "weeks of the month" grid, Sunday-first because that is how a wall calendar
+ *  reads. `WEEKDAYS` above stays Monday-first: it is a row of chips for a working week, not a
+ *  calendar, and re-ordering it would move controls under the fingers of an existing user. */
+export const GRID_WEEKDAYS: ReadonlyArray<{ day: Weekday; short: string }> = [
+  { day: 'sunday', short: 'Su' },
+  { day: 'monday', short: 'Mo' },
+  { day: 'tuesday', short: 'Tu' },
+  { day: 'wednesday', short: 'We' },
+  { day: 'thursday', short: 'Th' },
+  { day: 'friday', short: 'Fr' },
+  { day: 'saturday', short: 'Sa' },
+];
+
+/** The ROWS of that grid. A literal 5th and Last are DIFFERENT rows and both are wanted: in a month
+ *  with only four Wednesdays the 5th does not fire at all, while Last lands on the 4th. */
+export const ORDINAL_ROWS: ReadonlyArray<{ ordinal: Ordinal; label: string }> = [
+  { ordinal: 1, label: '1st' },
+  { ordinal: 2, label: '2nd' },
+  { ordinal: 3, label: '3rd' },
+  { ordinal: 4, label: '4th' },
+  { ordinal: 5, label: '5th' },
+  { ordinal: 'last', label: 'Last' },
+];
+
+/** The 31 checkboxes of the "dates" grid. */
+export const MONTH_DAYS: readonly number[] = Array.from({ length: 31 }, (_, index) => index + 1);
+
 export const PERIODS: readonly Period[] = ['day', 'week', 'month'];
 
+/** The two kinds whose `repeat` is month-driven, and which therefore must carry NO weekdays. */
+const MONTH_DRIVEN_KINDS: readonly RecurrenceKind[] = ['schedule_ordinal', 'schedule_dates'];
+
 /**
- * What the editor holds while the user types. Everything is a STRING because half of it comes out
- * of a text field mid-edit and "" is a legal intermediate state that a number cannot represent;
- * `draftToWrite` is where it becomes typed data or an error.
+ * What the editor holds while the user types. Everything numeric is a STRING because half of it
+ * comes out of a text field mid-edit and "" is a legal intermediate state that a number cannot
+ * represent; `draftToWrite` is where it becomes typed data or an error.
  *
  * NO IMPORTANCE FIELD, deliberately. Importance is coach-inferred (spec §4.1) — asking an ADHD
  * user to rank every task on a 1–10 scale is precisely the executive-function tax this app exists
@@ -79,8 +142,17 @@ export interface TaskDraft {
   kind: RecurrenceKind;
   /** `once` only. YYYY-MM-DD, or '' for no due date. */
   dueDate: string;
-  /** `schedule` and `quota_schedule`. */
+  /** `schedule`, `schedule_interval` and `quota_schedule`. EMPTY in the two month-driven kinds. */
   scheduledDays: Weekday[];
+  /** `schedule_interval`. Every N weeks, as typed. */
+  weekInterval: string;
+  /** `schedule_ordinal`. Every ticked cell of the 6×7 grid is ONE occurrence — never a product of
+   *  a row list and a column list (see `OrdinalCell` in ../../types/domain). */
+  ordinalCells: OrdinalCell[];
+  /** `schedule_dates`. The ticked days of the month, 1–31. */
+  monthDays: number[];
+  /** `schedule_ordinal` and `schedule_dates`. Every N months, as typed. */
+  monthInterval: string;
   /** `quota` and `quota_schedule`. */
   quota: string;
   period: Period;
@@ -92,6 +164,40 @@ export interface TaskDraft {
   toolRequirements: string[];
 }
 
+/** The recurrence half of a draft: exactly the fields `recurrenceFromDraft` reads, and nothing
+ *  else. Naming it is what lets `draftFromRecurrence` → `recurrenceFromDraft` be asserted as an
+ *  identity without dragging a title and a duration through the round trip. */
+export type RecurrenceDraft = Pick<
+  TaskDraft,
+  | 'kind'
+  | 'scheduledDays'
+  | 'weekInterval'
+  | 'ordinalCells'
+  | 'monthDays'
+  | 'monthInterval'
+  | 'quota'
+  | 'period'
+  | 'target'
+  | 'progress'
+>;
+
+function emptyRecurrenceDraft(): RecurrenceDraft {
+  return {
+    kind: 'once',
+    scheduledDays: [],
+    // 1 would be plain "Weekly", which is its own option — so the interval this mode adds starts
+    // at the smallest value that means anything different.
+    weekInterval: '2',
+    ordinalCells: [],
+    monthDays: [],
+    monthInterval: '1',
+    quota: '',
+    period: 'week',
+    target: '',
+    progress: 0,
+  };
+}
+
 export function emptyDraft(): TaskDraft {
   return {
     id: null,
@@ -100,13 +206,8 @@ export function emptyDraft(): TaskDraft {
     estimatedDuration: '25',
     openEnded: false,
     energy: 'med',
-    kind: 'once',
     dueDate: '',
-    scheduledDays: [],
-    quota: '',
-    period: 'week',
-    target: '',
-    progress: 0,
+    ...emptyRecurrenceDraft(),
     contextTags: [],
     toolRequirements: [],
   };
@@ -122,7 +223,7 @@ function energyLabel(internal: number): UserEnergy {
 }
 
 export function draftFromTask(task: Task, recurrence: Recurrence | undefined): TaskDraft {
-  const draft: TaskDraft = {
+  return {
     ...emptyDraft(),
     id: task.id,
     title: task.title,
@@ -133,41 +234,131 @@ export function draftFromTask(task: Task, recurrence: Recurrence | undefined): T
     dueDate: task.nextDueAt ? task.nextDueAt.slice(0, 10) : '',
     contextTags: [...task.contextTags],
     toolRequirements: [...task.toolRequirements],
+    ...draftFromRecurrence(recurrence),
   };
-  if (!recurrence) return draft; // a true one-off — no row, and that is the meaningful fact
+}
+
+/**
+ * Hydrates a stored recurrence back into the fields the editor edits. `undefined` — a task with no
+ * `task_recurrence` row at all — opens as "One-time", never as "Ongoing" (constraint #7).
+ *
+ * The `scheduled` branch is where task 46 lives: an absent `repeat` and an explicit
+ * `{mode:'everyWeek'}` both open as plain Weekly, because the union defines them as the same
+ * thing, and each of the other three modes opens as its own dropdown option rather than as a
+ * weekly schedule that has quietly lost its `repeat`.
+ */
+export function draftFromRecurrence(recurrence: Recurrence | undefined): RecurrenceDraft {
+  const base = emptyRecurrenceDraft();
+  if (!recurrence) return base; // a true one-off — no row, and that is the meaningful fact
   switch (recurrence.type) {
     case 'scheduled':
-      return { ...draft, kind: 'schedule', scheduledDays: [...recurrence.scheduledDays] };
+      return scheduledDraft(base, recurrence.scheduledDays, recurrence.repeat);
     case 'quota':
-      return {
-        ...draft,
-        kind: 'quota',
-        quota: String(recurrence.quota),
-        period: recurrence.period,
-      };
+      return { ...base, kind: 'quota', quota: String(recurrence.quota), period: recurrence.period };
     case 'scheduled_quota':
       return {
-        ...draft,
+        ...base,
         kind: 'quota_schedule',
         quota: String(recurrence.quota),
         period: recurrence.period,
         scheduledDays: [...recurrence.scheduledDays],
       };
     case 'unscheduled':
-      return { ...draft, kind: 'ongoing' };
+      return { ...base, kind: 'ongoing' };
     case 'count':
+      return { ...base, kind: 'count', target: String(recurrence.target), progress: recurrence.progress };
+  }
+}
+
+/** The four scheduled modes, unpacked into the fields the editor edits. An absent `repeat` and an
+ *  explicit `{mode:'everyWeek'}` both land on plain Weekly, because the union defines them as the
+ *  same thing; a stride of 1 shows as "1" whether it was stored or merely implied. */
+function scheduledDraft(
+  base: RecurrenceDraft,
+  scheduledDays: Weekday[],
+  repeat: ScheduledRepeat | undefined,
+): RecurrenceDraft {
+  if (repeat === undefined || repeat.mode === 'everyWeek') {
+    return { ...base, kind: 'schedule', scheduledDays: [...scheduledDays] };
+  }
+  switch (repeat.mode) {
+    case 'interval':
       return {
-        ...draft,
-        kind: 'count',
-        target: String(recurrence.target),
-        progress: recurrence.progress,
+        ...base,
+        kind: 'schedule_interval',
+        scheduledDays: [...scheduledDays],
+        weekInterval: String(repeat.weeks),
+      };
+    case 'ordinal':
+      return {
+        ...base,
+        kind: 'schedule_ordinal',
+        ordinalCells: repeat.cells.map((cell) => ({ ...cell })),
+        monthInterval: String(repeat.months ?? 1),
+      };
+    case 'dayOfMonth':
+      return {
+        ...base,
+        kind: 'schedule_dates',
+        monthDays: [...repeat.days],
+        monthInterval: String(repeat.months ?? 1),
       };
   }
 }
 
+/**
+ * 🔴 THE PATCH THE DROPDOWN SENDS WHEN THE USER CHANGES OPTION.
+ *
+ * Switching into "Weeks of the month" or "Dates" CLEARS the weekdays. That is not tidiness:
+ * `recurrenceRepeatIssue` rejects a month-driven repeat that still carries `scheduledDays`, at
+ * both writers, so leaving them behind means the repository throws a `RecurrenceValidationError`
+ * at the user the moment they press Save.
+ *
+ * The other direction is deliberately NOT symmetrical — leaving Dates keeps the ticked dates, so a
+ * user who looks at Weekly and changes their mind still has them. Nothing reads them in another
+ * mode (`recurrenceFromDraft` only ever reads the current kind's own fields), so they are invisible
+ * rather than stale.
+ */
+export function recurrenceKindPatch(kind: RecurrenceKind): Partial<TaskDraft> {
+  return MONTH_DRIVEN_KINDS.includes(kind) ? { kind, scheduledDays: [] } : { kind };
+}
+
+function sameCell(a: OrdinalCell, b: OrdinalCell): boolean {
+  return a.ordinal === b.ordinal && a.weekday === b.weekday;
+}
+
+/** Ticks or un-ticks ONE box of the 6×7 grid. One cell, one occurrence. */
+export function toggleOrdinalCell(cells: OrdinalCell[], cell: OrdinalCell): OrdinalCell[] {
+  return cells.some((existing) => sameCell(existing, cell))
+    ? cells.filter((existing) => !sameCell(existing, cell))
+    : [...cells, { ...cell }];
+}
+
+export function isOrdinalCellTicked(cells: OrdinalCell[], cell: OrdinalCell): boolean {
+  return cells.some((existing) => sameCell(existing, cell));
+}
+
+/** Ticks or un-ticks one of the 31 date checkboxes. */
+export function toggleMonthDay(days: number[], day: number): number[] {
+  return days.includes(day) ? days.filter((existing) => existing !== day) : [...days, day];
+}
+
 export interface DraftValidation {
   /** Field-keyed messages. Empty ⇒ the draft is saveable. */
-  errors: Partial<Record<'title' | 'estimatedDuration' | 'quota' | 'target' | 'days', string>>;
+  errors: Partial<
+    Record<
+      | 'title'
+      | 'estimatedDuration'
+      | 'quota'
+      | 'target'
+      | 'days'
+      | 'weekInterval'
+      | 'cells'
+      | 'monthDays'
+      | 'monthInterval',
+      string
+    >
+  >;
 }
 
 function positiveInt(text: string): number | null {
@@ -191,10 +382,27 @@ export function validateDraft(draft: TaskDraft): DraftValidation {
     errors.target = 'How many times in total?';
   }
   if (
-    (draft.kind === 'schedule' || draft.kind === 'quota_schedule') &&
+    (draft.kind === 'schedule' ||
+      draft.kind === 'schedule_interval' ||
+      draft.kind === 'quota_schedule') &&
     draft.scheduledDays.length === 0
   ) {
     errors.days = 'Pick at least one day.';
+  }
+  if (draft.kind === 'schedule_interval' && positiveInt(draft.weekInterval) == null) {
+    errors.weekInterval = 'Every how many weeks?';
+  }
+  if (draft.kind === 'schedule_ordinal' && draft.ordinalCells.length === 0) {
+    errors.cells = 'Tick at least one box.';
+  }
+  if (draft.kind === 'schedule_dates' && draft.monthDays.length === 0) {
+    errors.monthDays = 'Pick at least one date.';
+  }
+  if (
+    MONTH_DRIVEN_KINDS.includes(draft.kind) &&
+    positiveInt(draft.monthInterval) == null
+  ) {
+    errors.monthInterval = 'Every how many months?';
   }
   return { errors };
 }
@@ -232,12 +440,54 @@ export function draftToWrite(draft: TaskDraft): DraftWrite {
   return { taskWrite, recurrence: recurrenceFromDraft(draft) };
 }
 
-function recurrenceFromDraft(draft: TaskDraft): Recurrence | undefined {
+/** A month stride of 1 is spelled by ABSENCE, exactly as `everyWeek` is: `period.ts` reads
+ *  `repeat.months ?? 1`, so one canonical on-disk shape for "every month" rather than two. */
+function monthStride(text: string): { months?: number } {
+  const months = positiveInt(text);
+  return months === null || months === 1 ? {} : { months };
+}
+
+/**
+ * The draft → union mapping. Exported because round-trip fidelity is the test that matters most
+ * here: `draftFromRecurrence` → `recurrenceFromDraft` must be the IDENTITY, so that opening a task
+ * and saving it untouched cannot quietly rewrite what it repeats.
+ */
+export function recurrenceFromDraft(draft: RecurrenceDraft): Recurrence | undefined {
   switch (draft.kind) {
     case 'once':
       return undefined;
     case 'schedule':
+      // 🔴 NO `repeat` KEY. `{mode:'everyWeek'}` would mean the same thing and serialise to a
+      // different row: the live alpha schedules have no such key and must keep not having one.
       return { type: 'scheduled', scheduledDays: [...draft.scheduledDays] };
+    case 'schedule_interval':
+      return {
+        type: 'scheduled',
+        scheduledDays: [...draft.scheduledDays],
+        repeat: { mode: 'interval', weeks: positiveInt(draft.weekInterval) as number },
+      };
+    case 'schedule_ordinal':
+      return {
+        type: 'scheduled',
+        // 🔴 EMPTY, whatever the draft still holds. The weekday rides inside each cell, and the
+        // repository refuses to write a month-driven repeat that carries weekdays.
+        scheduledDays: [],
+        repeat: {
+          mode: 'ordinal',
+          cells: draft.ordinalCells.map((cell) => ({ ...cell })),
+          ...monthStride(draft.monthInterval),
+        },
+      };
+    case 'schedule_dates':
+      return {
+        type: 'scheduled',
+        scheduledDays: [],
+        repeat: {
+          mode: 'dayOfMonth',
+          days: [...draft.monthDays],
+          ...monthStride(draft.monthInterval),
+        },
+      };
     case 'quota':
       return { type: 'quota', quota: positiveInt(draft.quota) as number, period: draft.period };
     case 'quota_schedule':
@@ -259,7 +509,7 @@ export function describeRecurrence(recurrence: Recurrence | undefined, task: Tas
   if (!recurrence) return task.nextDueAt ? `Due ${task.nextDueAt.slice(0, 10)}` : 'One-time';
   switch (recurrence.type) {
     case 'scheduled':
-      return `Every ${recurrence.scheduledDays.map(shortDay).join('/') || 'week'}`;
+      return describeSchedule(recurrence.scheduledDays, recurrence.repeat);
     case 'quota':
       return `${recurrence.quota}× a ${recurrence.period}`;
     case 'scheduled_quota':
@@ -271,6 +521,34 @@ export function describeRecurrence(recurrence: Recurrence | undefined, task: Tas
     case 'count':
       return `${recurrence.progress} of ${recurrence.target} times`;
   }
+}
+
+/** A scheduled task's summary. The weekly wording is byte-for-byte what it was before task 46 —
+ *  an existing row's list entry must not change because a new mode exists beside it. */
+function describeSchedule(scheduledDays: Weekday[], repeat: ScheduledRepeat | undefined): string {
+  const days = scheduledDays.map(shortDay).join('/');
+  if (repeat === undefined || repeat.mode === 'everyWeek') return `Every ${days || 'week'}`;
+  switch (repeat.mode) {
+    case 'interval':
+      return days ? `Every ${repeat.weeks} weeks on ${days}` : `Every ${repeat.weeks} weeks`;
+    case 'ordinal': {
+      const cells = repeat.cells.map(describeCell).join(', ');
+      return cells ? `${cells} ${everyMonths(repeat.months)}` : 'Monthly';
+    }
+    case 'dayOfMonth': {
+      const dates = repeat.days.join(', ');
+      return dates ? `Day ${dates} ${everyMonths(repeat.months)}` : 'Monthly';
+    }
+  }
+}
+
+function everyMonths(months: number | undefined): string {
+  return months === undefined || months === 1 ? 'each month' : `every ${months} months`;
+}
+
+function describeCell(cell: OrdinalCell): string {
+  const row = ORDINAL_ROWS.find((entry) => entry.ordinal === cell.ordinal);
+  return `${row ? row.label : String(cell.ordinal)} ${shortDay(cell.weekday)}`;
 }
 
 function shortDay(day: Weekday): string {

@@ -9,6 +9,7 @@ import { createInteractionsRepository } from '../../../db/repositories/interacti
 import { createRecurrenceRepository } from '../../../db/repositories/recurrence';
 import { createTasksRepository } from '../../../db/repositories/tasks';
 import { createTaskLibraryController } from '../taskLibraryController';
+import { recurrenceKindPatch } from '../taskDraft';
 
 describe('task library controller (task 24)', () => {
   let conn: TestSqliteConnection;
@@ -245,6 +246,144 @@ describe('task library controller (task 24)', () => {
       await ctl.selfComplete(task.id);
       const after = await tasks.getById(task.id);
       expect(after?.actualDurationHistory).toEqual([]);
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // Task 46 phase 2 — REACHABILITY, end to end and against real SQLite.
+  //
+  // Phase 1 shipped an engine nothing could construct a `repeat` for. These are the tests that say
+  // it is no longer true: the editor's own patches go in at the top, and a real `task_recurrence`
+  // row with a real `repeat` comes out at the bottom.
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  describe('task 46 phase 2 — the four scheduled modes, editor to database', () => {
+    function pattern(taskId: number): string {
+      const row = conn.raw
+        .prepare('SELECT recurrence_pattern FROM task_recurrence WHERE task_id = ?')
+        .get(taskId) as { recurrence_pattern: string };
+      return row.recurrence_pattern;
+    }
+
+    it('🔴 opening a legacy weekly task and saving it untouched leaves the row alone', async () => {
+      const task = await tasks.create({ title: 'Stretch', estimatedDuration: 5 });
+      await recurrence.create(task.id, { type: 'scheduled', scheduledDays: ['monday', 'friday'] });
+      const before = pattern(task.id);
+
+      const ctl = controller();
+      await ctl.open(task.id);
+      expect(await ctl.save()).toBe(true);
+
+      // Byte-for-byte: no `repeat` key appears, so the three real recurring tasks in the live alpha
+      // database are not quietly migrated by being opened.
+      expect(pattern(task.id)).toBe(before);
+      expect(pattern(task.id)).not.toContain('repeat');
+      expect(await recurrence.getByTaskId(task.id)).toEqual({
+        type: 'scheduled',
+        scheduledDays: ['monday', 'friday'],
+      });
+    });
+
+    it('writes "every N weeks" as a real interval repeat', async () => {
+      const ctl = controller();
+      ctl.openNew();
+      ctl.change({ title: 'Bins out', estimatedDuration: '5' });
+      ctl.change(recurrenceKindPatch('schedule_interval'));
+      ctl.change({ scheduledDays: ['tuesday'], weekInterval: '2' });
+      expect(await ctl.save()).toBe(true);
+
+      const [created] = await tasks.listActive();
+      expect(await recurrence.getByTaskId(created.id)).toEqual({
+        type: 'scheduled',
+        scheduledDays: ['tuesday'],
+        repeat: { mode: 'interval', weeks: 2 },
+      });
+    });
+
+    it('writes "weeks of the month" as the ticked cells, and only those', async () => {
+      const ctl = controller();
+      ctl.openNew();
+      ctl.change({ title: 'Pay the cleaner', estimatedDuration: '5' });
+      ctl.change(recurrenceKindPatch('schedule_ordinal'));
+      ctl.change({
+        ordinalCells: [
+          { ordinal: 1, weekday: 'monday' },
+          { ordinal: 3, weekday: 'wednesday' },
+        ],
+        monthInterval: '1',
+      });
+      expect(await ctl.save()).toBe(true);
+
+      const [created] = await tasks.listActive();
+      expect(await recurrence.getByTaskId(created.id)).toEqual({
+        type: 'scheduled',
+        scheduledDays: [],
+        // TWO occurrences a month, not the four a row × column cross product would have written.
+        repeat: {
+          mode: 'ordinal',
+          cells: [
+            { ordinal: 1, weekday: 'monday' },
+            { ordinal: 3, weekday: 'wednesday' },
+          ],
+        },
+      });
+    });
+
+    it('writes "dates" as days of the month, with a stride', async () => {
+      const ctl = controller();
+      ctl.openNew();
+      ctl.change({ title: 'Read the meter', estimatedDuration: '5' });
+      ctl.change(recurrenceKindPatch('schedule_dates'));
+      ctl.change({ monthDays: [1, 15], monthInterval: '2' });
+      expect(await ctl.save()).toBe(true);
+
+      const [created] = await tasks.listActive();
+      expect(await recurrence.getByTaskId(created.id)).toEqual({
+        type: 'scheduled',
+        scheduledDays: [],
+        repeat: { mode: 'dayOfMonth', days: [1, 15], months: 2 },
+      });
+    });
+
+    it('🔴 a weekly task switched to Dates in the editor SAVES — the repository does not reject it', async () => {
+      const task = await tasks.create({ title: 'Water the plants', estimatedDuration: 5 });
+      await recurrence.create(task.id, {
+        type: 'scheduled',
+        scheduledDays: ['monday', 'thursday'],
+      });
+
+      const ctl = controller();
+      await ctl.open(task.id);
+      expect(ctl.getState().draft.scheduledDays).toEqual(['monday', 'thursday']);
+      // Exactly what the dropdown sends: the kind AND the cleared weekdays, in one patch.
+      ctl.change(recurrenceKindPatch('schedule_dates'));
+      ctl.change({ monthDays: [1] });
+
+      expect(await ctl.save()).toBe(true);
+      expect(ctl.getState().error).toBeNull();
+      expect(await recurrence.getByTaskId(task.id)).toEqual({
+        type: 'scheduled',
+        scheduledDays: [],
+        repeat: { mode: 'dayOfMonth', days: [1] },
+      });
+    });
+
+    it('re-opens each saved mode as itself, so a second save is a no-op', async () => {
+      const ctl = controller();
+      ctl.openNew();
+      ctl.change({ title: 'Pay the cleaner', estimatedDuration: '5' });
+      ctl.change(recurrenceKindPatch('schedule_ordinal'));
+      ctl.change({ ordinalCells: [{ ordinal: 'last', weekday: 'friday' }], monthInterval: '3' });
+      await ctl.save();
+
+      const [created] = await tasks.listActive();
+      const stored = pattern(created.id);
+
+      const reopened = controller();
+      await reopened.open(created.id);
+      expect(reopened.getState().draft.kind).toBe('schedule_ordinal');
+      expect(reopened.getState().draft.monthInterval).toBe('3');
+      expect(await reopened.save()).toBe(true);
+      expect(pattern(created.id)).toBe(stored);
     });
   });
 });

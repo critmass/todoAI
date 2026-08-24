@@ -3,10 +3,13 @@
 // prototype's whole visual system is expressible in these, and keeping the set small is what
 // stops the functional pass from drifting into the beta-gate designed pass.
 //
-// Everything here is presentational and stateless. No repository, no service, no clock.
+// Everything here is presentational. No repository, no service, no clock. `Dropdown` holds the one
+// piece of local state in the file — whether its own menu is open, which is not application state
+// and has no business in a draft.
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -182,26 +185,106 @@ export function DangerButton({ title, onPress, disabled, style }: ButtonProps) {
 
 // ── Chips, cards, fields ─────────────────────────────────────────────────────────────────────
 
-/** A single-select / multi-select pill (recurrence kinds, weekdays, contexts). */
+/** A single-select / multi-select pill (weekdays, periods, contexts) — and, sized down by `style`,
+ *  one box of the recurrence editor's two grids. `accessibilityLabel` is what makes that second use
+ *  legitimate: a grid cell's own text is a tick or a bare number, and "1st Monday" is the only
+ *  thing that says what tapping it means. */
 export function SelectChip({
   label,
   selected,
   onPress,
   style,
+  accessibilityLabel,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected }}
       style={[styles.chip, selected ? styles.chipSelected : styles.chipUnselected, style]}>
       <Text style={selected ? styles.chipLabelSelected : styles.chipLabel}>{label}</Text>
     </Pressable>
+  );
+}
+
+/**
+ * A single-select menu: the current choice on one line, the whole list in a sheet.
+ *
+ * 🔴 JS ONLY, deliberately. `@react-native-picker/picker` — or any other native picker — would be a
+ * new native module, and therefore a full rebuild and another run at this project's documented
+ * `.cxx` codegen trap (task 24 §9.6). A `Pressable` plus React Native's own core `Modal` needs
+ * none of that: no native code, no rebuild, and the whole control is testable headless.
+ *
+ * Reusable on purpose. Several screens are chip rows that could adopt it later; nothing else does
+ * yet, and converting them is not this task.
+ */
+export function Dropdown<T extends string>({
+  value,
+  options,
+  onSelect,
+  accessibilityLabel,
+}: {
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onSelect: (next: T) => void;
+  /** What the closed control is called ("How often this repeats"). The visible text is the
+   *  CURRENT VALUE, which on its own never says what the value is a value of. */
+  accessibilityLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((option) => option.value === value);
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ expanded: open }}
+        style={({ pressed }) => [styles.dropdown, pressed && styles.dropdownPressed]}>
+        <Text style={styles.dropdownValue}>{current ? current.label : ''}</Text>
+        <Text style={styles.dropdownCaret}>▾</Text>
+      </Pressable>
+      {open ? (
+        <Modal transparent visible animationType="fade" onRequestClose={() => setOpen(false)}>
+          <View style={styles.menuOverlay}>
+            {/* A full-screen sibling rather than a wrapper, so a tap on an option is never also a
+                tap on the backdrop. */}
+            <Pressable
+              onPress={() => setOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close menu"
+              style={styles.menuBackdrop}
+            />
+            <ScrollView style={styles.menuSheet}>
+              {options.map((option) => (
+                <Pressable
+                  key={option.value}
+                  onPress={() => {
+                    setOpen(false);
+                    onSelect(option.value);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={option.label}
+                  accessibilityState={{ selected: option.value === value }}
+                  style={({ pressed }) => [styles.menuItem, pressed && styles.dropdownPressed]}>
+                  <Text
+                    style={option.value === value ? styles.menuItemSelected : styles.menuItemLabel}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+      ) : null}
+    </>
   );
 }
 
@@ -365,6 +448,42 @@ const styles = StyleSheet.create({
     paddingRight: spacing.sm,
   },
   removableChipX: { color: colors.textMuted, fontSize: fontSize.input },
+
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    columnGap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderInput,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+  },
+  dropdownPressed: { backgroundColor: colors.border },
+  dropdownValue: { fontSize: fontSize.input, color: colors.text, fontWeight: '500' },
+  dropdownCaret: { fontSize: fontSize.input, color: colors.textMuted },
+  menuOverlay: { flex: 1, justifyContent: 'center', padding: spacing.xl },
+  menuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#00000055',
+  },
+  menuSheet: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    maxHeight: '80%',
+    ...shadow.button,
+  },
+  menuItem: { paddingVertical: spacing.lg, paddingHorizontal: spacing.lg },
+  menuItemLabel: { fontSize: fontSize.input, color: colors.text },
+  menuItemSelected: { fontSize: fontSize.input, color: colors.primary, fontWeight: '600' },
 
   card: {
     backgroundColor: colors.surface,

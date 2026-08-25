@@ -1,9 +1,10 @@
-# Headless work queue — staged 2026-08-22
+# Headless work queue — staged 2026-08-22, current as of 2026-08-24
 
 **What this is.** The ordered queue of **headless** tasks that are **not** blocked by device (`P`) work
 and **not** gated by task 31 — the work that can proceed while the model-migration chain waits on the
-corpus and while the device sessions are unscheduled. Staged at Jason's instruction, **task 53 at the
-head.**
+corpus and while the device sessions are unscheduled. Originally staged at Jason's instruction with task
+53 at the head. ✅ **Struck rows below are done.** **The head is now whatever the first un-struck row
+says** — read the table, not this paragraph, and keep the numbering contiguous when a task lands.
 
 **How it runs (the discipline):** each task-subagent is launched from a **written brief** in
 `docs/briefs/` with a **minimal spawn prompt** (point it at the brief; don't re-state the brief inline),
